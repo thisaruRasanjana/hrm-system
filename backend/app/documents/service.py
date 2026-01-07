@@ -1,9 +1,12 @@
 import os
 from uuid import UUID
+
 from fastapi import UploadFile, HTTPException, status
 from sqlalchemy.orm import Session
+from starlette.responses import FileResponse
 
 from app.documents.model import EmployeeDocument, DocumentStatus
+
 BASE_UPLOAD_DIR = "uploads/documents"
 
 ALLOWED_FILE_TYPES = [
@@ -23,6 +26,7 @@ def save_file(file: UploadFile, employee_id: UUID) -> str:
         buffer.write(file.file.read())
 
     return file_path
+
 def upload_employee_document(
     db: Session,
     employee_id: UUID,
@@ -37,10 +41,8 @@ def upload_employee_document(
             detail="Only PDF, JPG, and PNG files are allowed"
         )
 
-    # ✅ Save file to uploads/documents/
     file_path = save_file(file, employee_id)
 
-    # ✅ Create DB record with clean status
     document = EmployeeDocument(
         employee_id=employee_id,
         document_type=document_type,
@@ -61,4 +63,35 @@ def get_employee_documents(db: Session, employee_id: UUID):
         .filter(EmployeeDocument.employee_id == employee_id)
         .order_by(EmployeeDocument.uploaded_at.desc())
         .all()
+    )
+def download_employee_document(
+    db: Session,
+    document_id: UUID,
+    employee_id: UUID
+):
+    document = (
+        db.query(EmployeeDocument)
+        .filter(
+            EmployeeDocument.id == document_id,
+            EmployeeDocument.employee_id == employee_id
+        )
+        .first()
+    )
+
+    if not document:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found or access denied"
+        )
+
+    if not os.path.exists(document.file_path):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="File not found on server"
+        )
+
+    return FileResponse(
+        path=document.file_path,
+        filename=document.file_name,
+        media_type="application/octet-stream"
     )
