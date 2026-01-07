@@ -22,3 +22,6 @@ SessionLocal = sessionmaker(
     autoflush=False,
     bind=engine
 )
+
+print("DATABASE URL USED BY FASTAPI:", DATABASE_URL)
+
