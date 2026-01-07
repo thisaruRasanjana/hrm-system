@@ -27,38 +27,44 @@ export default function VacancyCreatePage() {
 
   return (
     <div className="flex min-h-screen bg-gray-100">
-      {/* Sidebar */}
-      <aside className="w-64 bg-gray-50 border-r px-6 py-4">
-        <h1 className="text-2xl font-bold mb-8">HRSM</h1>
+      {/* SIDEBAR */}
+      <aside className="w-64 bg-[#F3F3F3] border-r border-gray-200 px-6 py-8">
+        <h1 className="text-2xl font-bold mb-10 tracking-wide">
+          HRSM
+        </h1>
 
-        <nav className="space-y-4 text-gray-500">
-          <div>Dashboard</div>
-          <div className="text-orange-500 font-medium">Recruitment</div>
-          <div>Document</div>
+        <p className="text-xs text-gray-400 tracking-widest mb-6">
+          MAIN MENU
+        </p>
+
+        <nav className="space-y-6 text-gray-500 text-base">
+          <div className="cursor-pointer">Dashboard</div>
+          <div className="text-orange-500 font-semibold">Recruitment</div>
+          <div className="cursor-pointer">Document</div>
         </nav>
       </aside>
 
-      {/* Main content */}
-      <main className="flex-1 p-8">
-        {/* Header */}
-        <h2 className="text-2xl font-semibold mb-6">
+      {/* MAIN CONTENT */}
+      <main className="flex-1 p-10">
+        {/* PAGE TITLE */}
+        <h2 className="text-3xl font-semibold text-gray-800 mb-8">
           Create New Vacancy
         </h2>
 
-        {/* Form Card */}
+        {/* FORM CARD */}
         <form
           onSubmit={handleSubmit}
-          className="bg-white rounded-lg border p-6 max-w-3xl"
+          className="bg-white rounded-2xl border border-gray-200 shadow-sm p-8 max-w-3xl"
         >
-          {/* Position Title */}
-          <div className="mb-4">
-            <label className="block mb-1 font-medium">
+          {/* POSITION TITLE */}
+          <div className="mb-6">
+            <label className="block mb-2 text-sm font-medium text-gray-700">
               Position Title
             </label>
             <input
               type="text"
               placeholder="e.g. Senior Software Engineer"
-              className="w-full border rounded px-3 py-2"
+              className="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-200"
               value={form.title}
               onChange={(e) =>
                 setForm({ ...form, title: e.target.value })
@@ -67,13 +73,13 @@ export default function VacancyCreatePage() {
             />
           </div>
 
-          {/* Department */}
-          <div className="mb-4">
-            <label className="block mb-1 font-medium">
+          {/* DEPARTMENT */}
+          <div className="mb-6">
+            <label className="block mb-2 text-sm font-medium text-gray-700">
               Department
             </label>
             <select
-              className="w-full border rounded px-3 py-2"
+              className="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-orange-200"
               value={form.department}
               onChange={(e) =>
                 setForm({ ...form, department: e.target.value })
@@ -87,12 +93,12 @@ export default function VacancyCreatePage() {
             </select>
           </div>
 
-          {/* Experience Level */}
-          <div className="mb-4">
-            <label className="block mb-2 font-medium">
+          {/* EXPERIENCE LEVEL */}
+          <div className="mb-6">
+            <label className="block mb-3 text-sm font-medium text-gray-700">
               Experience Level
             </label>
-            <div className="flex gap-3">
+            <div className="flex gap-4">
               {["Intern", "Junior", "Mid", "Senior"].map((level) => (
                 <button
                   type="button"
@@ -100,10 +106,10 @@ export default function VacancyCreatePage() {
                   onClick={() =>
                     setForm({ ...form, experience_level: level })
                   }
-                  className={`px-4 py-2 rounded border ${
+                  className={`px-5 py-2 rounded-lg border text-sm ${
                     form.experience_level === level
                       ? "bg-orange-400 text-white border-orange-400"
-                      : "bg-white"
+                      : "bg-white text-gray-700 border-gray-300 hover:border-orange-300"
                   }`}
                 >
                   {level}
@@ -112,14 +118,14 @@ export default function VacancyCreatePage() {
             </div>
           </div>
 
-          {/* Job Description */}
-          <div className="mb-4">
-            <label className="block mb-1 font-medium">
+          {/* JOB DESCRIPTION */}
+          <div className="mb-6">
+            <label className="block mb-2 text-sm font-medium text-gray-700">
               Job Description
             </label>
             <textarea
               placeholder="Describe the role and responsibilities..."
-              className="w-full border rounded px-3 py-2 h-24"
+              className="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm h-28 resize-none focus:outline-none focus:ring-2 focus:ring-orange-200"
               value={form.description}
               onChange={(e) =>
                 setForm({ ...form, description: e.target.value })
@@ -127,31 +133,31 @@ export default function VacancyCreatePage() {
             />
           </div>
 
-          {/* Requirements (UI only) */}
-          <div className="mb-6">
-            <label className="block mb-1 font-medium">
+          {/* REQUIREMENTS (UI ONLY) */}
+          <div className="mb-8">
+            <label className="block mb-2 text-sm font-medium text-gray-700">
               Requirements
             </label>
             <textarea
               placeholder="List required skills and qualifications..."
-              className="w-full border rounded px-3 py-2 h-24"
+              className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm h-28 resize-none bg-gray-50 text-gray-400"
               disabled
             />
           </div>
 
-          {/* Buttons */}
-          <div className="flex gap-4">
+          {/* ACTION BUTTONS */}
+          <div className="flex gap-5">
             <button
               type="button"
               onClick={() => router.push("/recruitment")}
-              className="px-6 py-2 border border-orange-400 text-orange-400 rounded-lg"
+              className="px-8 py-3 border border-orange-400 text-orange-500 rounded-xl text-sm font-medium hover:bg-orange-50"
             >
               Cancel
             </button>
 
             <button
               type="submit"
-              className="px-6 py-2 bg-orange-400 hover:bg-orange-500 text-white rounded-lg"
+              className="px-8 py-3 bg-orange-400 hover:bg-orange-500 text-white rounded-xl text-sm font-medium"
             >
               Create Vacancy
             </button>
