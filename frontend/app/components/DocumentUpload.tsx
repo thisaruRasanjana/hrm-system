@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { uploadDocument } from "../api/documentApi";
+import { uploadDocument } from "../lib/documentApi";
 
-const EMPLOYEE_ID = "PASTE_EMPLOYEE_UUID_HERE";
+const EMPLOYEE_ID = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
 
 export default function DocumentUpload({
   onUploadSuccess,
