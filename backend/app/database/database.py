@@ -5,20 +5,25 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-DB_HOST = os.getenv("DB_HOST")
-DB_PORT = os.getenv("DB_PORT")
-DB_NAME = os.getenv("DB_NAME")
-DB_USER = os.getenv("DB_USER")
-DB_PASSWORD = os.getenv("DB_PASSWORD")
-
-DATABASE_URL = (
-    f"postgresql://{DB_USER}:{DB_PASSWORD}"
-    f"@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+# Try to use DATABASE_URL directly from env, fallback to component-based construction
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    f"postgresql://{os.getenv('DB_USER', 'postgres')}:"
+    f"{os.getenv('DB_PASSWORD', 'postgres')}"
+    f"@{os.getenv('DB_HOST', 'localhost')}:"
+    f"{os.getenv('DB_PORT', '5432')}/{os.getenv('DB_NAME', 'hrm_db')}"
 )
 
-engine = create_engine(DATABASE_URL)
+print(f"Database URL: {DATABASE_URL}")
+
+try:
+    engine = create_engine(DATABASE_URL, echo=False)
+except Exception as e:
+    print(f"Error creating engine: {e}")
+    engine = None
+
 SessionLocal = sessionmaker(
     autocommit=False,
     autoflush=False,
     bind=engine
-)
+) if engine else None
