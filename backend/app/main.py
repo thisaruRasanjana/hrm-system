@@ -1,29 +1,39 @@
-from fastapi import FastAPI
-from fastapi.security import HTTPBearer
+from fastapi import FastAPI, Depends
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+
 from app.database.database import engine
 from app.database.base import Base
-from app.auth import models
 from app.auth.router import router as auth_router
+from app.auth import models
 
+# Create database tables
+Base.metadata.create_all(bind=engine)
+
+# Create FastAPI app (ONLY ONCE)
 app = FastAPI(
     title="HRM System API",
     version="1.0.0"
 )
 
-# 👇 This enables the Authorize button
-security = HTTPBearer()
+# ✅ Enable CORS (VERY IMPORTANT)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-Base.metadata.create_all(bind=engine)
-
+# Include routers
 app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
 
+# Root test route
 @app.get("/")
 def root():
     return {"message": "HRM backend running"}
 
-from fastapi import Depends
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-
+# Protected test route
 security = HTTPBearer()
 
 @app.get("/protected")
@@ -35,16 +45,3 @@ def protected_route(
         "token": credentials.credentials
     }
 
-from fastapi import Depends
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-
-security = HTTPBearer()
-
-@app.get("/protected")
-def protected_route(
-    credentials: HTTPAuthorizationCredentials = Depends(security)
-):
-    return {
-        "message": "You are authorized",
-        "token": credentials.credentials
-    }
