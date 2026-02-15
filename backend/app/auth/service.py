@@ -25,3 +25,4 @@ def authenticate_user(db: Session, email: str, password: str):
         "refresh_token": refresh_token,
         "token_type": "bearer"
     }
+  
