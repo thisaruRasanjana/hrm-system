@@ -1,172 +1,110 @@
-"use client";
-
-import { useEffect, useState } from "react";
-
-const EMPLOYEE_ID = "11111111-1111-1111-1111-111111111111";
+import Link from "next/link";
+import DocumentItem from "../components/DocumentItem";
 
 export default function DocumentsPage() {
-  const [documents, setDocuments] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
+  const mandatoryDocs = [
+    { status: "approved" },
+    { status: "pending" },
+    { status: "not_uploaded" },
+  ];
 
-  const loadDocuments = async () => {
-    const res = await fetch(
-      `http://127.0.0.1:8000/documents/my-documents?employee_id=${EMPLOYEE_ID}`
-    );
-    const data = await res.json();
-    setDocuments(Array.isArray(data) ? data : []);
-  };
+  const completed = mandatoryDocs.filter(
+    (doc) => doc.status === "approved"
+  ).length;
 
-  useEffect(() => {
-    loadDocuments();
-  }, []);
-
-  const uploadDocument = async (file: File, isMandatory: boolean) => {
-    setLoading(true);
-
-    const formData = new FormData();
-    formData.append("employee_id", EMPLOYEE_ID);
-    formData.append("document_type", isMandatory ? "Mandatory Document" : "Optional Document");
-    formData.append("is_mandatory", String(isMandatory));
-    formData.append("file", file);
-
-    await fetch("http://127.0.0.1:8000/documents/upload", {
-      method: "POST",
-      body: formData,
-    });
-
-    await loadDocuments();
-    setLoading(false);
-  };
-
-  const mandatoryDocs = documents.filter((d) => d.is_mandatory);
-  const optionalDocs = documents.filter((d) => !d.is_mandatory);
+  const percentage = (completed / mandatoryDocs.length) * 100;
 
   return (
-    <div className="flex min-h-screen bg-gray-100">
-      {/* Sidebar */}
-      <aside className="w-64 bg-white border-r p-6">
-        <h2 className="text-xl font-bold mb-6">HRSM</h2>
+    <div className="space-y-6 w-full">
 
-        <nav className="space-y-4 text-sm">
-          <p className="text-gray-500 font-semibold">MAIN MENU</p>
-          <p className="text-gray-600">Dashboard</p>
-          <p className="text-gray-600">Recruitment</p>
-          <p className="text-orange-600 font-bold">Documents</p>
-          <p className="text-gray-600">Leave</p>
-        </nav>
-      </aside>
+      {/* Tabs */}
+      <div className="inline-flex bg-white p-1 rounded-full shadow-md border">
+        <Link
+          href="/documents"
+          className="px-6 py-2 rounded-full bg-[#F2924E] text-white text-sm font-medium transition"
+        >
+          My documents
+        </Link>
 
-      {/* Main Content */}
-      <main className="flex-1 p-8">
-        <h1 className="text-2xl font-bold mb-6">Document Management</h1>
+        <Link
+          href="/documents/request"
+          className="px-6 py-2 rounded-full text-gray-600 text-sm font-medium hover:text-gray-800 transition"
+        >
+          Request document
+        </Link>
+      </div>
 
-        {/* Upload Section */}
-        <div className="flex gap-4 mb-8">
-          <label className="bg-orange-500 text-white px-4 py-2 rounded cursor-pointer font-semibold text-sm">
-            Upload Mandatory Document
-            <input
-              type="file"
-              className="hidden"
-              accept=".pdf,.jpg,.png"
-              onChange={(e) =>
-                e.target.files && uploadDocument(e.target.files[0], true)
-              }
-            />
-          </label>
+      {/* Title */}
+      <div>
+        <h1 className="text-2xl font-semibold">My Documents</h1>
+        <p className="text-sm text-gray-500">
+          Upload required documents to complete your employee profile.
+        </p>
+      </div>
 
-          <label className="bg-gray-700 text-white px-4 py-2 rounded cursor-pointer font-semibold text-sm">
-            Upload Optional Document
-            <input
-              type="file"
-              className="hidden"
-              accept=".pdf,.jpg,.png"
-              onChange={(e) =>
-                e.target.files && uploadDocument(e.target.files[0], false)
-              }
-            />
-          </label>
+      {/* Progress */}
+      <div className="bg-white p-6 rounded-xl shadow-sm">
+        <h3 className="font-semibold mb-2">Document Completion</h3>
+        <p className="text-sm text-gray-500 mb-3">
+          Mandatory Documents:{" "}
+          <span className="font-medium">
+            {completed} of {mandatoryDocs.length} completed
+          </span>
+        </p>
+
+        <div className="w-full bg-gray-200 h-2 rounded-full">
+          <div
+            className="bg-[#F2924E] h-2 rounded-full"
+            style={{ width: `${percentage}%` }}
+          ></div>
         </div>
 
-        {/* Mandatory Documents */}
-        <section className="bg-white rounded shadow p-6 mb-6">
-          <h2 className="text-lg font-bold mb-4">Mandatory Documents</h2>
+        <p className="text-xs text-gray-400 mt-2">
+          {mandatoryDocs.length - completed} documents remaining
+        </p>
+      </div>
 
-          {mandatoryDocs.length === 0 && (
-            <p className="text-gray-500 text-sm">
-              No mandatory documents uploaded.
-            </p>
-          )}
+      {/* Mandatory */}
+      <div className="bg-white p-6 rounded-xl shadow-sm space-y-4">
+        <h2 className="text-lg font-semibold text-gray-800">
+          Mandatory Documents
+        </h2>
 
-          <ul className="space-y-3">
-            {mandatoryDocs.map((doc) => (
-              <li
-                key={doc.id}
-                className="flex justify-between items-center border rounded px-4 py-3"
-              >
-                <div>
-                  <p className="font-bold">{doc.document_type}</p>
-                  <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded">
-                    {doc.status}
-                  </span>
-                </div>
+        <DocumentItem
+          name="Birth Certificate"
+          description="Birth certificate copy"
+          status="approved"
+        />
 
-                <button
-                  className="text-orange-600 font-semibold text-sm"
-                  onClick={() =>
-                    window.open(
-                      `http://127.0.0.1:8000/documents/download/${doc.id}?employee_id=${EMPLOYEE_ID}`
-                    )
-                  }
-                >
-                  Download
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
+        <DocumentItem
+          name="National ID"
+          description="Government issued ID"
+          status="pending"
+        />
 
-        {/* Optional Documents */}
-        <section className="bg-white rounded shadow p-6">
-          <h2 className="text-lg font-bold mb-4">Optional Documents</h2>
+        <DocumentItem
+          name="Educational Certificates"
+          description="Degree and transcripts"
+          status="not_uploaded"
+        />
+      </div>
 
-          {optionalDocs.length === 0 && (
-            <p className="text-gray-500 text-sm">
-              No optional documents uploaded.
-            </p>
-          )}
+      {/* Optional */}
+      <div className="bg-white p-6 rounded-xl shadow-sm space-y-4">
+        <h2 className="font-semibold">Optional Documents</h2>
 
-          <ul className="space-y-3">
-            {optionalDocs.map((doc) => (
-              <li
-                key={doc.id}
-                className="flex justify-between items-center border rounded px-4 py-3"
-              >
-                <div>
-                  <p className="font-bold">{doc.document_type}</p>
-                  <span className="text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded">
-                    {doc.status}
-                  </span>
-                </div>
+        <DocumentItem
+          name="Additional Certificates"
+          description="Professional certifications"
+          status="not_uploaded"
+        />
 
-                <button
-                  className="text-orange-600 font-semibold text-sm"
-                  onClick={() =>
-                    window.open(
-                      `http://127.0.0.1:8000/documents/download/${doc.id}?employee_id=${EMPLOYEE_ID}`
-                    )
-                  }
-                >
-                  Download
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
-
-        {loading && (
-          <p className="text-sm text-gray-500 mt-4">Uploading...</p>
-        )}
-      </main>
+        <DocumentItem
+          name="Other Supporting Documents"
+          description="Any other relevant documents"
+          status="not_uploaded"
+        />
+      </div>
     </div>
   );
 }
