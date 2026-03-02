@@ -21,9 +21,13 @@ app.add_middleware(
 
 @app.on_event("startup")
 def startup():
-    with engine.connect() as connection:
-        pass
-    Base.metadata.create_all(bind=engine)
+    try:
+        with engine.connect() as connection:
+            print("Database connected successfully")
+            Base.metadata.create_all(bind=engine)
+    except Exception as e:
+        print("WARNING: Database connection failed")
+        print(e)
 
 app.include_router(recruitment_router)
 
