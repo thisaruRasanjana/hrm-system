@@ -1,12 +1,36 @@
 from sqlalchemy.orm import Session
-from . import models, schemas
+from sqlalchemy import func
+from . import models
 
-def create_vacancy(db: Session, vacancy: schemas.VacancyCreate):
-    db_vacancy = models.Vacancy(**vacancy.dict())
-    db.add(db_vacancy)
+
+def create_vacancy(db: Session, vacancy_data):
+    vacancy = models.Vacancy(**vacancy_data.dict())
+    db.add(vacancy)
     db.commit()
-    db.refresh(db_vacancy)
-    return db_vacancy
+    db.refresh(vacancy)
+
+    return {
+        **vacancy.__dict__,
+        "applicants": 0
+    }
+
 
 def get_all_vacancies(db: Session):
-    return db.query(models.Vacancy).all()
+    vacancies = db.query(models.Vacancy).all()
+
+    result = []
+    for v in vacancies:
+        applicants_count = (
+            db.query(func.count(models.Application.id))
+            .filter(models.Application.vacancy_id == v.id)
+            .scalar()
+        )
+
+        v_dict = {
+            **v.__dict__,
+            "applicants": applicants_count
+        }
+
+        result.append(v_dict)
+
+    return result
