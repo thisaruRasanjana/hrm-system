@@ -1,15 +1,20 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.database.database import engine
 from app.database.base import Base
 
-# IMPORTANT: import models so tables are registered
+# Import models so tables are registered
 from app.documents.model import EmployeeDocument
 from app.documents.router import router as documents_router
-from fastapi.middleware.cors import CORSMiddleware
+from app.documents import request_router
 
 
+# ✅ FIRST create FastAPI app
 app = FastAPI(title="HRM Backend")
+
+
+# ✅ THEN add middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -24,6 +29,9 @@ app.add_middleware(
 )
 
 
+# ✅ THEN include routers
+app.include_router(documents_router)
+app.include_router(request_router.router)
 
 
 @app.on_event("startup")
@@ -35,6 +43,3 @@ def startup():
 @app.get("/")
 def root():
     return {"message": "HRM backend with DB connected"}
-
-
-app.include_router(documents_router)

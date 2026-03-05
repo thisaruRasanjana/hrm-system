@@ -11,6 +11,7 @@ interface Document {
   name: string;
   description: string;
   status: DocumentStatus;
+  isMandatory: boolean;
 }
 
 export default function DocumentSection({ title, required }: Props) {
@@ -19,16 +20,19 @@ export default function DocumentSection({ title, required }: Props) {
       name: "Birth Certificate",
       description: "Birth certificate copy",
       status: "approved",
+      isMandatory: true,
     },
     {
       name: "National ID",
       description: "Government issued ID",
       status: "pending",
+      isMandatory: true,
     },
     {
       name: "Educational Certificates",
       description: "Degree and transcripts",
       status: "not_uploaded",
+      isMandatory: false,
     },
   ];
 
