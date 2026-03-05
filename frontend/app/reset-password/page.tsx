@@ -8,9 +8,44 @@ export default function ResetPassword() {
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
 
-  const handleSubmit = (e: any) => {
+  const handleSubmit = async (e: any) => {
     e.preventDefault();
-    router.push("/reset-success");
+
+    if (password !== confirm) {
+      alert("Passwords do not match");
+      return;
+    }
+
+    const email = localStorage.getItem("reset_email");
+    console.log("EMAIL FROM STORAGE:", email);
+
+    try {
+      const res = await fetch("http://127.0.0.1:8000/auth/reset-password", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: email,
+          password: password,
+        }),
+      });
+
+      const data = await res.json();
+
+      console.log("RESET RESPONSE:", data);
+
+      if (!res.ok) {
+        alert(data.detail || "Failed to reset password");
+        return;
+      }
+
+      router.push("/reset-success");
+
+    } catch (error) {
+      console.error("Reset error:", error);
+      alert("Backend server not reachable");
+    }
   };
 
   return (
@@ -19,32 +54,21 @@ export default function ResetPassword() {
         <h1 className="text-[28px] font-semibold text-[#111827] text-center">
           Reset Password
         </h1>
-        <p className="text-[14px] text-[#6B7280] text-center mt-1 mb-8">
-          Create a new password for your account
-        </p>
 
         <form onSubmit={handleSubmit}>
-          <label className="text-[14px] text-[#364153] font-medium">
-            New Password
-          </label>
+          <label className="text-[14px] font-medium">New Password</label>
           <input
             type="password"
-            placeholder="Enter new password"
-            className="w-full mt-2 mb-6 px-4 py-3 border border-gray-300 rounded-lg 
-            text-[#111827] placeholder-[#D1D5DC] focus:outline-none focus:ring-2 focus:ring-[#F2924E]"
+            className="w-full mt-2 mb-6 px-4 py-3 border rounded-lg"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
           />
 
-          <label className="text-[14px] text-[#364153] font-medium">
-            Confirm Password
-          </label>
+          <label className="text-[14px] font-medium">Confirm Password</label>
           <input
             type="password"
-            placeholder="Confirm new password"
-            className="w-full mt-2 mb-6 px-4 py-3 border border-gray-300 rounded-lg 
-            text-[#111827] placeholder-[#D1D5DC] focus:outline-none focus:ring-2 focus:ring-[#F2924E]"
+            className="w-full mt-2 mb-6 px-4 py-3 border rounded-lg"
             value={confirm}
             onChange={(e) => setConfirm(e.target.value)}
             required
@@ -52,15 +76,11 @@ export default function ResetPassword() {
 
           <button
             type="submit"
-            className="w-full bg-[#F2924E] hover:bg-[#e07f3f] text-white py-3 rounded-lg text-[16px] font-semibold"
+            className="w-full bg-[#F2924E] text-white py-3 rounded-lg"
           >
             Reset Password
           </button>
         </form>
-
-        <div className="mt-6 bg-blue-100 p-4 rounded-lg text-[13px] text-blue-800">
-          <strong>Security tip:</strong> Use a strong password with a mix of letters, numbers, and symbols.
-        </div>
       </div>
     </div>
   );

@@ -12,7 +12,13 @@ export default function VerifyOTP() {
 
     const email = localStorage.getItem("reset_email");
 
-    const res = await fetch("http://localhost:8000/auth/verify-otp", {
+    if (!email) {
+      alert("Email missing. Please restart password reset.");
+      router.push("/forgot-password");
+      return;
+    }
+
+    const res = await fetch("http://127.0.0.1:8000/auth/verify-otp", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -20,8 +26,10 @@ export default function VerifyOTP() {
       body: JSON.stringify({ email, otp }),
     });
 
+    const data = await res.json();
+
     if (!res.ok) {
-      alert("Invalid OTP");
+      alert(data.detail || "Invalid OTP");
       return;
     }
 

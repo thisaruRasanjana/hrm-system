@@ -6,9 +6,6 @@ from app.core.jwt import create_access_token, create_refresh_token
 
 
 def authenticate_user(db: Session, email: str, password: str):
-    """
-    Authenticate user credentials and return JWT tokens
-    """
     user = db.query(User).filter(User.email == email).first()
 
     if not user:
@@ -20,9 +17,12 @@ def authenticate_user(db: Session, email: str, password: str):
     access_token = create_access_token({"sub": str(user.id)})
     refresh_token = create_refresh_token({"sub": str(user.id)})
 
+    # Store refresh token in DB
+    user.refresh_token = refresh_token
+    db.commit()
+
     return {
         "access_token": access_token,
         "refresh_token": refresh_token,
         "token_type": "bearer"
     }
-  
