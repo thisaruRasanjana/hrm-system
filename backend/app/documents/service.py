@@ -41,9 +41,29 @@ def upload_employee_document(
             detail="Only PDF, JPG, and PNG files are allowed"
         )
 
+    #  Check if document already exists
+    existing_document = (
+        db.query(EmployeeDocument)
+        .filter(
+            EmployeeDocument.employee_id == employee_id,
+            EmployeeDocument.document_type == document_type
+        )
+        .first()
+    )
+
+    # 🗑 If exists → delete old file + DB record
+    if existing_document:
+        if os.path.exists(existing_document.file_path):
+            os.remove(existing_document.file_path)
+
+        db.delete(existing_document)
+        db.commit()
+
+    #  Save new file
     file_path = save_file(file, employee_id)
 
-    document = EmployeeDocument(
+    # 🆕 Create new record
+    new_document = EmployeeDocument(
         employee_id=employee_id,
         document_type=document_type,
         is_mandatory=is_mandatory,
@@ -52,11 +72,11 @@ def upload_employee_document(
         status=DocumentStatus.PENDING_REVIEW
     )
 
-    db.add(document)
+    db.add(new_document)
     db.commit()
-    db.refresh(document)
+    db.refresh(new_document)
 
-    return document
+    return new_document
 def get_employee_documents(db: Session, employee_id: UUID):
     return (
         db.query(EmployeeDocument)
