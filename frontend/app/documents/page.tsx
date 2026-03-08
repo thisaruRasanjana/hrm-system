@@ -15,7 +15,7 @@ type MergedDocument = {
   id?: string;
   name: string;
   is_mandatory: boolean;
-  status: "approved" | "pending" | "not_uploaded";
+  status: "NOT_UPLOADED" | "PENDING_REVIEW" | "APPROVED" | "REJECTED";
 };
 
 //  Predefined system-required documents
@@ -54,7 +54,7 @@ export default function DocumentsPage() {
           id: undefined,
           name: template.name,
           is_mandatory: template.mandatory,
-          status: "not_uploaded",
+          status: "NOT_UPLOADED",
         };
       }
 
@@ -64,8 +64,8 @@ export default function DocumentsPage() {
         is_mandatory: template.mandatory,
         status:
           uploaded.status === "APPROVED"
-            ? "approved"
-            : "pending",
+            ? "APPROVED"
+            : "PENDING_REVIEW",
       };
     }
   );
@@ -79,7 +79,7 @@ export default function DocumentsPage() {
   );
 
   const completed = mandatoryDocs.filter(
-    (doc) => doc.status === "approved"
+    (doc) => doc.status === "APPROVED"
   ).length;
 
   const percentage =
