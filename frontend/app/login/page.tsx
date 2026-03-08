@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import AuthLayout from "@/components/auth/AuthLayout";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -20,13 +21,17 @@ export default function LoginPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          email: email,
-          password: password,
-        }),
+        credentials: "include",
+        body: JSON.stringify({ email, password }),
       });
 
-      const data = await res.json();
+      let data;
+
+      try {
+        data = await res.json();
+      } catch {
+        throw new Error("Invalid server response");
+      }
 
       if (!res.ok) {
         alert(data.detail || "Invalid email or password");
@@ -34,35 +39,29 @@ export default function LoginPage() {
         return;
       }
 
-      // Save tokens
+      // Save access token
       localStorage.setItem("access_token", data.access_token);
-      localStorage.setItem("refresh_token", data.refresh_token);
+
+      // Cookie for middleware protection
+      document.cookie = `access_token=${data.access_token}; path=/`;
 
       router.push("/dashboard");
 
     } catch (error) {
       console.error("Login error:", error);
-      alert("Backend server not reachable.");
+      alert("Login failed. Please check backend connection.");
     }
 
     setLoading(false);
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#F4F4F4]">
-      <form
-        onSubmit={handleLogin}
-        className="bg-white p-10 rounded-2xl shadow-xl w-[420px]"
-      >
-        <h1 className="text-[32px] font-bold text-[#1E293B] text-center">
-          Welcome Back
-        </h1>
+    <AuthLayout
+      title="Welcome Back"
+      description="Sign in to your HRMS account"
+    >
+      <form onSubmit={handleLogin}>
 
-        <p className="text-[16px] text-[#64748B] text-center mt-2 mb-8">
-          Sign in to your HRMS account
-        </p>
-
-        {/* Email */}
         <label className="block text-[16px] font-medium text-[#364153] mb-2">
           Email
         </label>
@@ -70,15 +69,14 @@ export default function LoginPage() {
         <input
           type="email"
           placeholder="Enter your email"
-          className="w-full mb-6 px-4 py-3 border border-gray-300 rounded-lg 
+          className="w-full mb-6 px-4 py-3 border border-gray-300 rounded-lg
           text-[#1E293B] placeholder-[#D1D5DC]
           focus:outline-none focus:ring-2 focus:ring-[#F2924E]"
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          onChange={(e)=>setEmail(e.target.value)}
           required
         />
 
-        {/* Password */}
         <label className="block text-[16px] font-medium text-[#364153] mb-2">
           Password
         </label>
@@ -86,17 +84,17 @@ export default function LoginPage() {
         <input
           type="password"
           placeholder="Enter your password"
-          className="w-full mb-2 px-4 py-3 border border-gray-300 rounded-lg 
+          className="w-full mb-2 px-4 py-3 border border-gray-300 rounded-lg
           text-[#1E293B] placeholder-[#D1D5DC]
           focus:outline-none focus:ring-2 focus:ring-[#F2924E]"
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          onChange={(e)=>setPassword(e.target.value)}
           required
         />
 
         <p
           className="text-right text-[14px] text-[#F2924E] cursor-pointer mb-6"
-          onClick={() => router.push("/forgot-password")}
+          onClick={()=>router.push("/forgot-password")}
         >
           Forgot Password?
         </p>
@@ -119,7 +117,8 @@ export default function LoginPage() {
             Privacy Policy
           </span>
         </p>
+
       </form>
-    </div>
+    </AuthLayout>
   );
 }
