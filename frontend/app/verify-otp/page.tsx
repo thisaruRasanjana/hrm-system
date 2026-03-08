@@ -2,10 +2,13 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import AuthLayout from "@/components/auth/AuthLayout";
 
 export default function VerifyOTP() {
+
   const router = useRouter();
   const [otp, setOtp] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: any) => {
     e.preventDefault();
@@ -18,43 +21,46 @@ export default function VerifyOTP() {
       return;
     }
 
-    const res = await fetch("http://127.0.0.1:8000/auth/verify-otp", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ email, otp }),
-    });
+    setLoading(true);
 
-    const data = await res.json();
+    try {
+      const res = await fetch("http://127.0.0.1:8000/auth/verify-otp", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, otp }),
+      });
 
-    if (!res.ok) {
-      alert(data.detail || "Invalid OTP");
-      return;
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data.detail || "Invalid OTP");
+        setLoading(false);
+        return;
+      }
+
+      router.push("/reset-password");
+
+    } catch (error) {
+      alert("Backend server not reachable");
     }
 
-    router.push("/reset-password");
+    setLoading(false);
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#F4F4F4]">
-      <form
-        onSubmit={handleSubmit}
-        className="bg-white p-10 rounded-2xl shadow-xl w-[380px]"
-      >
-        <h2 className="text-2xl font-bold text-gray-900 text-center">
-          Enter OTP
-        </h2>
-
-        <p className="text-sm text-gray-600 text-center mt-1 mb-6">
-          Enter the verification code sent to your email
-        </p>
+    <AuthLayout
+      title="Verify OTP"
+      description="Enter the verification code sent to your email"
+    >
+      <form onSubmit={handleSubmit}>
 
         <input
           type="text"
           placeholder="Enter OTP"
-          className="w-full mb-4 px-4 py-3 border border-gray-400 rounded-lg 
-          text-gray-900 placeholder-gray-500 
+          className="w-full mb-6 px-4 py-3 border border-gray-300 rounded-lg
+          text-[#1E293B] placeholder-[#D1D5DC]
           focus:outline-none focus:ring-2 focus:ring-[#F2924E]"
           value={otp}
           onChange={(e) => setOtp(e.target.value)}
@@ -63,18 +69,20 @@ export default function VerifyOTP() {
 
         <button
           type="submit"
-          className="w-full bg-[#F2924E] hover:bg-[#e07f3f] text-white py-3 rounded-lg font-semibold transition"
+          disabled={loading}
+          className="w-full bg-[#F2924E] hover:bg-[#e07f3f] text-white py-3 rounded-lg text-[18px] font-semibold transition"
         >
-          Verify OTP
+          {loading ? "Verifying..." : "Verify OTP"}
         </button>
 
         <p
-          className="text-sm text-gray-600 hover:text-[#F2924E] mt-4 text-center cursor-pointer transition"
+          className="text-[14px] text-[#64748B] hover:text-[#F2924E] mt-6 text-center cursor-pointer transition"
           onClick={() => router.push("/login")}
         >
           Back to Login
         </p>
+
       </form>
-    </div>
+    </AuthLayout>
   );
 }

@@ -2,11 +2,18 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import AuthLayout from "@/components/auth/AuthLayout";
+import { Eye, EyeOff } from "lucide-react";
 
 export default function ResetPassword() {
+
   const router = useRouter();
+
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: any) => {
     e.preventDefault();
@@ -17,71 +24,100 @@ export default function ResetPassword() {
     }
 
     const email = localStorage.getItem("reset_email");
-    console.log("EMAIL FROM STORAGE:", email);
+
+    setLoading(true);
 
     try {
       const res = await fetch("http://127.0.0.1:8000/auth/reset-password", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          email: email,
-          password: password,
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
       });
 
       const data = await res.json();
 
-      console.log("RESET RESPONSE:", data);
-
       if (!res.ok) {
         alert(data.detail || "Failed to reset password");
+        setLoading(false);
         return;
       }
 
       router.push("/reset-success");
 
     } catch (error) {
-      console.error("Reset error:", error);
       alert("Backend server not reachable");
     }
+
+    setLoading(false);
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#F4F4F4]">
-      <div className="bg-white w-[420px] p-10 rounded-2xl shadow-lg">
-        <h1 className="text-[28px] font-semibold text-[#111827] text-center">
-          Reset Password
-        </h1>
+    <AuthLayout title="Reset Password">
 
-        <form onSubmit={handleSubmit}>
-          <label className="text-[14px] font-medium">New Password</label>
+      <form onSubmit={handleSubmit}>
+
+        {/* New Password */}
+        <label className="block text-[16px] font-medium text-[#364153] mb-2">
+          New Password
+        </label>
+
+        <div className="relative mb-6">
           <input
-            type="password"
-            className="w-full mt-2 mb-6 px-4 py-3 border rounded-lg"
+            type={showPassword ? "text" : "password"}
+            placeholder="Enter new password"
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg
+            text-[#1E293B] placeholder-[#D1D5DC]
+            focus:outline-none focus:ring-2 focus:ring-[#F2924E]"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
           />
 
-          <label className="text-[14px] font-medium">Confirm Password</label>
+          <button
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            className="absolute right-4 top-3 text-gray-500 hover:text-gray-700"
+          >
+            {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+          </button>
+        </div>
+
+        {/* Confirm Password */}
+        <label className="block text-[16px] font-medium text-[#364153] mb-2">
+          Confirm Password
+        </label>
+
+        <div className="relative mb-6">
           <input
-            type="password"
-            className="w-full mt-2 mb-6 px-4 py-3 border rounded-lg"
+            type={showConfirm ? "text" : "password"}
+            placeholder="Confirm password"
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg
+            text-[#1E293B] placeholder-[#D1D5DC]
+            focus:outline-none focus:ring-2 focus:ring-[#F2924E]"
             value={confirm}
             onChange={(e) => setConfirm(e.target.value)}
             required
           />
 
           <button
-            type="submit"
-            className="w-full bg-[#F2924E] text-white py-3 rounded-lg"
+            type="button"
+            onClick={() => setShowConfirm(!showConfirm)}
+            className="absolute right-4 top-3 text-gray-500 hover:text-gray-700"
           >
-            Reset Password
+            {showConfirm ? <EyeOff size={20} /> : <Eye size={20} />}
           </button>
-        </form>
-      </div>
-    </div>
+        </div>
+
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full bg-[#F2924E] hover:bg-[#e07f3f] text-white py-3 rounded-lg text-[18px] font-semibold transition"
+        >
+          {loading ? "Resetting..." : "Reset Password"}
+        </button>
+
+      </form>
+
+    </AuthLayout>
   );
 }

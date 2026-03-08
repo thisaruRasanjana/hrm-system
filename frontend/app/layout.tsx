@@ -1,5 +1,6 @@
 import "./globals.css";
 import { Arimo } from "next/font/google";
+import { AuthProvider } from "@/context/auth-context";
 
 const arimo = Arimo({
   subsets: ["latin"],
@@ -18,9 +19,11 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={arimo.className}>{children}</body>
+      <body className={arimo.className}>
+        <AuthProvider>
+          {children}
+        </AuthProvider>
+      </body>
     </html>
   );
 }
-
-

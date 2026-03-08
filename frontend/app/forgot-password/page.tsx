@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import AuthLayout from "@/components/auth/AuthLayout";
 
 export default function ForgotPassword() {
   const router = useRouter();
@@ -21,55 +22,43 @@ export default function ForgotPassword() {
     try {
       const res = await fetch("http://127.0.0.1:8000/auth/send-otp", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
       });
 
       const data = await res.json();
 
-      console.log("OTP response:", data);
-
       if (!res.ok) {
         alert(data.detail || "Failed to send OTP");
+        setLoading(false);
         return;
       }
 
-      // Save email for next steps
       localStorage.setItem("reset_email", email);
 
       alert("OTP sent successfully!");
-
-      // Go to OTP verification page
       router.push("/verify-otp");
 
     } catch (error) {
-      console.error("OTP error:", error);
       alert("Backend server not reachable");
-    } finally {
-      setLoading(false);
     }
+
+    setLoading(false);
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#F4F4F4]">
-      <form
-        onSubmit={handleSubmit}
-        className="bg-white w-[420px] p-10 rounded-2xl shadow-lg"
-      >
-        <h1 className="text-[28px] font-semibold text-[#111827] text-center">
-          Forgot Password?
-        </h1>
-
-        <p className="text-[14px] text-[#6B7280] text-center mt-1 mb-8">
-          Enter your email to receive OTP
-        </p>
+    <AuthLayout
+      title="Forgot Password"
+      description="Enter your email to receive OTP"
+    >
+      <form onSubmit={handleSubmit}>
 
         <input
           type="email"
           placeholder="Enter your email"
-          className="w-full mb-6 px-4 py-3 border border-gray-300 rounded-lg"
+          className="w-full mb-6 px-4 py-3 border border-gray-300 rounded-lg
+          text-[#1E293B] placeholder-[#D1D5DC]
+          focus:outline-none focus:ring-2 focus:ring-[#F2924E]"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
@@ -78,11 +67,12 @@ export default function ForgotPassword() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full bg-[#F2924E] hover:bg-[#e07f3f] text-white py-3 rounded-lg font-semibold transition"
+          className="w-full bg-[#F2924E] hover:bg-[#e07f3f] text-white py-3 rounded-lg text-[18px] font-semibold transition"
         >
           {loading ? "Sending..." : "Send OTP"}
         </button>
+
       </form>
-    </div>
+    </AuthLayout>
   );
 }
