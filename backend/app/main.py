@@ -1,45 +1,57 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.database.database import engine
 from app.database.base import Base
 
 # Import models so tables are registered
 from app.documents.model import EmployeeDocument
+
+# Routers
 from app.documents.router import router as documents_router
 from app.documents import request_router
+from app.documents.approval_router import router as approval_router
 
 
-# ✅ FIRST create FastAPI app
-app = FastAPI(title="HRM Backend")
+# Create FastAPI app
+app = FastAPI(
+    title="HRM Backend",
+    description="HRMS Document Management API",
+    version="1.0.0"
+)
 
 
-# ✅ THEN add middleware
+# Serve uploaded files (required for document preview)
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+
+
+# CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://localhost:3001",
-        "http://127.0.0.1:3001",
-    ],
-    allow_credentials=False,
+    allow_origins=["*"],   # Change in production
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 
-# ✅ THEN include routers
+# Include routers
 app.include_router(documents_router)
 app.include_router(request_router.router)
+app.include_router(approval_router)
 
 
+# Auto create tables (development only)
 @app.on_event("startup")
 def startup():
-    # Create tables on startup (development purpose)
     Base.metadata.create_all(bind=engine)
 
 
+# Root endpoint
 @app.get("/")
 def root():
-    return {"message": "HRM backend with DB connected"}
+    return {
+        "message": "HRM Backend Running",
+        "status": "OK"
+    }

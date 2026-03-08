@@ -2,6 +2,38 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Global Background */
 body {
   background-color: #f3f4f6;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+
+/* =========================
+   Sidebar Menu Styles
+========================= */
+
+.menuItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: #6b7280;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.menuItem:hover {
+  background-color: #e2e2e2;
+}
+
+.menuItemActive {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: #f97316;
+  font-weight: 500;
 }
