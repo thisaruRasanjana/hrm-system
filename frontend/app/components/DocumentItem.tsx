@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 
 interface Props {
   id?: string;
@@ -8,6 +8,7 @@ interface Props {
   description: string;
   status: "APPROVED" | "PENDING_REVIEW" | "REJECTED" | "NOT_UPLOADED";
   isMandatory: boolean;
+  rejectionReason?: string;
 }
 
 export default function DocumentItem({
@@ -16,9 +17,12 @@ export default function DocumentItem({
   description,
   status,
   isMandatory,
+  rejectionReason,
 }: Props) {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
 
   const employeeId = "11111111-1111-1111-1111-111111111111";
 
@@ -62,14 +66,18 @@ export default function DocumentItem({
 
       if (!response.ok) throw new Error("Upload failed");
 
-      alert("Document uploaded successfully");
+      setMessage("✔ Document uploaded successfully");
+      setError("");
 
-      window.location.reload();
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
 
     } catch (error) {
 
       console.error(error);
-      alert("Upload failed");
+      setError("Upload failed. Please try again.");
+      setMessage("");
 
     }
   };
@@ -81,6 +89,27 @@ export default function DocumentItem({
       <div>
         <h4 className="font-medium">{name}</h4>
         <p className="text-xs text-gray-400">{description}</p>
+
+        {/* Reject reason */}
+        {status === "REJECTED" && rejectionReason && (
+          <p className="text-xs text-red-500 mt-1">
+            Rejection reason: {rejectionReason}
+          </p>
+        )}
+
+        {/* Success message */}
+        {message && (
+          <p className="text-xs text-green-600 mt-1">
+            {message}
+          </p>
+        )}
+
+        {/* Error message */}
+        {error && (
+          <p className="text-xs text-red-600 mt-1">
+            {error}
+          </p>
+        )}
       </div>
 
       {/* Right Side */}

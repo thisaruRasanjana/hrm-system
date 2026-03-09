@@ -9,6 +9,7 @@ type UploadedDocument = {
   document_type: string;
   is_mandatory: boolean;
   status: string;
+  rejection_reason?: string;
 };
 
 type MergedDocument = {
@@ -16,6 +17,7 @@ type MergedDocument = {
   name: string;
   is_mandatory: boolean;
   status: "NOT_UPLOADED" | "PENDING_REVIEW" | "APPROVED" | "REJECTED";
+  rejection_reason?: string;
 };
 
 //  Predefined system-required documents
@@ -59,14 +61,17 @@ export default function DocumentsPage() {
       }
 
       return {
-        id: uploaded.id,
-        name: uploaded.document_type,
-        is_mandatory: template.mandatory,
-        status:
-          uploaded.status === "APPROVED"
-            ? "APPROVED"
-            : "PENDING_REVIEW",
-      };
+  id: uploaded.id,
+  name: uploaded.document_type,
+  is_mandatory: template.mandatory,
+  rejection_reason: uploaded.rejection_reason,
+  status:
+    uploaded.status === "APPROVED"
+      ? "APPROVED"
+      : uploaded.status === "REJECTED"
+      ? "REJECTED"
+      : "PENDING_REVIEW",
+};
     }
   );
 
@@ -151,6 +156,7 @@ export default function DocumentsPage() {
             description="Required document"
             status={doc.status}
             isMandatory={true}
+            rejectionReason={doc.rejection_reason}
           />
         ))}
       </div>
