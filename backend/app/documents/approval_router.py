@@ -9,6 +9,8 @@ from app.documents.approval_service import (
     reject_document
 )
 
+from app.documents.approval_schema import RejectDocumentRequest
+
 router = APIRouter(prefix="/documents/review", tags=["Document Approval"])
 
 
@@ -26,9 +28,17 @@ def approve(document_id: UUID, db: Session = Depends(get_db)):
 
 
 @router.put("/{document_id}/reject")
-def reject(document_id: UUID, data: dict, db: Session = Depends(get_db)):
+def reject(
+    document_id: UUID,
+    data: RejectDocumentRequest,
+    db: Session = Depends(get_db)
+):
 
     reviewer_id = None
-    reason = data.get("reason")
 
-    return reject_document(document_id, reviewer_id, reason, db)
+    return reject_document(
+        document_id,
+        reviewer_id,
+        data.reason,
+        db
+    )

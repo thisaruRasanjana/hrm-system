@@ -1,7 +1,7 @@
 from pydantic import BaseModel
-from typing import List
 from uuid import UUID
 from datetime import datetime
+
 
 class DocumentUploadResponse(BaseModel):
     id: UUID
@@ -10,7 +10,8 @@ class DocumentUploadResponse(BaseModel):
     uploaded_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
+
 
 class EmployeeDocumentResponse(BaseModel):
     id: UUID
@@ -18,6 +19,7 @@ class EmployeeDocumentResponse(BaseModel):
     is_mandatory: bool
     status: str
     uploaded_at: datetime
+    rejection_reason: str | None = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True

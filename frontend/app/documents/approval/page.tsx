@@ -3,10 +3,12 @@
 import { useEffect, useState } from "react";
 import DocumentReviewModal from "../../components/DocumentReviewModal";
 import StatusBadge from "../../components/statusBadge";
+import DocumentTabs from "../../components/DocumentTabs";
 
 type Document = {
   id: string;
   employee_id: string;
+  employee_name: string;
   document_type: string;
   file_path: string;
   status: "NOT_UPLOADED" | "PENDING_REVIEW" | "APPROVED" | "REJECTED";
@@ -30,7 +32,8 @@ export default function ApprovalPage() {
 
   return (
     <div className="space-y-6">
-
+      {/* Tabs */}
+      <DocumentTabs />
       {/* Header */}
       <div>
         <h1 className="text-2xl font-semibold">Document Review & Approval</h1>
@@ -77,12 +80,12 @@ export default function ApprovalPage() {
 
               {/* Avatar */}
               <div className="w-10 h-10 bg-orange-400 text-white rounded-full flex items-center justify-center text-sm font-medium">
-                {doc.employee_id.slice(0,2)}
+                {doc.employee_name.slice(0, 2)}
               </div>
 
               {/* Info */}
               <div>
-                <p className="font-medium">{doc.employee_id}</p>
+                <p className="font-medium">{doc.employee_name}</p>
                 <p className="text-xs text-gray-500">{doc.document_type}</p>
                 <p className="text-xs text-gray-400">
                   {new Date(doc.uploaded_at).toLocaleDateString()}
