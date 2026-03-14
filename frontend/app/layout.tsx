@@ -27,6 +27,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        {/* layout header removed to avoid duplicate top bars; page components render TopBar instead */}
         {children}
       </body>
     </html>
