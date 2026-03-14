@@ -2,6 +2,8 @@ import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from dotenv import load_dotenv
+from sqlalchemy.orm import Session
+
 
 load_dotenv()
 
@@ -27,3 +29,12 @@ SessionLocal = sessionmaker(
     autoflush=False,
     bind=engine
 ) if engine else None
+
+def get_db():
+    if SessionLocal is None:
+        raise RuntimeError("Database session is not available. Engnie creation failed.")
+    db: Session= SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
