@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 from uuid import UUID
 
-from app.documents.model import EmployeeDocument, DocumentStatus
+from app.documents.models.model import EmployeeDocument, DocumentStatus
 from app.employees.models import Employee
 
 

@@ -1,10 +1,11 @@
+from app.documents.schemas import schemas
 from fastapi import APIRouter, Depends, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from uuid import UUID
 from fastapi.responses import FileResponse
 
 from app.database.database import get_db
-from app.documents import service, schemas
+from app.documents.services import service
 router = APIRouter(
     prefix="/documents",
     tags=["Documents"]

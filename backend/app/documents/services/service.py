@@ -5,7 +5,7 @@ from fastapi import UploadFile, HTTPException, status
 from sqlalchemy.orm import Session
 from starlette.responses import FileResponse
 
-from app.documents.model import EmployeeDocument, DocumentStatus
+from app.documents.models.model import EmployeeDocument, DocumentStatus
 
 BASE_UPLOAD_DIR = "uploads/documents"
 

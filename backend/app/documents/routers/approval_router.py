@@ -3,13 +3,13 @@ from sqlalchemy.orm import Session
 from uuid import UUID
 
 from app.database.database import get_db
-from app.documents.approval_service import (
+from app.documents.services.approval_service import (
     get_pending_documents,
     approve_document,
     reject_document
 )
 
-from app.documents.approval_schema import RejectDocumentRequest
+from app.documents.schemas.approval_schema import RejectDocumentRequest
 
 router = APIRouter(prefix="/documents/review", tags=["Document Approval"])
 

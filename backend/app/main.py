@@ -6,15 +6,16 @@ from app.database.database import engine
 from app.database.base import Base
 
 # Import models so tables are registered
-from app.documents.model import EmployeeDocument
+from app.documents.models.model import EmployeeDocument
+from app.documents.models.template_model import DocumentTemplate
 
 # Routers
-from app.documents.router import router as documents_router
-from app.documents import request_router
-from app.documents.approval_router import router as approval_router
+from app.documents.routers.router import router as documents_router
+from app.documents.routers import request_router
+from app.documents.routers.approval_router import router as approval_router
+from app.documents.routers.template_router import router as template_router
 
 
-# Create FastAPI app
 app = FastAPI(
     title="HRM Backend",
     description="HRMS Document Management API",
@@ -22,33 +23,31 @@ app = FastAPI(
 )
 
 
-# Serve uploaded files (required for document preview)
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 
-# CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],   # Change in production
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 
-# Include routers
 app.include_router(documents_router)
 app.include_router(request_router.router)
 app.include_router(approval_router)
 
+# Template management router
+app.include_router(template_router)
 
-# Auto create tables (development only)
+
 @app.on_event("startup")
 def startup():
     Base.metadata.create_all(bind=engine)
 
 
-# Root endpoint
 @app.get("/")
 def root():
     return {
