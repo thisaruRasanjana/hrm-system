@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import DocumentItem from "../components/DocumentItem";
+import DocumentItem from "../../components/DocumentItem";
+import DocumentTabs from "../../components/DocumentTabsEmployee";
 
 type UploadedDocument = {
   id: string;
@@ -96,21 +97,8 @@ export default function DocumentsPage() {
     <div className="space-y-6 w-full">
 
       {/* Tabs */}
-      <div className="inline-flex bg-white p-1 rounded-full shadow-md border">
-        <Link
-          href="/documents"
-          className="px-6 py-2 rounded-full bg-[#F2924E] text-white text-sm font-medium transition"
-        >
-          My documents
-        </Link>
-
-        <Link
-          href="/documents/request"
-          className="px-6 py-2 rounded-full text-gray-600 text-sm font-medium hover:text-gray-800 transition"
-        >
-          Request document
-        </Link>
-      </div>
+    
+      <DocumentTabs />
 
       {/* Title */}
       <div>
