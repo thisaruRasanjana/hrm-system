@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import DocumentReviewModal from "../../components/DocumentReviewModal";
-import StatusBadge from "../../components/statusBadge";
-import DocumentTabs from "../../components/DocumentTabs";
+import DocumentReviewModal from "../../../components/DocumentReviewModal";
+import StatusBadge from "../../../components/statusBadge";
+import DocumentTabs from "../../../components/DocumentTabsHR";
 
 type Document = {
   id: string;
@@ -33,7 +33,7 @@ export default function ApprovalPage() {
   return (
     <div className="space-y-6">
       {/* Tabs */}
-      <DocumentTabs />
+      <DocumentTabs  />
       {/* Header */}
       <div>
         <h1 className="text-2xl font-semibold">Document Review & Approval</h1>

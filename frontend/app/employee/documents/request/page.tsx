@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FileText, X } from "lucide-react";
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
+import DocumentTabsEmployee from "@/app/components/DocumentTabsEmployee";
 
 type Request = {
   id: string;
@@ -76,21 +77,7 @@ export default function RequestDocumentPage() {
     <div className="space-y-8 w-full">
 
       {/* Tabs */}
-      <div className="inline-flex bg-white p-1 rounded-full shadow-md border">
-        <Link
-          href="/documents"
-          className="px-6 py-2 rounded-full text-gray-600 text-sm font-medium hover:text-gray-800 transition"
-        >
-          My documents
-        </Link>
-
-        <Link
-          href="/documents/request"
-          className="px-6 py-2 rounded-full bg-[#F2924E] text-white text-sm font-medium"
-        >
-          Request document
-        </Link>
-      </div>
+     <DocumentTabsEmployee />
 
       {/* Title */}
       <div>

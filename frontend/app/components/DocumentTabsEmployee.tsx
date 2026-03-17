@@ -1,0 +1,52 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+
+const tabs = [
+  {
+    name: "My Document",
+    path: "/employee/documents",
+  },
+  {
+    name: "Request Document",
+    path: "/employee/documents/request",
+  },
+];
+
+export default function DocumentTabsEmployee() {
+
+  const pathname = usePathname();
+
+  return (
+    <div className="inline-flex bg-white p-1 rounded-full shadow-md border">
+
+      {tabs.map((tab) => {
+
+        let active = false;
+
+        if (tab.path === "/employee/documents") {
+          active = pathname === tab.path;
+        } else {
+          active = pathname.startsWith(tab.path);
+        }
+
+        return (
+          <Link
+            key={tab.path}
+            href={tab.path}
+            className={`px-6 py-2 rounded-full text-sm font-medium transition ${
+              active
+                ? "bg-[#F2924E] text-white"
+                : "text-gray-600 hover:text-gray-800"
+            }`}
+          >
+            {tab.name}
+          </Link>
+        );
+
+      })}
+
+    </div>
+  );
+}
