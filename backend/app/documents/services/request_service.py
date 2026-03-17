@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from app.documents.request_model import DocumentRequest, RequestStatus
+from app.documents.models.request_model import DocumentRequest, RequestStatus
 
 
 def create_document_request(db: Session, data):

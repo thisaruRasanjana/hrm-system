@@ -1,9 +1,10 @@
+from app.documents.schemas import request_schema
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from uuid import UUID
 
 from app.database.database import get_db
-from app.documents import request_service, request_schema
+from app.documents.services import request_service
 
 router = APIRouter(
     prefix="/document-requests",
