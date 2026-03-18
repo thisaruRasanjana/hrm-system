@@ -1,12 +1,15 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
+from fastapi.staticfiles import StaticFiles
 from app.database.database import engine
 from app.database.base import Base
 from app.recruitment import models as recruitment_models
 from app.recruitment.router import router as recruitment_router
+from app.employees.router import router as employees_router
 
 app = FastAPI(title="HRM Backend")
+
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 app.add_middleware(
     CORSMiddleware,
@@ -30,6 +33,7 @@ def startup():
         print(e)
 
 app.include_router(recruitment_router)
+app.include_router(employees_router)
 
 @app.get("/")
 def root():

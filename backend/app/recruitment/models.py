@@ -1,6 +1,6 @@
-from sqlalchemy import Column, Integer, String, Text, Date, ForeignKey
+from sqlalchemy import Column, Integer, String, Text, Date, DateTime, ForeignKey, Float
+from datetime import date, datetime
 from sqlalchemy.orm import relationship
-from datetime import date
 from app.database.base import Base
 
 
@@ -24,8 +24,13 @@ class Candidate(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     full_name = Column(String(255), nullable=False)
-    email = Column(String(255), nullable=False)
-    phone = Column(String(50))
+    email = Column(String(255), nullable=True)
+    phone = Column(String(50), nullable=True)
+
+    # NEW FIELDS
+    cv_file_path = Column(String(500), nullable=False)
+    uploaded_at = Column(DateTime, default=datetime.utcnow)
+    ai_score = Column(Float, nullable=True)
 
     applications = relationship("Application", back_populates="candidate")
 
@@ -34,9 +39,28 @@ class Application(Base):
     __tablename__ = "applications"
 
     id = Column(Integer, primary_key=True, index=True)
-    vacancy_id = Column(Integer, ForeignKey("vacancies.id"))
-    candidate_id = Column(Integer, ForeignKey("candidates.id"))
-    status = Column(String(50))
+    vacancy_id = Column(Integer, ForeignKey("vacancies.id"), nullable=False)
+    candidate_id = Column(Integer, ForeignKey("candidates.id"), nullable=False)
+
+    status = Column(String(50), default="Not Called")
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
     vacancy = relationship("Vacancy", back_populates="applications")
     candidate = relationship("Candidate", back_populates="applications")
+
+
+class InterviewPanel(Base):
+    __tablename__ = "interview_panels"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    vacancy_id = Column(Integer, ForeignKey("vacancies.id"), unique=True)
+
+    panel_head_id = Column(Integer)
+    panel_member_1_id = Column(Integer)
+    panel_member_2_id = Column(Integer)
+
+    interview_link = Column(String, nullable=True)
+
+    vacancy = relationship("Vacancy")
