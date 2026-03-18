@@ -9,7 +9,9 @@ from app.database.base import Base
 
 class RequestStatus(enum.Enum):
     PENDING = "PENDING"
+    IN_PROGRESS = "IN_PROGRESS"
     APPROVED = "APPROVED"
+    COMPLETED = "COMPLETED"
     REJECTED = "REJECTED"
 
 
@@ -24,5 +26,8 @@ class DocumentRequest(Base):
     purpose = Column(String, nullable=False)
 
     status = Column(Enum(RequestStatus), default=RequestStatus.PENDING)
+
+    rejection_reason = Column(String, nullable=True)
+    generated_document_path = Column(String, nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
