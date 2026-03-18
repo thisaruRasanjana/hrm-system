@@ -15,7 +15,7 @@ export default function DocumentTabsHR() {
   const pathname = usePathname();
 
   return (
-    <div className="inline-flex bg-white p-1 rounded-full shadow-md border">
+    <div className="inline-flex w-max bg-white p-1 rounded-full shadow-md border">
       {tabs.map((tab) => {
 
         let active = false;
@@ -24,8 +24,8 @@ export default function DocumentTabsHR() {
           // Only exact match
           active = pathname === tab.path;
         } else {
-          // Other tabs can match sub routes
-          active = pathname.startsWith(tab.path);
+          // Match exact path or sub-routes with trailing slash
+          active = pathname === tab.path || pathname.startsWith(`${tab.path}/`);
         }
 
         return (

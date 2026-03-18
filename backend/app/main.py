@@ -14,6 +14,7 @@ from app.documents.routers.router import router as documents_router
 from app.documents.routers import request_router
 from app.documents.routers.approval_router import router as approval_router
 from app.documents.routers.template_router import router as template_router
+from app.documents.routers import hr_request_router
 
 
 app = FastAPI(
@@ -37,6 +38,7 @@ app.add_middleware(
 
 app.include_router(documents_router)
 app.include_router(request_router.router)
+app.include_router(hr_request_router.router)
 app.include_router(approval_router)
 
 # Template management router
