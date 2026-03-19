@@ -24,8 +24,20 @@ export default function TemplateAddModal({ onClose, onSuccess }: Props) {
   const [templateType, setTemplateType] = useState<"HTML" | "FILE">("HTML");
   const [content, setContent] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [detectedType, setDetectedType] = useState<"DOCX" | "PDF" | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0] || null;
+    setFile(f);
+    if (f) {
+      const ext = f.name.split(".").pop()?.toLowerCase();
+      setDetectedType(ext === "docx" ? "DOCX" : ext === "pdf" ? "PDF" : null);
+    } else {
+      setDetectedType(null);
+    }
+  };
 
   const handleSubmit = async () => {
     if (!name.trim() || !category) {
@@ -47,7 +59,8 @@ export default function TemplateAddModal({ onClose, onSuccess }: Props) {
     const formData = new FormData();
     formData.append("name", name);
     formData.append("category", category);
-    formData.append("template_type", templateType);
+    // Send the actual detected type (DOCX/PDF) or HTML — backend also auto-detects as safety net
+    formData.append("template_type", templateType === "FILE" ? (detectedType ?? "FILE") : "HTML");
     if (templateType === "HTML") formData.append("content", content);
     if (templateType === "FILE" && file) formData.append("file", file);
 
@@ -185,6 +198,13 @@ export default function TemplateAddModal({ onClose, onSuccess }: Props) {
                 <span className="text-sm text-gray-500">
                   {file ? file.name : "Click to upload DOCX or PDF"}
                 </span>
+                {detectedType && (
+                  <span className={`text-xs font-bold mt-1 px-2 py-0.5 rounded-full ${
+                    detectedType === "DOCX" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"
+                  }`}>
+                    {detectedType} detected
+                  </span>
+                )}
                 <span className="text-xs text-gray-400 mt-1">
                   Supported: .docx, .pdf
                 </span>
@@ -192,7 +212,7 @@ export default function TemplateAddModal({ onClose, onSuccess }: Props) {
                   type="file"
                   accept=".docx,.pdf"
                   className="hidden"
-                  onChange={(e) => setFile(e.target.files?.[0] || null)}
+                  onChange={handleFileChange}
                 />
               </label>
             </div>

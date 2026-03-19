@@ -145,6 +145,8 @@ export default function HRDocumentsPage() {
             status={doc.status}
             isMandatory={true}
             rejectionReason={doc.rejection_reason}
+            employeeId={hrId}
+            uploadEndpoint="http://localhost:8000/hr-own-documents/upload"
           />
         ))}
       </div>
@@ -161,6 +163,8 @@ export default function HRDocumentsPage() {
             description="Optional document"
             status={doc.status}
             isMandatory={false}
+            employeeId={hrId}
+            uploadEndpoint="http://localhost:8000/hr-own-documents/upload"
           />
         ))}
       </div>

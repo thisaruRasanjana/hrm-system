@@ -8,6 +8,18 @@ from datetime import datetime
 UPLOAD_DIR = "uploads/templates"
 
 
+def _detect_type_from_file(filename: str, fallback: str) -> str:
+    """Detect template_type from file extension. Falls back to provided value."""
+    if not filename:
+        return fallback
+    ext = os.path.splitext(filename)[1].lower()
+    if ext == ".docx":
+        return "DOCX"
+    elif ext == ".pdf":
+        return "PDF"
+    return fallback
+
+
 def create_template(
     db: Session,
     name: str,
@@ -18,9 +30,10 @@ def create_template(
 ):
     file_path = None
 
-    if file:
+    if file and file.filename:
         os.makedirs(UPLOAD_DIR, exist_ok=True)
-
+        # Auto-detect correct type from the actual uploaded file extension
+        template_type = _detect_type_from_file(file.filename, template_type)
         file_location = f"{UPLOAD_DIR}/{file.filename}"
 
         with open(file_location, "wb") as buffer:
@@ -42,6 +55,7 @@ def create_template(
     db.refresh(template)
 
     return template
+
 
 
 def get_all_templates(db: Session):
@@ -79,9 +93,10 @@ def update_template(
     if content:
         template.content = content
 
-    if file:
+    if file and file.filename:
         os.makedirs(UPLOAD_DIR, exist_ok=True)
-
+        # Auto-detect type from the uploaded file
+        template.template_type = _detect_type_from_file(file.filename, template.template_type)
         file_location = f"{UPLOAD_DIR}/{file.filename}"
 
         with open(file_location, "wb") as buffer:

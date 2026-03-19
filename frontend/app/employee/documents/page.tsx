@@ -145,6 +145,8 @@ export default function DocumentsPage() {
             status={doc.status}
             isMandatory={true}
             rejectionReason={doc.rejection_reason}
+            employeeId={employeeId}
+            uploadEndpoint="http://localhost:8000/documents/upload"
           />
         ))}
       </div>
@@ -161,6 +163,8 @@ export default function DocumentsPage() {
             description="Optional document"
             status={doc.status}
             isMandatory={false}
+            employeeId={employeeId}
+            uploadEndpoint="http://localhost:8000/documents/upload"
           />
         ))}
       </div>

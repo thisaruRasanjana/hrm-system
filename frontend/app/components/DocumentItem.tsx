@@ -9,6 +9,8 @@ interface Props {
   status: "APPROVED" | "PENDING_REVIEW" | "REJECTED" | "NOT_UPLOADED";
   isMandatory: boolean;
   rejectionReason?: string;
+  employeeId: string;
+  uploadEndpoint: string;
 }
 
 export default function DocumentItem({
@@ -18,13 +20,13 @@ export default function DocumentItem({
   status,
   isMandatory,
   rejectionReason,
+  employeeId,
+  uploadEndpoint,
 }: Props) {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-
-  const employeeId = "11111111-1111-1111-1111-111111111111";
 
   const badgeStyles = {
     APPROVED: "bg-green-100 text-green-600",
@@ -57,7 +59,7 @@ export default function DocumentItem({
     try {
 
       const response = await fetch(
-        "http://localhost:8000/documents/upload",
+        uploadEndpoint,
         {
           method: "POST",
           body: formData,
