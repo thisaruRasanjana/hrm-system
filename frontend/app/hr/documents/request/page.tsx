@@ -20,6 +20,9 @@ export default function HRRequestDocumentPage() {
   const [requests, setRequests] = useState<Request[]>([]);
   const [selectedRequest, setSelectedRequest] = useState<Request | null>(null);
 
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+
   const hrId = "22222222-2222-2222-2222-222222222222";
 
   const documentTypes = [
@@ -43,8 +46,11 @@ export default function HRRequestDocumentPage() {
   }, []);
 
   const handleSubmit = async () => {
+    setMessage("");
+    setError("");
+
     if (!documentType || !purpose) {
-      alert("Please fill all fields");
+      setError("Please fill all fields");
       return;
     }
 
@@ -61,12 +67,13 @@ export default function HRRequestDocumentPage() {
     });
 
     if (res.ok) {
-      alert("Request submitted");
+      setMessage("Request submitted successfully!");
       setDocumentType("");
       setPurpose("");
       fetchRequests();
+      setTimeout(() => setMessage(""), 3000); // Clear success message after 3 seconds
     } else {
-      alert("Error submitting request");
+      setError("Error submitting request");
     }
   };
 
@@ -131,6 +138,17 @@ export default function HRRequestDocumentPage() {
             className="mt-2 w-full border rounded-lg px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-[#F2924E]"
           />
         </div>
+
+        {error && (
+          <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg">
+            {error}
+          </div>
+        )}
+        {message && (
+          <div className="p-3 text-sm text-green-600 bg-green-50 border border-green-200 rounded-lg">
+            {message}
+          </div>
+        )}
 
         <div className="flex justify-end">
           <button
