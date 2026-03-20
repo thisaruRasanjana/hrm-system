@@ -17,6 +17,7 @@ type Vacancy = {
   experience_level: string | null;
   description: string | null;
   requirements: string | null;
+  required_skills: string | null;
   status: string;
 };
 
@@ -123,6 +124,7 @@ export default function EditVacancyPage() {
   const [form, setForm] = useState({
     description: "",
     requirements: "",
+    required_skills: "",
     status: "Active",
   });
 
@@ -153,7 +155,7 @@ export default function EditVacancyPage() {
       try {
         // Fetch vacancy details
         const vRes = await fetch(
-          `http://127.0.0.1:8000/recruitment/vacancies/${vacancyId}`
+          `${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/recruitment/vacancies/${vacancyId}`
         );
         if (!vRes.ok) throw new Error("Vacancy not found");
         const v: Vacancy = await vRes.json();
@@ -161,18 +163,19 @@ export default function EditVacancyPage() {
         setForm({
           description: v.description ?? "",
           requirements: v.requirements ?? "",
+          required_skills: v.required_skills ?? "",
           status: v.status ?? "Active",
         });
 
         // Fetch employees for panel search
-        const empRes = await fetch("http://127.0.0.1:8000/employees/");
+        const empRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/employees/`);
         const empData = await empRes.json();
         const empList: User[] = Array.isArray(empData) ? empData : [];
         setUsers(empList);
 
         // Fetch existing panel (may return 404 — that's fine)
         const panelRes = await fetch(
-          `http://127.0.0.1:8000/recruitment/vacancies/${vacancyId}/panel`
+          `${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/recruitment/vacancies/${vacancyId}/panel`
         );
 
         if (panelRes.ok) {
@@ -223,7 +226,7 @@ export default function EditVacancyPage() {
     try {
       // Patch only the editable fields
       const patchRes = await fetch(
-        `http://127.0.0.1:8000/recruitment/vacancies/${vacancyId}`,
+        `${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/recruitment/vacancies/${vacancyId}`,
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -241,7 +244,7 @@ export default function EditVacancyPage() {
       // Upsert the interview panel if the panel head + link are provided
       if (panel.panel_head_id && panel.interview_link) {
         await fetch(
-          `http://127.0.0.1:8000/recruitment/vacancies/${vacancyId}/panel`,
+          `${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/recruitment/vacancies/${vacancyId}/panel`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -360,6 +363,7 @@ export default function EditVacancyPage() {
                     }
                     className="w-full appearance-none bg-white border border-gray-200 rounded-xl pl-4 pr-9 py-3 text-sm text-gray-700 font-medium cursor-pointer focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-300 transition"
                   >
+                    <option value="Draft">Draft</option>
                     <option value="Active">Active</option>
                     <option value="Closed">Closed</option>
                   </select>
@@ -394,6 +398,21 @@ export default function EditVacancyPage() {
                   onChange={(e) =>
                     setForm({ ...form, requirements: e.target.value })
                   }
+                />
+              </div>
+
+              {/* Required Skills */}
+              <div>
+                <label className="block mb-2 text-sm font-medium text-gray-700">
+                  Required Skills <span className="text-gray-400 font-normal">(e.g. Python, React, SQL)</span>
+                </label>
+                <textarea
+                  className={`${inputCls} h-24`}
+                  value={form.required_skills}
+                  onChange={(e) =>
+                    setForm({ ...form, required_skills: e.target.value })
+                  }
+                  placeholder="Comma-separated important skills for matching..."
                 />
               </div>
 
