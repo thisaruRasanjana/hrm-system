@@ -53,7 +53,7 @@ export default function UploadCVPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("http://127.0.0.1:8000/recruitment/vacancies")
+    fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/recruitment/vacancies`)
       .then((res) => res.json())
       .then((data: Vacancy[]) => {
         // Filter to Active vacancies only — closed vacancies cannot accept uploads
@@ -111,7 +111,7 @@ export default function UploadCVPage() {
 
     try {
       const res = await fetch(
-        `http://127.0.0.1:8000/recruitment/vacancies/${selectedVacancy}/upload-cvs`,
+        `${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/recruitment/vacancies/${selectedVacancy}/upload-cvs`,
         {
           method: "POST",
           body: formData,

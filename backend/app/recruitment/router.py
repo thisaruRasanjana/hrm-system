@@ -129,3 +129,37 @@ def get_panel(vacancy_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Panel not found")
 
     return panel
+
+
+@router.post("/applications/{application_id}/send-scheduling-link")
+async def send_scheduling_link(application_id: int, db: Session = Depends(get_db)):
+    return await service.send_scheduling_link(db, application_id)
+
+
+@router.post("/applications/{application_id}/evaluate", response_model=schemas.EvaluationResponse)
+def submit_evaluation(application_id: int, data: schemas.EvaluationCreate, db: Session = Depends(get_db)):
+    return service.create_evaluation(db, application_id, data)
+
+
+@router.get("/applications/{application_id}/evaluations", response_model=list[schemas.EvaluationResponse])
+def get_evaluations(application_id: int, db: Session = Depends(get_db)):
+    return service.get_evaluations(db, application_id)
+
+
+@router.get("/applications/{application_id}/final-decision-view")
+def get_final_decision_view(application_id: int, db: Session = Depends(get_db)):
+    return service.get_final_decision_view(db, application_id)
+
+
+@router.post("/applications/{application_id}/final-decision", response_model=schemas.FinalDecisionResponse)
+def submit_final_decision(
+    application_id: int,
+    data: schemas.FinalDecisionCreate,
+    db: Session = Depends(get_db)
+):
+    return service.submit_final_decision(db, application_id, data)
+
+
+@router.get("/vacancies/{vacancy_id}/evaluated-candidates")
+def get_evaluated_candidates(vacancy_id: int, db: Session = Depends(get_db)):
+    return service.get_evaluated_candidates(db, vacancy_id)

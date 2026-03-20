@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from typing import Optional, List
-from datetime import date
+from datetime import date, datetime
 
 
 class VacancyCreate(BaseModel):
@@ -9,7 +9,8 @@ class VacancyCreate(BaseModel):
     experience_level: Optional[str] = None
     description: Optional[str] = None
     requirements: Optional[str] = None
-    status: Optional[str] = "Active"
+    required_skills: Optional[str] = None
+    status: Optional[str] = "Draft"
 
 
 class VacancyResponse(BaseModel):
@@ -19,6 +20,7 @@ class VacancyResponse(BaseModel):
     experience_level: Optional[str]
     description: Optional[str]
     requirements: Optional[str]
+    required_skills: Optional[str]
     status: str
     created_date: date
     applicants: int
@@ -65,6 +67,51 @@ class InterviewPanelResponse(BaseModel):
     panel_member_1_id: int | None
     panel_member_2_id: int | None
     interview_link: str | None
+
+    class Config:
+        from_attributes = True
+
+
+class EvaluationCreate(BaseModel):
+    technical_skills: int
+    problem_solving: int
+    communication: int
+    cultural_fit: int
+    attitude: int
+    comments: Optional[str] = None
+    needs_another_round: bool = False
+    evaluator_name: Optional[str] = None
+
+class EvaluationResponse(BaseModel):
+    id: int
+    application_id: int
+    round_number: int
+    technical_skills: int
+    problem_solving: int
+    communication: int
+    cultural_fit: int
+    attitude: int
+    overall_score: float
+    comments: Optional[str]
+    needs_another_round: bool
+    evaluator_name: Optional[str]
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class FinalDecisionCreate(BaseModel):
+    decision: str  # Selected | Rejected | Keep for Future
+    notes: Optional[str] = None
+
+
+class FinalDecisionResponse(BaseModel):
+    id: int
+    application_id: int
+    decision: str
+    notes: Optional[str]
+    decided_at: datetime
 
     class Config:
         from_attributes = True

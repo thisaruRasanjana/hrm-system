@@ -10,9 +10,22 @@ type Vacancy = {
   id: number;
   title: string;
   department: string;
-  status: "Active" | "Closed";
+  status: string;
   applicants: number;
 };
+
+function VacancyStatusBadge({ status }: { status: string }) {
+  const map: Record<string, string> = {
+    "Draft": "bg-yellow-100 text-yellow-700",
+    "Active": "bg-orange-400 text-white",
+    "Closed": "bg-gray-200 text-gray-500",
+  };
+  return (
+    <span className={`px-4 py-1.5 rounded-full text-xs font-medium ${map[status] ?? "bg-gray-200 text-gray-500"}`}>
+      {status}
+    </span>
+  );
+}
 
 function FilterSelect({
   value,
@@ -45,7 +58,7 @@ export default function VacancyListPage() {
   const [deptFilter, setDeptFilter] = useState("All Departments");
 
   useEffect(() => {
-    fetch("http://127.0.0.1:8000/recruitment/vacancies")
+    fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/recruitment/vacancies`)
       .then((res) => res.json())
       .then((data) => setVacancies(data))
       .catch((err) => console.error("Failed to load vacancies:", err));
@@ -82,6 +95,7 @@ export default function VacancyListPage() {
             <div className="flex gap-2">
               <FilterSelect value={statusFilter} onChange={setStatusFilter}>
                 <option>All Status</option>
+                <option>Draft</option>
                 <option>Active</option>
                 <option>Closed</option>
               </FilterSelect>
@@ -122,15 +136,7 @@ export default function VacancyListPage() {
                       <td className="px-6 py-4 text-gray-500 text-sm text-center">{v.department}</td>
 
                       <td className="px-6 py-4 text-center">
-                        {v.status === "Active" ? (
-                          <span className="bg-orange-400 text-white px-4 py-1.5 rounded-full text-xs font-medium">
-                            Active
-                          </span>
-                        ) : (
-                          <span className="bg-gray-200 text-gray-500 px-4 py-1.5 rounded-full text-xs font-medium">
-                            Closed
-                          </span>
-                        )}
+                        <VacancyStatusBadge status={v.status} />
                       </td>
 
                       <td className="px-6 py-4 text-gray-600 text-sm text-center">
@@ -145,7 +151,7 @@ export default function VacancyListPage() {
                           >
                             View
                           </Link>
-                          {v.status === "Active" && (
+                          {(v.status === "Active" || v.status === "Draft") && (
                             <Link
                               href={`/recruitment/${v.id}/edit`}
                               className="text-gray-400 hover:text-gray-600 transition-colors"

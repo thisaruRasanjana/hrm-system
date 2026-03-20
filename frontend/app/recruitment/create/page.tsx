@@ -96,7 +96,8 @@ export default function VacancyCreatePage() {
     experience_level: "",
     description: "",
     requirements: "",
-    status: "",
+    required_skills: "",
+    status: "Draft",
   });
 
   const [panel, setPanel] = useState({
@@ -109,7 +110,7 @@ export default function VacancyCreatePage() {
   useEffect(() => {
     const loadEmployees = async () => {
       try {
-        const res = await fetch("http://127.0.0.1:8000/employees/");
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/employees/`);
         const data = await res.json();
 
         if (Array.isArray(data)) setUsers(data);
@@ -127,7 +128,7 @@ export default function VacancyCreatePage() {
     e.preventDefault();
 
     const vacancyRes = await fetch(
-      "http://127.0.0.1:8000/recruitment/vacancies",
+      `${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/recruitment/vacancies`,
       {
         method: "POST",
         headers: {
@@ -142,7 +143,7 @@ export default function VacancyCreatePage() {
 
     if (panel.panel_head_id && panel.interview_link) {
       await fetch(
-        `http://127.0.0.1:8000/recruitment/vacancies/${vacancyId}/panel`,
+        `${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/recruitment/vacancies/${vacancyId}/panel`,
         {
           method: "POST",
           headers: {
@@ -268,6 +269,21 @@ export default function VacancyCreatePage() {
                 />
               </div>
 
+              {/* Required Skills */}
+              <div>
+                <label className="block mb-2 text-sm font-medium text-gray-700">
+                  Required Skills <span className="text-gray-400 font-normal">(e.g. Python, React, SQL)</span>
+                </label>
+                <textarea
+                  className={`${inputCls} h-24`}
+                  value={form.required_skills}
+                  onChange={(e) =>
+                    setForm({ ...form, required_skills: e.target.value })
+                  }
+                  placeholder="Comma-separated important skills for matching..."
+                />
+              </div>
+
               {/* Status */}
               <div>
                 <label className="block mb-2 text-sm font-medium text-gray-700">
@@ -283,7 +299,7 @@ export default function VacancyCreatePage() {
                     className="w-full appearance-none bg-white border border-gray-200 rounded-xl pl-4 pr-9 py-3 text-sm text-gray-700 font-medium cursor-pointer focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-300 transition"
                     required
                   >
-                    <option value=""></option>
+                    <option value="Draft">Draft</option>
                     <option value="Active">Active</option>
                     <option value="Closed">Closed</option>
                   </select>
