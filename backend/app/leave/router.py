@@ -19,6 +19,7 @@ from app.leave.service import (
     update_status,
     get_leave_types,
     create_leave_type,
+    get_my_leave_history,
 )
 
 router = APIRouter(prefix="/leave", tags=["Leave"])
@@ -99,3 +100,20 @@ def upload_leave_attachment(file: UploadFile = File(...)):
         shutil.copyfileobj(file.file, buffer)
 
     return {"file_url": f"/uploads/medical_docs/{filename}"}
+
+@router.get("/history/me", response_model=list[LeaveRequestOut])
+def get_my_leave_history_api(
+    search: str | None = None,
+    leave_type_id: int | None = None,
+    status: str | None = None,
+    sort_by: str = "newest",
+    db: Session = Depends(get_db),
+):
+    return get_my_leave_history(
+        db=db,
+        employee_id=get_current_employee_id(),
+        search=search,
+        leave_type_id=leave_type_id,
+        status=status,
+        sort_by=sort_by,
+    )

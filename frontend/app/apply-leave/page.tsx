@@ -2,11 +2,11 @@
 
 import React, { useState } from 'react';
 
-import Sidebar from '../components/Sidebar';
-import TopBar from '../components/TopBar';
-import LeaveTabs from '../components/LeaveTabs';
-import LeaveBalanceCards from '../components/LeaveBalanceCards';
-import ApplyLeaveForm from '../components/ApplyLeaveForm';
+import Sidebar from '@/components/Sidebar';
+import TopBar from '@/components/TopBar';
+import LeaveTabs from '@/components/LeaveTabs';
+import LeaveBalanceCards from '@/components/LeaveBalanceCards';
+import ApplyLeaveForm from '@/components/ApplyLeaveForm';
 
 export default function ApplyLeavePage() {
   // mock balance data

@@ -8,15 +8,15 @@ from app.auth import models as auth_models  # if exists# ✅ import router
 from app.leave.router import router as leave_router
 from fastapi.staticfiles import StaticFiles
 
-Base.metadata.create_all(bind=engine)
-
 app = FastAPI(title="HRM Backend")
 
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads") # new added
 
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:3001", "http://127.0.0.1:3001"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

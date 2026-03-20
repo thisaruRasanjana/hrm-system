@@ -14,9 +14,10 @@ class LeaveRequestOut(BaseModel):
     leave_request_id: int
     employee_id: int
     leave_type_id: int
+    leave_type_name: Optional[str]= None
     start_date: date
     end_date: date
-    total_days: int
+    total_days: float
     half_day: bool
     status: str
     reason: Optional[str]

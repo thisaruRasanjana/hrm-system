@@ -1,9 +1,9 @@
 'use client';
 
 import React from 'react';
-import Sidebar from '../components/Sidebar';
-import TopBar from '../components/TopBar';
-import LeaveTabs from '../components/LeaveTabs';
+import Sidebar from '@/components/Sidebar';
+import TopBar from '@/components/TopBar';
+import LeaveTabs from '@/components/LeaveTabs';
 
 export default function ApprovalPage() {
   return (
