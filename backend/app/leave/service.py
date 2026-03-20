@@ -3,12 +3,20 @@ from sqlalchemy.exc import IntegrityError
 from datetime import date
 from app.leave.models import LeaveRequest, LeaveType
 from app.leave.schemas import LeaveRequestCreate
+from sqlalchemy import or_, cast, String
 
-def calculate_total_days(start_date: date, end_date: date, half_day: bool) -> int:
+def calculate_total_days(start_date: date, end_date: date, half_day: bool) -> float:
     days = (end_date - start_date).days + 1
+
     if days < 1:
         raise ValueError("Invalid date range")
-    return days
+
+    if half_day:
+        if start_date != end_date:
+            raise ValueError("Half day leave must be for a single day only")
+        return 0.5
+
+    return float(days)
 
 def leave_type_exists(db: Session, leave_type_id: int) -> bool:
     leave_type = db.query(LeaveType).filter(LeaveType.id == leave_type_id).first()
@@ -123,3 +131,49 @@ def create_leave_type(db: Session, name: str, description: str | None = None):
     db.commit()
     db.refresh(leave_type)
     return leave_type
+
+def get_my_leave_history(
+    db: Session,
+    employee_id: int,
+    search: str | None = None,
+    leave_type_id: int | None = None,
+    status: str | None = None,
+    sort_by: str = "newest",
+):
+    query = db.query(LeaveRequest, LeaveType.name.label("leave_type_name")).join(
+        LeaveType, LeaveRequest.leave_type_id == LeaveType.id
+    ).filter(
+        LeaveRequest.employee_id == employee_id
+    )
+
+    if search:
+        search = search.strip()
+        if search:
+            query = query.filter(
+                or_(
+                LeaveType.name.ilike(f"%{search}%"),
+                LeaveRequest.reason.ilike(f"%{search}%"),
+                LeaveRequest.status.ilike(f"%{search}%"),
+                cast(LeaveRequest.leave_request_id, String).ilike(f"%{search}%")
+                )
+            )
+
+    if leave_type_id is not None:
+        query = query.filter(LeaveRequest.leave_type_id == leave_type_id)
+
+    if status:
+        query = query.filter(LeaveRequest.status == status)
+
+    if sort_by == "oldest":
+        query = query.order_by(LeaveRequest.start_date.asc())
+    else:
+        query = query.order_by(LeaveRequest.start_date.desc())
+
+    results = query.all()
+
+    output = []
+    for leave, leave_type_name in results:
+        leave.leave_type_name = leave_type_name
+        output.append(leave)
+
+    return output

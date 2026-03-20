@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Date, Text, DateTime, Boolean, ForeignKey, JSON
+from sqlalchemy import Column, Integer, String, Date, Float, Text, DateTime, Boolean, ForeignKey, JSON
 from sqlalchemy.sql import func
 from app.database.base import Base
 from sqlalchemy import JSON
@@ -22,7 +22,7 @@ class LeaveRequest(Base):
     start_date = Column(Date, nullable=False)
     end_date = Column(Date, nullable=False)
 
-    total_days = Column(Integer, nullable=False)
+    total_days = Column(Float, nullable=False)
     half_day = Column(Boolean, default=False)
 
     status = Column(String(20), default="PENDING")
@@ -34,4 +34,4 @@ class LeaveRequest(Base):
     approved_date = Column(Date, nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

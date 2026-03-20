@@ -1,72 +1,111 @@
 'use client';
 
-import React, { useState } from 'react';
-import Sidebar from '../components/Sidebar';
-import TopBar from '../components/TopBar';
-import LeaveTabs from '../components/LeaveTabs';
+import React, { useEffect, useState } from 'react';
+import Sidebar from '@/components/Sidebar';
+import TopBar from '@/components/TopBar';
+import LeaveTabs from '@/components/LeaveTabs';
 import { Search } from "lucide-react";
+
 interface LeaveRequest {
-  id: string;
-  type: string;
-  dateRange: string;
-  totalDays: string;
-  status: 'Approved' | 'Pending' | 'Rejected';
-  approver: string;
+  leave_request_id: number;
+  employee_id: number;
+  leave_type_id: number;
+  leave_type_name?: string | null;
+  start_date: string;
+  end_date: string;
+  total_days: number;
+  half_day: boolean;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'REQ_INFO';
+  reason?: string | null;
+  attachment_urls?: string[];
+  rejection_reason?: string | null;
+  approved_by?: number | null;
+  approved_date?: string | null;
 }
 
-const mockLeaveRequests: LeaveRequest[] = [
-  {
-    id: 'LR-2024-0015',
-    type: 'Medical Leave',
-    dateRange: 'Aug 20, 2024 - Aug 22, 2024',
-    totalDays: '3 days',
-    status: 'Approved',
-    approver: 'Naeemah Peters - HR Manager',
-  },
-  {
-    id: 'LR-2024-0015',
-    type: 'Casual Leave',
-    dateRange: 'Sep 16, 2024 - Sep 18, 2024',
-    totalDays: '3 days',
-    status: 'Pending',
-    approver: 'Naeemah Peters - HR Manager',
-  },
-  {
-    id: 'LR-2024-1050',
-    type: 'Annual Leave',
-    dateRange: 'Oct 5, 2024 - Oct 7, 2024',
-    totalDays: '3 days',
-    status: 'Approved',
-    approver: 'Naeemah Peters - HR Manager',
-  },
-  {
-    id: 'LR-2024-1050',
-    type: 'Short Leave',
-    dateRange: 'Oct 20, 2024 - Oct 20, 2024',
-    totalDays: '0.5 days',
-    status: 'Rejected',
-    approver: 'Naeemah Peters - HR Manager',
-  },
-];
 
 const getStatusBadgeColor = (status: string) => {
   switch (status) {
-    case 'Approved':
+    case 'APPROVED':
       return 'bg-orange-100 text-orange-600';
-    case 'Pending':
+    case 'PENDING':
       return 'bg-gray-200 text-gray-600';
-    case 'Rejected':
+    case 'REJECTED':
       return 'bg-red-100 text-red-600';
+    case 'REQ_INFO':
+      return 'bg-yellow-100 text-yellow-700';
     default:
       return 'bg-gray-100 text-gray-600';
   }
 };
+
+
 
 export default function LeaveHistoryPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [leaveType, setLeaveType] = useState('All type');
   const [status, setStatus] = useState('All Status');
   const [sortBy, setSortBy] = useState('Newest first');
+  
+  const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const leaveTypeIdMap: Record<string, string> = {
+  'Annual Leave': '1',
+  'Medical Leave': '2',
+  'Casual Leave': '3',
+  'Short Leave': '4',
+};
+
+useEffect(() => {
+  const fetchLeaveHistory = async () => {
+    setLoading(true);
+
+    try {
+      const params = new URLSearchParams();
+
+      if (searchTerm.trim()) {
+        params.append('search', searchTerm.trim());
+      }
+
+      if (leaveType !== 'All type') {
+        params.append('leave_type_id', leaveTypeIdMap[leaveType]);
+      }
+
+      if (status !== 'All Status') {
+        params.append('status', status.toUpperCase());
+      }
+
+      params.append('sort_by', sortBy === 'Newest first' ? 'newest' : 'oldest');
+
+      const response = await fetch(`http://127.0.0.1:8000/leave/history/me?${params.toString()}`);
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch leave history');
+      }
+
+      const data = await response.json();
+      setLeaveRequests(data);
+    } catch (error) {
+      console.error('Error fetching leave history:', error);
+      setLeaveRequests([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  fetchLeaveHistory();
+}, [searchTerm, leaveType, status, sortBy]);
+
+
+  const formatDate = (dateString: string) => {
+  return new Date(dateString).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+};
+
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -81,42 +120,38 @@ export default function LeaveHistoryPage() {
             <h1 className="text-2xl font-semibold text-gray-900 mb-1">Leave History</h1>
             <p className="text-gray-600 mb-6">Review and manage pending leave requests</p>
 
-            {/* Search and Filters */}
+
             <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
-              <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
-                {/* Search */}
-                <div className="flex-1 relative">
+              <div className="flex flex-row gap-4 items-center">
+                <div className="relative flex-[2] min-w-0">
                   <input
                     type="text"
                     placeholder="Search leave requests"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-200"
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-400 placeholder-gray-400 bg-white focus:outline-none focus:ring-2 focus:ring-orange-200"
                   />
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
                     <Search size={16} />
                   </span>
                 </div>
 
-                {/* Leave Type Dropdown */}
                 <select
                   value={leaveType}
                   onChange={(e) => setLeaveType(e.target.value)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-200 cursor-pointer"
+                  className="flex-1 min-w-[160px] px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-400 bg-white focus:outline-none focus:ring-2 focus:ring-orange-200 cursor-pointer"
                 >
                   <option>All type</option>
                   <option>Annual Leave</option>
                   <option>Casual Leave</option>
                   <option>Medical Leave</option>
                   <option>Short Leave</option>
-                  <option>Sick Leave</option>
                 </select>
 
-                {/* Status Dropdown */}
                 <select
                   value={status}
                   onChange={(e) => setStatus(e.target.value)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-200 cursor-pointer"
+                  className="flex-1 min-w-[160px] px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-400 bg-white focus:outline-none focus:ring-2 focus:ring-orange-200 cursor-pointer"
                 >
                   <option>All Status</option>
                   <option>Approved</option>
@@ -124,11 +159,10 @@ export default function LeaveHistoryPage() {
                   <option>Rejected</option>
                 </select>
 
-                {/* Sort Dropdown */}
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-200 cursor-pointer"
+                  className="flex-1 min-w-[160px] px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-400 bg-white focus:outline-none focus:ring-2 focus:ring-orange-200 cursor-pointer"
                 >
                   <option>Newest first</option>
                   <option>Oldest first</option>
@@ -136,7 +170,6 @@ export default function LeaveHistoryPage() {
               </div>
             </div>
 
-            {/* Table */}
             <div className="bg-white rounded-lg shadow-sm overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full">
@@ -163,20 +196,44 @@ export default function LeaveHistoryPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
-                    {mockLeaveRequests.map((request, index) => (
-                      <tr key={index} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-6 py-4 text-sm text-gray-900">{request.id}</td>
-                        <td className="px-6 py-4 text-sm text-gray-700">{request.type}</td>
-                        <td className="px-6 py-4 text-sm text-gray-700">{request.dateRange}</td>
-                        <td className="px-6 py-4 text-sm text-gray-700">{request.totalDays}</td>
-                        <td className="px-6 py-4 text-sm">
-                          <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusBadgeColor(request.status)}`}>
-                            {request.status}
-                          </span>
+                    {loading ? (
+                      <tr>
+                        <td colSpan={6} className="px-6 py-8 text-center text-sm text-gray-500">
+                          Loading leave history...
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-700">{request.approver}</td>
                       </tr>
-                    ))}
+                    ) : leaveRequests.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-6 py-8 text-center text-sm text-gray-500">
+                          No leave history found
+                        </td>
+                      </tr>
+                    ) : (
+                      leaveRequests.map((request) => (
+                        <tr key={request.leave_request_id} className="hover:bg-gray-50 transition-colors">
+                          <td className="px-6 py-4 text-sm text-gray-900">
+                            LR-{request.leave_request_id}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-700">
+                            {request.leave_type_name || '-'}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-700">
+                            {formatDate(request.start_date)} - {formatDate(request.end_date)}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-700">
+                            {request.half_day ? '0.5 days' : `${request.total_days} days`}
+                          </td>
+                          <td className="px-6 py-4 text-sm">
+                            <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusBadgeColor(request.status)}`}>
+                              {request.status}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-700">
+                            {request.approved_by ?? '-'}
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -187,4 +244,3 @@ export default function LeaveHistoryPage() {
     </div>
   );
 }
-
