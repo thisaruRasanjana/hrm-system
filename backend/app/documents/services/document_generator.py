@@ -68,12 +68,16 @@ def _generate_from_html(template: DocumentTemplate, context: dict, preview: bool
     # Try PDF conversion, fall back to HTML
     final_path = html_path
     try:
-        import pdfkit
+        from xhtml2pdf import pisa
         pdf_path = os.path.join(GENERATED_DOCS_DIR, f"{filename}.pdf")
-        pdfkit.from_string(wrapper, pdf_path)
-        if os.path.exists(html_path):
-            os.remove(html_path)
-        final_path = pdf_path
+        with open(pdf_path, "wb") as pdf_file:
+            pisa_status = pisa.CreatePDF(wrapper, dest=pdf_file)
+        if not pisa_status.err:
+            if os.path.exists(html_path):
+                os.remove(html_path)
+            final_path = pdf_path
+        else:
+            print(f"Warning: xhtml2pdf encountered errors.")
     except Exception as e:
         print(f"Warning: PDF generation failed ({e}). Returning HTML instead.")
 
@@ -136,7 +140,6 @@ def _generate_from_docx(template: DocumentTemplate, context: dict, preview: bool
                 result = mammoth.convert_to_html(docx_file)
                 html_preview = result.value
                 
-            # Wrap the converted HTML slightly so it looks decent
             html_preview = f"""
             <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; padding: 20px;">
                 {html_preview}
@@ -145,13 +148,47 @@ def _generate_from_docx(template: DocumentTemplate, context: dict, preview: bool
         except Exception as e:
             html_preview = f"<p>Error generating DOCX preview: {e}</p>"
 
-        # Clean up the generated file since it's only a preview
         if os.path.exists(output_path):
             os.remove(output_path)
             
         return None, html_preview
 
-    return output_path, None
+    # Generate PDF from DOCX using mammoth + xhtml2pdf as requested
+    final_output_path = output_path
+    try:
+        import mammoth
+        from xhtml2pdf import pisa
+        
+        pdf_filename = f"{filename.replace('.docx', '')}.pdf"
+        pdf_path = os.path.join(GENERATED_DOCS_DIR, pdf_filename)
+        
+        with open(output_path, "rb") as docx_file:
+            result = mammoth.convert_to_html(docx_file)
+            raw_html = result.value
+            
+        pdf_wrapper = f"""<!DOCTYPE html>
+<html>
+  <head>
+    <style>
+      body {{ font-family: sans-serif; padding: 40px; line-height: 1.6; color: #333; }}
+      table {{ border-collapse: collapse; width: 100%; }}
+      th, td {{ border: 1px solid #ddd; padding: 8px; }}
+    </style>
+  </head>
+  <body>{raw_html}</body>
+</html>"""
+
+        with open(pdf_path, "wb") as pdf_file:
+            pisa_status = pisa.CreatePDF(pdf_wrapper, dest=pdf_file)
+            
+        if not pisa_status.err:
+            if os.path.exists(output_path):
+                os.remove(output_path)
+            final_output_path = pdf_path
+    except Exception as e:
+        print(f"Warning: DOCX to PDF generation failed ({e}). Returning DOCX instead.")
+
+    return final_output_path, None
 
 
 # ─────────────────────────────────────────────

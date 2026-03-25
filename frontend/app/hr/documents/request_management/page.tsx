@@ -20,6 +20,9 @@ type RequestType = {
 
 export default function HRRequestManagementPage() {
   const [activeTab, setActiveTab] = useState<"ALL" | "NEW" | "IN_PROGRESS" | "COMPLETED">("NEW");
+  const [rejectReason, setRejectReason] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
   const [requests, setRequests] = useState<RequestType[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -28,6 +31,24 @@ export default function HRRequestManagementPage() {
 
   const [showGenerateModal, setShowGenerateModal] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
+
+  const handleForceDownload = async (path: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    try {
+      const response = await fetch(`http://localhost:8000/${path}`);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = path.split("/").pop() || "document.pdf";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Download failed", err);
+    }
+  };
 
   const fetchRequests = async () => {
     setLoading(true);
@@ -332,11 +353,10 @@ export default function HRRequestManagementPage() {
                   <h4 className="font-bold text-green-800 text-[14px] mb-2">Document Generated</h4>
                   <a
                     href={`http://localhost:8000/${selectedRequest.generated_document_path}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 text-sm bg-white border border-green-200 shadow-sm text-green-700 px-4 py-2 rounded-lg font-bold hover:bg-green-100 transition"
+                    onClick={(e) => handleForceDownload(selectedRequest.generated_document_path!, e)}
+                    className="inline-flex items-center gap-1.5 text-sm bg-white border border-green-200 shadow-sm text-green-700 px-4 py-2 rounded-lg font-bold hover:bg-green-100 transition cursor-pointer"
                   >
-                    <FileText size={14} /> View Document
+                    <FileText size={14} /> Download Document
                   </a>
                 </div>
               </div>
