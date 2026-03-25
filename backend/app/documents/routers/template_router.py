@@ -86,3 +86,27 @@ def delete_template(template_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Template not found")
 
     return {"message": "Template deleted successfully"}
+
+
+@router.get("/{template_id}/preview")
+def preview_docx_template(template_id: int, db: Session = Depends(get_db)):
+    template = template_service.get_template(db, template_id)
+    if not template:
+        raise HTTPException(status_code=404, detail="Template not found")
+
+    if template.template_type != "DOCX" or not template.file_path:
+        raise HTTPException(status_code=400, detail="Only DOCX templates can be previewed this way")
+
+    import os
+    if not os.path.exists(template.file_path):
+        raise HTTPException(status_code=404, detail="Template file not found on disk")
+
+    try:
+        import mammoth
+        with open(template.file_path, "rb") as docx_file:
+            result = mammoth.convert_to_html(docx_file)
+            html_preview = result.value
+
+        return {"preview_html": html_preview}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to generate preview: {str(e)}")

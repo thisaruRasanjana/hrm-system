@@ -243,36 +243,31 @@ export default function GenerateDocumentModal({ request, onClose, onSuccess }: P
           {/* Document Preview Box — only for HTML */}
           {!isPdf && (
             !previewMode ? (
-              <div className="border border-gray-100 bg-white rounded-[32px] p-12 flex flex-col items-center justify-center text-center relative overflow-hidden transition-all shadow-sm">
-                <h3 className="font-bold text-gray-900 text-[16px] mb-2 tracking-tight">Auto-Generated Document</h3>
-                <p className="text-[14px] text-gray-600 font-medium mb-10 tracking-wide">
+              <div className="shrink-0 border border-gray-100 bg-white rounded-[32px] p-12 flex flex-col items-center justify-center text-center relative overflow-hidden transition-all shadow-sm min-h-[300px]">
+                <div className="px-8 py-4 bg-gray-50 border border-gray-100 rounded-full flex items-center justify-center mb-6">
                   {selectedType === "DOCX"
-                    ? "This DOCX template will be filled with employee details when you generate."
-                    : "This document will be auto-filled by the system with complete details"}
-                </p>
-
-                <div className="px-8 py-3.5 bg-gray-50 border border-gray-100 rounded-full flex items-center justify-center mb-8">
-                  {selectedType === "DOCX"
-                    ? <FileCode size={24} className="text-green-500" />
-                    : <FileText size={24} className="text-gray-400" />
+                    ? <FileCode size={32} className="text-green-500" />
+                    : <FileText size={32} className="text-gray-400" />
                   }
                 </div>
+                
+                <h3 className="font-bold text-gray-900 text-[18px] mb-6 tracking-tight">Auto-Generated Document</h3>
 
                 {canPreview && (
                   <button
                     onClick={handleTogglePreview}
                     disabled={loadingPreview || !selectedTemplate}
-                    className="text-[#F2924E] text-[15px] font-bold flex items-center gap-2 hover:opacity-80 transition disabled:opacity-50"
+                    className="bg-orange-50 hover:bg-orange-100 text-[#F2924E] border border-orange-200 text-[15px] font-bold py-3 px-8 rounded-xl transition shadow-md hover:shadow-lg flex items-center gap-2 mb-6 disabled:opacity-60 disabled:shadow-none"
                   >
-                    {loadingPreview ? <RefreshCw size={18} className="animate-spin" /> : <Eye size={18} />}
+                    {loadingPreview ? <RefreshCw size={20} className="animate-spin" /> : <Eye size={20} />}
                     Show Preview
                   </button>
                 )}
 
-                <p className="text-[13px] text-gray-500 font-medium mt-8">
+                <p className="text-[14px] text-gray-500 font-medium">
                   {canPreview
-                    ? "Click \"Show Preview\" to see the generated document"
-                    : "Click \"Generate & Send\" to produce the filled DOCX file"}
+                    ? selectedType === "DOCX" ? "Click to see the filled DOCX file" : "Click to see the filled HTML document"
+                    : "Generate & Send below"}
                 </p>
               </div>
             ) : (
@@ -306,17 +301,18 @@ export default function GenerateDocumentModal({ request, onClose, onSuccess }: P
         </div>
 
         {/* Footer */}
-        <div className="px-8 py-6 border-t border-gray-100 flex gap-4">
+        <div className="px-8 py-6 border-t border-gray-100 flex gap-4 mt-auto">
           <button
             onClick={onClose}
             className="flex-1 py-4 bg-gray-100 hover:bg-gray-200 text-gray-800 text-[14px] font-bold rounded-2xl transition"
           >
             Cancel
           </button>
+          
           <button
             onClick={handleGenerateAndSend}
             disabled={loadingGenerate || !selectedTemplate || isPdf}
-            className="flex-1 py-4 bg-[#F2924E] hover:bg-[#e07d3a] text-white text-[14px] font-bold rounded-2xl transition shadow-md hover:shadow-lg flex items-center justify-center gap-2 disabled:opacity-60 disabled:shadow-none"
+            className="flex-[1.5] py-4 bg-[#F2924E] hover:bg-[#e07d3a] text-white text-[14px] font-bold rounded-2xl transition shadow-md hover:shadow-lg flex items-center justify-center gap-2 disabled:opacity-60 disabled:shadow-none"
           >
             {loadingGenerate ? (
               <><RefreshCw size={18} className="animate-spin" /> Generating...</>
