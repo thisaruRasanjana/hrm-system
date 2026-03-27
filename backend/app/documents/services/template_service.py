@@ -58,8 +58,12 @@ def create_template(
 
 
 
-def get_all_templates(db: Session):
-    return db.query(DocumentTemplate).order_by(DocumentTemplate.created_at.desc()).all()
+def get_all_templates(db: Session, category: str = None):
+    query = db.query(DocumentTemplate).order_by(DocumentTemplate.created_at.desc())
+    if category:
+        # Case-insensitive contains match so "Service Letter" matches "Service Letter"
+        query = query.filter(DocumentTemplate.category.ilike(f"%{category}%"))
+    return query.all()
 
 
 def get_template(db: Session, template_id: int):

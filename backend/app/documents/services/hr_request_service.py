@@ -31,6 +31,8 @@ def get_all_hr_requests(db: Session, status: str = None):
             "document_type": req.document_type,
             "purpose": req.purpose,
             "status": req.status,
+            "source": getattr(req, "source", "INTERNAL"),
+            "requester_email": getattr(req, "requester_email", None),
             "rejection_reason": req.rejection_reason,
             "generated_document_path": req.generated_document_path,
             "created_at": req.created_at
@@ -54,3 +56,22 @@ def update_request_status(db: Session, request_id: UUID, status: RequestStatus, 
     db.refresh(request)
     
     return request
+
+
+def assign_employee_to_request(db: Session, request_id: UUID, employee_id: UUID):
+    """Link an internal employee to an external document request before generation."""
+    request = db.query(DocumentRequest).filter(DocumentRequest.id == request_id).first()
+    if not request:
+        raise HTTPException(status_code=404, detail="Request not found")
+
+    employee = db.query(Employee).filter(Employee.id == employee_id).first()
+    if not employee:
+        raise HTTPException(status_code=404, detail="Employee not found")
+
+    request.employee_id = employee_id
+    db.commit()
+    db.refresh(request)
+    return {
+        "message": f"Assigned {employee.first_name} {employee.last_name} to this request.",
+        "employee_name": f"{employee.first_name} {employee.last_name}"
+    }
