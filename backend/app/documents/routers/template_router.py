@@ -35,8 +35,8 @@ def create_template(
 
 
 @router.get("/", response_model=List[TemplateResponse])
-def get_templates(db: Session = Depends(get_db)):
-    return template_service.get_all_templates(db)
+def get_templates(category: str = None, db: Session = Depends(get_db)):
+    return template_service.get_all_templates(db, category=category)
 
 
 @router.get("/{template_id}", response_model=TemplateResponse)

@@ -27,6 +27,23 @@ def _build_context(employee: Employee, doc_request: DocumentRequest) -> dict:
     }
 
 
+def _build_external_context(doc_request: DocumentRequest) -> dict:
+    """Build a context dict for external email requests with no linked employee."""
+    # Try to derive a name from the requester email address (e.g. john.doe@org.com → John Doe)
+    email_addr = doc_request.requester_email or "External Requester"
+    name_part = email_addr.split("@")[0].replace(".", " ").replace("_", " ").title()
+    return {
+        "employee_name": name_part,
+        "employee_id": "N/A",
+        "designation": "N/A",
+        "department": "N/A",
+        "date": datetime.now().strftime("%B %d, %Y"),
+        "purpose": doc_request.purpose,
+        "document_type": doc_request.document_type,
+        "requester_email": email_addr,
+    }
+
+
 def _replace_placeholders(text: str, context: dict) -> str:
     """Replace {{variable}} style placeholders with context values."""
     for key, value in context.items():
@@ -205,16 +222,22 @@ def generate_document_from_request(
     if not doc_request:
         raise ValueError("Document request not found")
 
-    employee = db.query(Employee).filter(Employee.id == doc_request.employee_id).first()
-    if not employee:
-        raise ValueError("Employee not found")
+    employee = None
+    if doc_request.employee_id:
+        employee = db.query(Employee).filter(Employee.id == doc_request.employee_id).first()
+        if not employee:
+            raise ValueError("Linked employee not found in the system")
 
     template = db.query(DocumentTemplate).filter(DocumentTemplate.id == template_id).first()
     if not template:
         raise ValueError("Template not found")
 
-    # 2. Build shared context
-    context = _build_context(employee, doc_request)
+    # 2. Build shared context — use external fallback if no employee is linked
+    if doc_request.employee_id and employee:
+        context = _build_context(employee, doc_request)
+    else:
+        # External request: generate using the requester's email info as context
+        context = _build_external_context(doc_request)
 
     # 3. Route to the correct generator
     template_type = (template.template_type or "").upper()
@@ -242,5 +265,19 @@ def generate_document_from_request(
 
     db.commit()
     db.refresh(doc_request)
+
+    # 6. If this is an EXTERNAL request, automatically email the document to the requester
+    if getattr(doc_request, "source", "INTERNAL") == "EXTERNAL" and doc_request.requester_email and final_path:
+        try:
+            from app.documents.services.email_service import send_document_to_requester
+            # Build the absolute path for the file
+            abs_path = os.path.join(os.getcwd(), final_path.replace("/", os.sep))
+            send_document_to_requester(
+                to_email=doc_request.requester_email,
+                document_path=abs_path,
+                document_type=doc_request.document_type
+            )
+        except Exception as e:
+            print(f"[Document Generator] Warning: Could not email document to requester: {e}")
 
     return doc_request, html_content

@@ -14,11 +14,13 @@ class HRGenerateDocumentRequest(BaseModel):
 
 class HRRequestResponse(BaseModel):
     id: UUID
-    employee_id: UUID
-    employee_name: str
+    employee_id: Optional[UUID] = None
+    employee_name: Optional[str] = "External Request"
     document_type: str
     purpose: str
     status: RequestStatus
+    source: str = "INTERNAL"
+    requester_email: Optional[str] = None
     rejection_reason: Optional[str] = None
     generated_document_path: Optional[str] = None
     created_at: datetime

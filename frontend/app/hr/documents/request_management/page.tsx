@@ -13,6 +13,8 @@ type RequestType = {
   document_type: string;
   purpose: string;
   status: string;
+  source: string;
+  requester_email: string | null;
   rejection_reason: string | null;
   generated_document_path: string | null;
   created_at: string;
@@ -21,16 +23,21 @@ type RequestType = {
 export default function HRRequestManagementPage() {
   const [activeTab, setActiveTab] = useState<"ALL" | "NEW" | "IN_PROGRESS" | "COMPLETED">("NEW");
   const [rejectReason, setRejectReason] = useState("");
+  const [syncMessage, setSyncMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [requests, setRequests] = useState<RequestType[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
   const [selectedRequest, setSelectedRequest] = useState<RequestType | null>(null);
 
   const [showGenerateModal, setShowGenerateModal] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
+  const [employeeSearch, setEmployeeSearch] = useState("");
+  const [employeeResults, setEmployeeResults] = useState<{id: string; name: string}[]>([]);
+  const [assigningEmployee, setAssigningEmployee] = useState(false);
 
   const handleForceDownload = async (path: string, e: React.MouseEvent) => {
     e.preventDefault();
@@ -47,6 +54,69 @@ export default function HRRequestManagementPage() {
       window.URL.revokeObjectURL(url);
     } catch (err) {
       console.error("Download failed", err);
+    }
+  };
+
+  const handleSyncEmails = async () => {
+    setIsSyncing(true);
+    setSyncMessage(null);
+    try {
+      const res = await fetch(`http://localhost:8000/hr-document-requests/sync-emails`, { method: "POST" });
+      const data = await res.json();
+      if (data.status === "success") {
+        setSyncMessage({ text: `Synced ${data.processed_emails} new requests.`, type: "success" });
+        fetchRequests();
+      } else {
+        setSyncMessage({ text: `Sync failed: ${data.message || "Unknown error"}`, type: "error" });
+      }
+    } catch (err) {
+      console.error(err);
+      setSyncMessage({ text: "Failed to sync emails.", type: "error" });
+    } finally {
+      setIsSyncing(false);
+      setTimeout(() => setSyncMessage(null), 4000); // Clear message after 4 seconds
+    }
+  };
+
+  const searchEmployees = async (query: string) => {
+    if (!query.trim()) { setEmployeeResults([]); return; }
+    try {
+      const res = await fetch(`http://localhost:8000/employees/?search=${encodeURIComponent(query)}`);
+      const data = await res.json();
+      // Map to a simple {id, name} array
+      setEmployeeResults(
+        (data || []).slice(0, 6).map((e: {id: string; first_name: string; last_name: string}) => ({
+          id: e.id,
+          name: `${e.first_name} ${e.last_name}`
+        }))
+      );
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleAssignEmployee = async (employeeId: string, employeeName: string) => {
+    if (!selectedRequest) return;
+    setAssigningEmployee(true);
+    try {
+      const res = await fetch(
+        `http://localhost:8000/hr-document-requests/${selectedRequest.id}/assign-employee`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ employee_id: employeeId })
+        }
+      );
+      const data = await res.json();
+      if (data.message) {
+        setEmployeeSearch("");
+        setEmployeeResults([]);
+        fetchRequests();
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setAssigningEmployee(false);
     }
   };
 
@@ -74,6 +144,9 @@ export default function HRRequestManagementPage() {
 
   useEffect(() => {
     fetchRequests();
+    // Auto-refresh every 30s to pick up new external email requests from the background poller
+    const interval = setInterval(fetchRequests, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   const handleMarkInProgress = async (id: string) => {
@@ -188,6 +261,20 @@ export default function HRRequestManagementPage() {
             >
               Clear
             </button>
+            <div className="flex items-center gap-3 ml-auto">
+              {syncMessage && (
+                <span className={`text-sm font-semibold animate-pulse ${syncMessage.type === "success" ? "text-green-600" : "text-red-500"}`}>
+                  {syncMessage.text}
+                </span>
+              )}
+              <button
+                onClick={handleSyncEmails}
+                disabled={isSyncing}
+                className="px-5 py-2.5 text-sm font-semibold text-white bg-[#F2924E] border border-[#F2924E] rounded-xl hover:opacity-90 transition flex items-center gap-2 disabled:opacity-50"
+              >
+                <Mail size={16} /> {isSyncing ? "Syncing..." : "Sync Emails"}
+              </button>
+            </div>
           </div>
 
           {/* List View */}
@@ -217,7 +304,12 @@ export default function HRRequestManagementPage() {
                       <div className={`mt-2 w-1.5 h-1.5 rounded-full shrink-0 ${isNew ? 'bg-[#F2924E]' : 'bg-transparent'}`} />
 
                       <div>
-                        <h3 className="font-bold text-gray-900 text-[15px] mb-1">{req.employee_name}</h3>
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="font-bold text-gray-900 text-[15px]">{req.source === "EXTERNAL" ? req.requester_email : req.employee_name}</h3>
+                          {req.source === "EXTERNAL" && (
+                            <span className="bg-[#F2924E]/10 text-[#F2924E] text-[9px] uppercase font-bold px-2 py-0.5 rounded tracking-wider">External</span>
+                          )}
+                        </div>
                         <p className="text-sm text-gray-500 mb-2.5 tracking-tight">{req.document_type}</p>
 
                         <div className="flex items-center gap-2">
@@ -275,17 +367,70 @@ export default function HRRequestManagementPage() {
             <h3 className="text-[13px] font-bold text-gray-900 mb-6 tracking-wide">Requester Information</h3>
             <div className="flex">
               <div className="flex-1">
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">NAME</p>
-                <p className="font-bold text-gray-800">{selectedRequest.employee_name}</p>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">{selectedRequest.source === "EXTERNAL" ? "REQUESTER EMAIL" : "NAME"}</p>
+                <p className="font-bold text-gray-800 flex items-center gap-2">
+                  {selectedRequest.source === "EXTERNAL" ? selectedRequest.requester_email : selectedRequest.employee_name}
+                  {selectedRequest.source === "EXTERNAL" && (
+                    <span className="bg-[#F2924E]/10 text-[#F2924E] text-[9px] uppercase font-bold px-2 py-0.5 rounded tracking-wider">External</span>
+                  )}
+                </p>
               </div>
               <div className="flex-1">
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">EMPLOYEE ID</p>
-                <p className="font-bold text-gray-800">{selectedRequest.employee_id}</p>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">EMPLOYEE ID / REF</p>
+                <p className="font-bold text-gray-800">{selectedRequest.employee_id || "Unassigned"}</p>
               </div>
             </div>
           </div>
 
-          <div className="bg-white border border-gray-200 shadow-sm rounded-2xl p-6.5 mb-6 p-8">
+          {/* Assign Employee Panel — for EXTERNAL requests */}
+          {selectedRequest.source === "EXTERNAL" && (
+            <div className="bg-orange-50/60 border border-[#F2924E]/30 shadow-sm rounded-2xl p-8 mb-4">
+              <h3 className="text-[13px] font-bold text-gray-900 mb-1 tracking-wide flex items-center gap-2">
+                <User size={14} className="text-[#F2924E]" /> Assign Internal Employee <span className="text-[10px] font-semibold text-gray-400 normal-case tracking-normal">(Optional)</span>
+              </h3>
+              <p className="text-[12px] text-gray-500 mb-4 font-medium">
+                If the request mentions a specific employee, assign them so the document uses their real details. Leave unassigned to generate a generic company document.
+              </p>
+
+              {selectedRequest.employee_id && selectedRequest.employee_name && selectedRequest.employee_name !== "External Request" ? (
+                <div className="flex items-center gap-3 bg-white border border-gray-200 rounded-xl p-4">
+                  <User size={16} className="text-[#F2924E]" />
+                  <span className="font-bold text-gray-900 text-[14px]">{selectedRequest.employee_name}</span>
+                  <span className="text-[10px] bg-[#F2924E]/10 text-[#F2924E] font-bold px-2 py-0.5 rounded tracking-wider uppercase">Assigned</span>
+                </div>
+              ) : (
+                <div className="relative">
+                  <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-4 py-2.5">
+                    <Search size={14} className="text-gray-400" />
+                    <input
+                      type="text"
+                      placeholder="Search employee by name (optional)..."
+                      value={employeeSearch}
+                      onChange={(e) => { setEmployeeSearch(e.target.value); searchEmployees(e.target.value); }}
+                      className="flex-1 text-sm outline-none bg-transparent text-gray-800 placeholder-gray-400"
+                    />
+                  </div>
+                  {employeeResults.length > 0 && (
+                    <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+                      {employeeResults.map((emp) => (
+                        <button
+                          key={emp.id}
+                          onClick={() => handleAssignEmployee(emp.id, emp.name)}
+                          disabled={assigningEmployee}
+                          className="w-full text-left px-4 py-3 text-sm font-medium text-gray-800 hover:bg-orange-50 flex items-center gap-2 transition"
+                        >
+                          <User size={14} className="text-[#F2924E]" /> {emp.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+
+          <div className="bg-white border border-gray-200 shadow-sm rounded-2xl p-8 mb-6">
             <h3 className="text-[13px] font-bold text-gray-900 mb-6 tracking-wide">Request Details</h3>
 
             <div className="mb-8">

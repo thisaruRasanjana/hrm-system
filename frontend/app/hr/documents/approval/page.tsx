@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import DocumentReviewModal from "../../../components/DocumentReviewModal";
 import StatusBadge from "../../../components/statusBadge";
 import DocumentTabs from "../../../components/DocumentTabsHR";
+import { Clock } from "lucide-react";
 
 type Document = {
   id: string;
@@ -53,8 +54,8 @@ export default function ApprovalPage() {
           </p>
         </div>
 
-        <div className="bg-orange-400 text-white w-12 h-12 rounded-full flex items-center justify-center">
-          ⏱
+        <div className="flex items-center justify-center text-[#F2924E]">
+          <Clock size={32} strokeWidth={2.5} />
         </div>
 
       </div>
