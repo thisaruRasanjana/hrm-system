@@ -1,19 +1,50 @@
 "use client";
 
-export default function WeeklyHoursWidget() {
-  return (
-    <div className="bg-white p-6 rounded-xl shadow">
-      <h2 className="text-sm text-gray-500 mb-2">
-        Weekly Hours
-      </h2>
+import { useRouter } from "next/navigation";
+import { BarChart3 } from "lucide-react";
 
-      <div className="text-3xl font-bold text-gray-800">
-        37.5
+export default function WeeklyHoursWidget() {
+  const router = useRouter();
+
+  const hours = [7, 8, 8.5, 6, 8];
+  const maxH = Math.max(...hours);
+  const days = ["M", "T", "W", "T", "F"];
+
+  return (
+    <div
+      onClick={() => router.push("/dashboard/time-tracking")}
+      className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition cursor-pointer h-full w-full flex flex-col"
+    >
+      {/* Header */}
+      <div className="flex justify-between items-center mb-2">
+        <h3 className="text-base font-semibold text-gray-800">Weekly Hours</h3>
+        <BarChart3 size={16} className="text-gray-400" />
       </div>
 
-      <p className="text-sm text-gray-400">
-        hours this week
-      </p>
+      {/* Big number */}
+      <div className="text-3xl font-bold text-gray-900 mt-1">37.5</div>
+      <p className="text-xs text-gray-400 mb-4">hours this week</p>
+
+      {/* Bar chart */}
+      <div className="flex-1 flex flex-col justify-end">
+        <div className="flex items-end gap-2 h-24">
+          {hours.map((h, i) => (
+            <div
+              key={i}
+              className="flex-1 bg-[#F2924E] rounded-t-lg"
+              style={{ height: `${(h / maxH) * 100}%` }}
+            />
+          ))}
+        </div>
+        {/* Day labels */}
+        <div className="flex gap-2 mt-1.5">
+          {days.map((d, i) => (
+            <div key={i} className="flex-1 text-xs text-gray-400 text-center">
+              {d}
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

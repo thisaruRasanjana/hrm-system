@@ -8,10 +8,12 @@ from app.database.base import Base
 # Routers
 from app.auth.router import router as auth_router
 from app.dashboard.router import router as dashboard_router
+from app.messages.router import router as messages_router
 
 # Import models so SQLAlchemy registers tables
 from app.auth import models
 from app.dashboard import models as dashboard_models
+from app.messages import models as messages_models
 
 
 # Create database tables
@@ -41,6 +43,7 @@ app.add_middleware(
 # Register API routers
 app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
 app.include_router(dashboard_router, prefix="/dashboard", tags=["Dashboard"])
+app.include_router(messages_router, prefix="/messages", tags=["Messages"])
 
 
 # Root test route
@@ -59,4 +62,4 @@ def protected_route(
     return {
         "message": "You are authorized",
         "token": credentials.credentials
-    }
+    }
