@@ -25,7 +25,7 @@ export default function Sidebar() {
   ];
 
   return (
-    <div className="w-[260px] h-screen bg-[#EAEAEA] flex flex-col px-6 py-8">
+    <aside className="fixed left-0 top-0 w-[260px] h-screen bg-[#EAEAEA] border-r border-gray-200 flex flex-col px-6 py-8">
 
       {/* Logo */}
       <div className="flex items-center gap-4 mb-12">
@@ -72,9 +72,9 @@ export default function Sidebar() {
       </nav>
 
       <div className="mt-auto text-xs text-gray-500">
-        © 2026 HRSM
+        © 2026 HRMS
       </div>
 
-    </div>
+    </aside>
   );
 }
