@@ -49,8 +49,11 @@ export default function Sidebar() {
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive =
-            pathname === item.href || pathname.startsWith(item.href + "/");
-
+            item.name === "Leave"
+              ? pathname === "/apply-leave" ||
+                pathname === "/leave-history" ||
+                pathname === "/approval"
+              : pathname === item.href || pathname.startsWith(item.href + "/");
           return (
             <Link
               key={item.name}

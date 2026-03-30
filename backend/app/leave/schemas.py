@@ -23,6 +23,7 @@ class LeaveRequestOut(BaseModel):
     reason: Optional[str]
     attachment_urls: Optional[List[str]] = []
     rejection_reason: Optional[str]
+    manager_comment: Optional[str]= None #new added 29/03   
     approved_by: Optional[int]
     approved_date: Optional[date]
 
@@ -32,6 +33,17 @@ class LeaveRequestOut(BaseModel):
 class LeaveStatusUpdate(BaseModel):
     status: str  # APPROVED / REJECTED / REQ_INFO / PENDING
     rejection_reason: Optional[str] = None  # only needed if REJECTED
+
+class ApproveLeaveRequest(BaseModel):
+    manager_comment: Optional[str] = None
+
+
+class RejectLeaveRequest(BaseModel):
+    rejection_reason: str
+
+
+class RequestInfoLeaveRequest(BaseModel):
+    manager_comment: str
 
 class LeaveTypeCreate(BaseModel):
     name: str

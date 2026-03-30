@@ -32,6 +32,8 @@ export default function LeaveForm() {
           <option value="">Select Type</option>
           <option value="annual">Annual</option>
           <option value="casual">Casual</option>
+          <option value="medical">Medical</option>
+          
         </select>
       </div>
 
