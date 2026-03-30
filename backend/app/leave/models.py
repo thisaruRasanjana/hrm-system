@@ -31,6 +31,8 @@ class LeaveRequest(Base):
     attachment_urls = Column(JSON, nullable=True)  #new added 
     rejection_reason = Column(Text, nullable=True)
 
+    manager_comment = Column(Text, nullable=True) #new added 29/03
+
     approved_date = Column(Date, nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
