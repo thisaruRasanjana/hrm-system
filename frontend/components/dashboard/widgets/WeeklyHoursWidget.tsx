@@ -12,8 +12,7 @@ export default function WeeklyHoursWidget() {
 
   return (
     <div
-      onClick={() => router.push("/dashboard/time-tracking")}
-      className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition cursor-pointer h-full w-full flex flex-col"
+      className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm h-full w-full flex flex-col"
     >
       {/* Header */}
       <div className="flex justify-between items-center mb-2">
@@ -31,9 +30,14 @@ export default function WeeklyHoursWidget() {
           {hours.map((h, i) => (
             <div
               key={i}
-              className="flex-1 bg-[#F2924E] rounded-t-lg"
+              className="flex-1 bg-[#F2924E] rounded-t-lg relative group cursor-pointer transition-colors hover:bg-[#e07f3f]"
               style={{ height: `${(h / maxH) * 100}%` }}
-            />
+            >
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block bg-gray-900 text-white text-xs font-medium py-1 px-2 rounded z-10 whitespace-nowrap shadow-lg">
+                {h} hrs
+                <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+              </div>
+            </div>
           ))}
         </div>
         {/* Day labels */}
