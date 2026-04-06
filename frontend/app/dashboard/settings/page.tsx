@@ -1,13 +1,6 @@
-export default function SettingsPage() {
-  return (
-    <div>
-      <h1 className="text-2xl font-bold mb-4">
-        Settings
-      </h1>
+import { redirect } from 'next/navigation';
 
-      <p className="text-gray-500">
-        System settings will appear here.
-      </p>
-    </div>
-  );
+export default function SettingsPage() {
+  // Automatically route users straight to the Profile settings tab
+  redirect('/dashboard/settings/profile');
 }
