@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { IconArrowLeft, IconChevron } from "../../components/icons";
+import { IconArrowLeft, IconChevron } from "@/components/icons";
 
 // Roles and their read-only permissions for the "Select Existing Role" flow
 const SYSTEM_ROLES = [
