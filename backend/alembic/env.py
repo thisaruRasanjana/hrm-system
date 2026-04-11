@@ -19,7 +19,8 @@ if config.config_file_name is not None:
 # add your model's MetaData object here
 # for 'autogenerate' support
 from app.database.base import Base
-from app.employees.models import Employee # Import models so they are registered with Base
+from app.employees.models import Employee 
+from app.auth.models import Role, Permission # Ensure RBAC models are registered
 
 target_metadata = Base.metadata
 

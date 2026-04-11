@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.database.database import engine
 from app.database.base import Base
 from app.employees.router import router as employee_router
+from app.auth.router import router as auth_router
 
 # Create tables (Handled by Alembic in production)
 # Base.metadata.create_all(bind=engine)
@@ -23,3 +24,4 @@ def root():
     return {"message": "HRM backend with DB connected"}
 
 app.include_router(employee_router)
+app.include_router(auth_router)

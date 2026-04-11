@@ -1,118 +1,187 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { IconArrowLeft, IconChevron } from "@/components/icons";
+import { api } from "@/lib/api";
 
-// Roles and their read-only permissions for the "Select Existing Role" flow
-const SYSTEM_ROLES = [
-  {
-    id: "employee",
-    name: "Employee",
-    description: "Standard access for regular staff members",
-    permissions: {
-      "Employee Management": ["View Own Profile", "Edit Own Profile"],
-      "Leave Management": ["View Own Leaves", "Apply Leave", "Cancel Own Leave"],
-      "Document Management": ["View Own Documents", "Upload Documents"],
-    },
-  },
-  {
-    id: "manager",
-    name: "Manager",
-    description: "Advanced access for team leads and department heads",
-    permissions: {
-      "Employee Management": ["View Own Profile", "View All Employees", "Edit Employee Details"],
-      "Leave Management": ["View Own Leaves", "Apply Leave", "Cancel Own Leave", "View Team Leaves", "Approve Leave Requests"],
-      "Document Management": ["View Own Documents", "Upload Documents", "Request Documents"],
-    },
-  },
-  {
-    id: "hr",
-    name: "HR",
-    description: "Full access to employee management and payroll",
-    permissions: {
-      "Employee Management": ["View Own Profile", "Edit Own Profile", "View All Employees", "Add Employee", "Edit Employee Details", "Export Employee Data"],
-      "Leave Management": ["View Own Leaves", "Apply Leave", "Cancel Own Leave", "View Team Leaves", "Approve Leave Requests", "Reject Leave Requests", "Manage Leave Types"],
-      "Document Management": ["View Own Documents", "Upload Documents", "Request Documents", "View All Documents", "Approve Documents"],
-    },
-  },
-  {
-    id: "super-admin",
-    name: "Super Admin",
-    description: "Complete system access and configuration rights",
-    permissions: {
-      "Employee Management": ["View Own Profile", "Edit Own Profile", "View All Employees", "Add Employee", "Edit Employee Details", "Delete Employee", "Export Employee Data"],
-      "Leave Management": ["View Own Leaves", "Apply Leave", "Cancel Own Leave", "View Team Leaves", "Approve Leave Requests", "Reject Leave Requests", "Manage Leave Types"],
-      "Document Management": ["View Own Documents", "Upload Documents", "Request Documents", "View All Documents", "Approve Documents", "Generate Documents", "Manage Templates"],
-    },
-  },
-];
+interface Permission {
+  id: number;
+  name: string;
+  description?: string;
+}
 
-// All available permissions for the "Create Custom Role" flow
-const ALL_PERMISSIONS = {
-  "Employee Management": [
-    "View Own Profile",
-    "Edit Own Profile",
-    "View All Employees",
-    "Add Employee",
-    "Edit Employee Details",
-    "Delete Employee",
-    "Export Employee Data",
-  ],
-  "Leave Management": [
-    "View Own Leaves",
-    "Apply Leave",
-    "Cancel Own Leave",
-    "View Team Leaves",
-    "Approve Leave Requests",
-    "Reject Leave Requests",
-    "Manage Leave Types",
-  ],
-  "Document Management": [
-    "View Own Documents",
-    "Upload Documents",
-    "Request Documents",
-    "View All Documents",
-    "Approve Documents",
-    "Generate Documents",
-    "Manage Templates",
-  ],
-};
+interface Role {
+  id: number;
+  name: string;
+  description?: string;
+  is_system: number;
+  permissions: Permission[];
+}
+
+interface Employee {
+  id: number;
+  first_name: string;
+  last_name: string;
+  role?: { id: number; name: string };
+}
 
 export default function AssignRolePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const empId = searchParams.get("id") || "#EMP-001";
+  const id = searchParams.get("id");
+
+  const [roles, setRoles] = useState<Role[]>([]);
+  const [allPermissions, setAllPermissions] = useState<Permission[]>([]);
+  const [employee, setEmployee] = useState<Employee | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const [assignmentOption, setAssignmentOption] = useState<"existing" | "custom">("existing");
-  const [selectedRoleId, setSelectedRoleId] = useState("employee");
+  const [selectedRoleId, setSelectedRoleId] = useState<number | null>(null);
+  const [isEditingExistingRole, setIsEditingExistingRole] = useState(false);
+  
   const [customRoleName, setCustomRoleName] = useState("");
-  const [selectedPermissions, setSelectedPermissions] = useState<string[]>([]);
+  const [selectedPermissionNames, setSelectedPermissionNames] = useState<string[]>([]);
 
-  const selectedRole = SYSTEM_ROLES.find(r => r.id === selectedRoleId);
+  useEffect(() => {
+    if (!id) return;
+    const fetchData = async () => {
+      try {
+        const [rolesData, permsData, empData] = await Promise.all([
+          api.get<Role[]>("/auth/roles"),
+          api.get<Permission[]>("/auth/permissions"),
+          api.get<Employee>(`/employees/${id}`),
+        ]);
+        setRoles(rolesData);
+        setAllPermissions(permsData);
+        setEmployee(empData);
+        
+        if (empData.role) {
+          setSelectedRoleId(empData.role.id);
+        } else if (rolesData.length > 0) {
+          setSelectedRoleId(rolesData[0].id);
+        }
+      } catch (error) {
+        console.error("Failed to fetch RBAC data:", error);
+        setErrorMsg("Failed to load roles and permissions. Please refresh.");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, [id]);
 
-  const handleTogglePermission = (perm: string) => {
-    setSelectedPermissions(prev => 
-      prev.includes(perm) ? prev.filter(p => p !== perm) : [...prev, perm]
+  const selectedRole = roles.find(r => r.id === selectedRoleId);
+
+  // When selected role changes, reset edit mode
+  useEffect(() => {
+    setIsEditingExistingRole(false);
+    setSelectedPermissionNames([]);
+  }, [selectedRoleId]);
+
+  const handleTogglePermission = (name: string) => {
+    setSelectedPermissionNames(prev =>
+      prev.includes(name) ? prev.filter(p => p !== name) : [...prev, name]
     );
   };
 
-  const handleSave = () => {
-    console.log("Saving role assignment", {
-      empId,
-      assignmentOption,
-      selectedRoleId: assignmentOption === "existing" ? selectedRoleId : null,
-      customRoleName: assignmentOption === "custom" ? customRoleName : null,
-      selectedPermissions: assignmentOption === "custom" ? selectedPermissions : Object.values(selectedRole?.permissions || {}).flat(),
-    });
-    router.push("/");
+  const startEditingRole = () => {
+    if (!selectedRole) return;
+    setIsEditingExistingRole(true);
+    setSelectedPermissionNames(selectedRole.permissions.map(p => p.name));
   };
 
-  // Helper for Stepper circles
+  const handleSave = async () => {
+    if (!id) return;
+    setIsSubmitting(true);
+    setErrorMsg(null);
+    setSuccessMsg(null);
+    try {
+      let roleIdToAssign = selectedRoleId;
+
+      // Case 1: Updating an existing role's permissions
+      if (assignmentOption === "existing" && isEditingExistingRole && selectedRoleId) {
+        if (selectedPermissionNames.length === 0) {
+          setErrorMsg("Please select at least one permission.");
+          setIsSubmitting(false);
+          return;
+        }
+        await api.put(`/auth/roles/${selectedRoleId}`, {
+          permissions: selectedPermissionNames,
+        });
+        // We don't need to change roleIdToAssign, it remains the same
+      }
+
+      // Case 2: Creating a completely new custom role
+      if (assignmentOption === "custom") {
+        if (!customRoleName.trim()) {
+          setErrorMsg("Please enter a name for the custom role.");
+          setIsSubmitting(false);
+          return;
+        }
+        if (selectedPermissionNames.length === 0) {
+          setErrorMsg("Please select at least one permission for the custom role.");
+          setIsSubmitting(false);
+          return;
+        }
+        const newRole = await api.post<Role>("/auth/roles", {
+          name: customRoleName.trim(),
+          description: "Custom user-defined role",
+          permissions: selectedPermissionNames,
+          is_system: 0,
+        });
+        roleIdToAssign = newRole.id;
+      }
+
+      // Final step: Assign the role (new or updated) to the employee
+      if (!roleIdToAssign) {
+        setErrorMsg("Please select a role to assign.");
+        setIsSubmitting(false);
+        return;
+      }
+
+      await api.post("/auth/assign", {
+        employee_id: parseInt(id),
+        role_id: roleIdToAssign,
+      });
+
+      const roleName = assignmentOption === "custom"
+        ? customRoleName
+        : roles.find(r => r.id === roleIdToAssign)?.name || "Role";
+
+      setSuccessMsg(`✓ "${roleName}" permissions updated and assigned to ${employee?.first_name ?? "the employee"}.`);
+      setTimeout(() => router.push("/"), 2000);
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : "Failed to save role assignment.";
+      setErrorMsg(msg);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const categorizedPermissions = allPermissions.reduce((acc, perm) => {
+    const category = perm.description?.replace(" Permission", "") || "Other";
+    if (!acc[category]) acc[category] = [];
+    acc[category].push(perm);
+    return acc;
+  }, {} as Record<string, Permission[]>);
+
+  const categorizedSelectedPermissions = selectedRole?.permissions.reduce((acc, perm) => {
+    const category = perm.description?.replace(" Permission", "") || "Other";
+    if (!acc[category]) acc[category] = [];
+    acc[category].push(perm);
+    return acc;
+  }, {} as Record<string, Permission[]>) || {};
+
   const StepCircle = ({ num, active, completed }: { num: number; active?: boolean; completed?: boolean }) => (
-    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[14px] font-bold transition-all duration-300 ${
-      completed ? "bg-[#EE7F22] text-white" : active ? "bg-[#EE7F22] text-white" : "bg-gray-100 text-gray-400"
+    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[14px] font-bold border-2 transition-all duration-300 ${
+      active ? "bg-[#EE7F22] border-[#EE7F22] text-white shadow-lg shadow-[#EE7F22]/20 scale-110" :
+      completed ? "bg-[#EE7F22]/10 border-[#EE7F22] text-[#EE7F22]" :
+      "bg-white border-gray-200 text-gray-400"
     }`}>
       {completed ? (
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
@@ -122,22 +191,29 @@ export default function AssignRolePage() {
     </div>
   );
 
+  if (loading) return <div className="p-10 text-center text-gray-400">Loading roles and permissions...</div>;
+
   return (
     <div className="max-w-[1000px] mx-auto pb-20 pt-2">
-      {/* Header / Back Navigation */}
       <div className="mb-8">
-        <Link 
-          href={`/EmployeeManegement/edit?id=${encodeURIComponent(empId)}`}
+        <Link
+          href={`/EmployeeManegement/edit?id=${encodeURIComponent(id || "")}`}
           className="inline-flex items-center gap-2 text-[14px] text-gray-500 hover:text-gray-800 transition-colors mb-4 font-medium"
         >
-          <IconArrowLeft />
-          Back
+          <IconArrowLeft /> Back
         </Link>
         <h1 className="text-[28px] font-bold text-[#212B36]">Assign Role & Permissions</h1>
-        <p className="text-[14px] text-gray-400 mt-1">Define system access for the employee</p>
+        <p className="text-[14px] text-gray-400 mt-1">
+          {employee ? `Defining access for ${employee.first_name} ${employee.last_name}` : "Define system access for the employee"}
+        </p>
+        {employee?.role && (
+          <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-orange-50 border border-orange-200 rounded-full text-[13px] text-orange-700 font-medium">
+            <div className="w-1.5 h-1.5 rounded-full bg-orange-400"></div>
+            Current role: <strong>{employee.role.name}</strong>
+          </div>
+        )}
       </div>
 
-      {/* Stepper */}
       <div className="flex items-center gap-4 mb-10 px-4">
         <div className="flex items-center gap-3">
           <StepCircle num={1} completed />
@@ -150,66 +226,46 @@ export default function AssignRolePage() {
         </div>
       </div>
 
+      {successMsg && (
+        <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-xl text-green-700 text-[14px] font-medium flex items-center gap-3">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+          {successMsg} Redirecting...
+        </div>
+      )}
+      {errorMsg && <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-red-600 text-[14px]">{errorMsg}</div>}
+
       <div className="space-y-6">
-        {/* Assignment Option Selection */}
         <div className="bg-white rounded-xl border border-gray-200 p-8 shadow-sm">
           <h2 className="text-[14px] font-bold text-gray-400 uppercase tracking-wider mb-6">Assignment Option</h2>
-          
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <label 
-              className={`flex items-start gap-4 p-5 rounded-xl border-2 cursor-pointer transition-all duration-200 ${
-                assignmentOption === "existing" ? "border-[#EE7F22] bg-[#EE7F22]/5" : "border-gray-100 hover:border-gray-200"
-              }`}
-            >
-              <input 
-                type="radio" 
-                name="assignmentOption" 
-                className="mt-1 accent-[#EE7F22] w-4 h-4" 
-                checked={assignmentOption === "existing"}
-                onChange={() => setAssignmentOption("existing")}
-              />
+            <label className={`flex items-start gap-4 p-5 rounded-xl border-2 cursor-pointer transition-all duration-200 ${assignmentOption === "existing" ? "border-[#EE7F22] bg-[#EE7F22]/5" : "border-gray-100 hover:border-gray-200"}`}>
+              <input type="radio" name="assignmentOption" className="mt-1 accent-[#EE7F22] w-4 h-4" checked={assignmentOption === "existing"} onChange={() => setAssignmentOption("existing")} />
               <div>
-                <p className={`text-[15px] font-bold ${assignmentOption === "existing" ? "text-[#EE7F22]" : "text-[#212B36]"}`}>
-                  Select Existing Role
-                </p>
+                <p className={`text-[15px] font-bold ${assignmentOption === "existing" ? "text-[#EE7F22]" : "text-[#212B36]"}`}>Select Existing Role</p>
                 <p className="text-[13px] text-gray-500 mt-1">Choose from predefined roles with preset permissions</p>
               </div>
             </label>
-
-            <label 
-              className={`flex items-start gap-4 p-5 rounded-xl border-2 cursor-pointer transition-all duration-200 ${
-                assignmentOption === "custom" ? "border-[#EE7F22] bg-[#EE7F22]/5" : "border-gray-100 hover:border-gray-200"
-              }`}
-            >
-              <input 
-                type="radio" 
-                name="assignmentOption" 
-                className="mt-1 accent-[#EE7F22] w-4 h-4" 
-                checked={assignmentOption === "custom"}
-                onChange={() => setAssignmentOption("custom")}
-              />
+            <label className={`flex items-start gap-4 p-5 rounded-xl border-2 cursor-pointer transition-all duration-200 ${assignmentOption === "custom" ? "border-[#EE7F22] bg-[#EE7F22]/5" : "border-gray-100 hover:border-gray-200"}`}>
+              <input type="radio" name="assignmentOption" className="mt-1 accent-[#EE7F22] w-4 h-4" checked={assignmentOption === "custom"} onChange={() => setAssignmentOption("custom")} />
               <div>
-                <p className={`text-[15px] font-bold ${assignmentOption === "custom" ? "text-[#EE7F22]" : "text-[#212B36]"}`}>
-                  Create Custom Role
-                </p>
+                <p className={`text-[15px] font-bold ${assignmentOption === "custom" ? "text-[#EE7F22]" : "text-[#212B36]"}`}>Create Custom Role</p>
                 <p className="text-[13px] text-gray-500 mt-1">Define a new role with specific permissions</p>
               </div>
             </label>
           </div>
         </div>
 
-        {/* Dynamic Content based on selection */}
         {assignmentOption === "existing" ? (
           <div className="bg-white rounded-xl border border-gray-200 p-8 shadow-sm">
             <div className="mb-8">
               <label className="block text-[12px] font-bold text-gray-700 uppercase mb-2">Role</label>
               <div className="relative max-w-md">
-                <select 
-                  value={selectedRoleId}
-                  onChange={(e) => setSelectedRoleId(e.target.value)}
+                <select
+                  value={selectedRoleId || ""}
+                  onChange={(e) => setSelectedRoleId(parseInt(e.target.value))}
                   className="w-full h-[48px] px-4 bg-white border border-gray-200 rounded-lg text-[14px] text-gray-900 outline-none focus:ring-2 focus:ring-[#EE7F22]/20 focus:border-[#EE7F22] appearance-none cursor-pointer"
                 >
-                  {SYSTEM_ROLES.map(role => (
+                  {roles.map(role => (
                     <option key={role.id} value={role.id}>{role.name}</option>
                   ))}
                 </select>
@@ -217,78 +273,85 @@ export default function AssignRolePage() {
                   <IconChevron />
                 </div>
               </div>
-              {selectedRole && (
-                <p className="text-[13px] text-gray-500 mt-3 italic">{selectedRole.description}</p>
-              )}
+              {selectedRole && <p className="text-[13px] text-gray-500 mt-3 italic">{selectedRole.description}</p>}
             </div>
 
             {selectedRole && (
               <div className="mt-10">
                 <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-[16px] font-bold text-[#212B36]">Permission Summary</h3>
-                  <span className="text-[13px] text-gray-300 italic font-medium">Read-only</span>
+                  <h3 className="text-[16px] font-bold text-[#212B36]">
+                    {isEditingExistingRole ? `Editing "${selectedRole.name}" Permissions` : "Permission Summary"}
+                  </h3>
+                  {!isEditingExistingRole && (
+                    <button 
+                      type="button" 
+                      onClick={startEditingRole}
+                      className="text-[13px] text-[#EE7F22] font-bold hover:underline"
+                    >
+                      Edit Permissions
+                    </button>
+                  )}
+                  {isEditingExistingRole && (
+                    <button 
+                      type="button" 
+                      onClick={() => setIsEditingExistingRole(false)}
+                      className="text-[13px] text-gray-400 font-bold hover:underline"
+                    >
+                      Cancel Edit
+                    </button>
+                  )}
                 </div>
                 
                 <div className="space-y-4">
-                  {Object.entries(selectedRole.permissions).map(([category, perms]) => (
+                  {(isEditingExistingRole ? Object.entries(categorizedPermissions) : Object.entries(categorizedSelectedPermissions)).map(([category, perms]) => (
                     <div key={category} className="bg-[#F8F9FB] rounded-xl p-6 border border-gray-50">
-                      <h4 className="text-[14px] font-bold text-[#637381] mb-5 uppercase tracking-wider">
-                        {category}
-                      </h4>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-3.5 gap-x-12">
+                      <h4 className="text-[14px] font-bold text-[#637381] mb-5 uppercase tracking-wider">{category}</h4>
+                      <div className={`grid grid-cols-1 sm:grid-cols-2 ${isEditingExistingRole ? 'lg:grid-cols-3' : ''} gap-4`}>
                         {perms.map((perm, idx) => (
-                          <div key={idx} className="flex items-center gap-3 group">
-                            <div className="w-1.5 h-1.5 rounded-full bg-[#EE7F22] flex-shrink-0 group-hover:scale-125 transition-transform"></div>
-                            <span className="text-[14px] text-[#212B36] font-medium leading-tight">{perm}</span>
-                          </div>
+                          isEditingExistingRole ? (
+                            <label key={perm.id} className={`flex items-center gap-3 p-3.5 rounded-lg border-2 transition-all cursor-pointer ${selectedPermissionNames.includes(perm.name) ? "bg-white border-[#EE7F22] shadow-sm" : "bg-white/50 border-transparent hover:border-gray-100"}`}>
+                              <input
+                                type="checkbox"
+                                className="w-4 h-4 accent-[#EE7F22] rounded cursor-pointer"
+                                checked={selectedPermissionNames.includes(perm.name)}
+                                onChange={() => handleTogglePermission(perm.name)}
+                              />
+                              <span className={`text-[14px] font-medium ${selectedPermissionNames.includes(perm.name) ? "text-[#212B36]" : "text-gray-500"}`}>{perm.name}</span>
+                            </label>
+                          ) : (
+                            <div key={idx} className="flex items-center gap-3 group">
+                              <div className="w-1.5 h-1.5 rounded-full bg-[#EE7F22] flex-shrink-0 group-hover:scale-125 transition-transform"></div>
+                              <span className="text-[14px] text-[#212B36] font-medium leading-tight">{perm.name}</span>
+                            </div>
+                          )
                         ))}
                       </div>
                     </div>
                   ))}
                 </div>
+                {isEditingExistingRole && (
+                  <p className="text-[13px] text-gray-400 mt-4 italic">
+                    * Note: Changing permissions for this role will affect ALL employees currently assigned to it.
+                  </p>
+                )}
               </div>
             )}
           </div>
         ) : (
-          <div className="bg-white rounded-xl border border-gray-200 p-8 shadow-sm animate-in fade-in slide-in-from-top-2 duration-300">
+          <div className="bg-white rounded-xl border border-gray-200 p-8 shadow-sm">
             <div className="mb-8">
               <label className="block text-[12px] font-bold text-gray-700 uppercase mb-2">Role Name</label>
-              <input 
-                type="text"
-                placeholder="Enter custom role name"
-                value={customRoleName}
-                onChange={(e) => setCustomRoleName(e.target.value)}
-                className="w-full max-w-md h-[48px] px-4 bg-white border border-gray-200 rounded-lg text-[14px] text-gray-900 placeholder-gray-400 outline-none focus:ring-2 focus:ring-[#EE7F22]/20 focus:border-[#EE7F22] transition-all"
-              />
+              <input type="text" placeholder="e.g., Finance Manager" value={customRoleName} onChange={(e) => setCustomRoleName(e.target.value)} className="w-full max-w-md h-[48px] px-4 bg-white border border-gray-200 rounded-lg text-[14px] text-gray-900 placeholder-gray-400 outline-none focus:ring-2 focus:ring-[#EE7F22]/20 focus:border-[#EE7F22] transition-all" />
             </div>
-
             <div className="space-y-4">
-              {Object.entries(ALL_PERMISSIONS).map(([category, perms]) => (
+              {Object.entries(categorizedPermissions).map(([category, perms]) => (
                 <div key={category} className="bg-[#F8F9FB] rounded-xl p-6 border border-gray-50">
-                  <h4 className="text-[14px] font-bold text-[#637381] mb-5 uppercase tracking-wider">
-                    {category}
-                  </h4>
+                  <h4 className="text-[14px] font-bold text-[#637381] mb-5 uppercase tracking-wider">{category}</h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     {perms.map((perm) => (
-                      <label 
-                        key={perm} 
-                        className={`flex items-center gap-3 p-3.5 rounded-lg border-2 transition-all cursor-pointer ${
-                          selectedPermissions.includes(perm) 
-                            ? "bg-white border-[#EE7F22] shadow-sm" 
-                            : "bg-white/50 border-transparent hover:border-gray-100"
-                        }`}
-                      >
-                        <input 
-                          type="checkbox" 
-                          className="w-4 h-4 accent-[#EE7F22] rounded cursor-pointer"
-                          checked={selectedPermissions.includes(perm)}
-                          onChange={() => handleTogglePermission(perm)}
-                        />
-                        <span className={`text-[14px] font-medium ${
-                          selectedPermissions.includes(perm) ? "text-[#212B36]" : "text-gray-500"
-                        }`}>
-                          {perm}
-                        </span>
+                      <label key={perm.id} className={`flex items-center gap-3 p-3.5 rounded-lg border-2 transition-all cursor-pointer ${selectedPermissionNames.includes(perm.name) ? "bg-white border-[#EE7F22] shadow-sm" : "bg-white/50 border-transparent hover:border-gray-100"}`}>
+                        <input type="checkbox" className="w-4 h-4 accent-[#EE7F22] rounded cursor-pointer" checked={selectedPermissionNames.includes(perm.name)} onChange={() => handleTogglePermission(perm.name)} />
+                        <span className={`text-[14px] font-medium ${selectedPermissionNames.includes(perm.name) ? "text-[#212B36]" : "text-gray-500"}`}>{perm.name}</span>
                       </label>
                     ))}
                   </div>
@@ -298,24 +361,18 @@ export default function AssignRolePage() {
           </div>
         )}
 
-        {/* Action Buttons */}
         <div className="flex justify-end gap-3 mt-10">
-          <button 
-            type="button"
-            onClick={() => router.back()}
-            className="px-8 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-medium text-[14px] hover:bg-gray-50 transition-colors"
-          >
-            Cancel
-          </button>
-          <button 
-            type="button"
-            onClick={handleSave}
-            className="px-8 py-2.5 rounded-xl bg-[#EE7F22] text-white font-bold text-[14px] hover:bg-[#d66f1b] shadow-sm hover:shadow-md transition-all flex items-center gap-2"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="20 6 9 17 4 12"></polyline>
-            </svg>
-            Create & Assign Role
+          <button type="button" onClick={() => router.back()} disabled={isSubmitting || !!successMsg} className="px-8 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-medium text-[14px] hover:bg-gray-50 transition-colors disabled:opacity-50">Cancel</button>
+          <button type="button" onClick={handleSave} disabled={isSubmitting || !!successMsg} className="px-8 py-2.5 rounded-xl bg-[#EE7F22] text-white font-bold text-[14px] hover:bg-[#d66f1b] shadow-sm hover:shadow-md transition-all flex items-center gap-2 disabled:opacity-50">
+            {isSubmitting ? <span>Saving...</span> : (
+              <>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+                {assignmentOption === "custom" ? "Create & Assign Role" : 
+                 isEditingExistingRole ? "Apply Changes & Assign" : "Confirm Assignment"}
+              </>
+            )}
           </button>
         </div>
       </div>

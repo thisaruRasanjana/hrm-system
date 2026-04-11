@@ -37,6 +37,11 @@ interface Employee {
   designation: string;
   joined_date: string;
   status: string;
+  date_of_birth?: string;
+  gender?: string;
+  marital_status?: string;
+  nationality?: string;
+  role?: { id: number; name: string };
 }
 
 export default function EmployeeViewPage() {
@@ -63,7 +68,6 @@ export default function EmployeeViewPage() {
   if (loading) return <div className="p-10 text-center text-gray-400">Loading employee details...</div>;
   if (!employee) return <div className="p-10 text-center text-red-500">Employee not found.</div>;
 
-  // Manual mapping of backend flat model to frontend nested prototype structure
   const displayData = {
     id: employee.employee_id,
     name: `${employee.first_name} ${employee.last_name}`,
@@ -73,24 +77,14 @@ export default function EmployeeViewPage() {
     designation: employee.designation,
     status: employee.status.toUpperCase(),
     personal: {
-      dob: "Not Provided", // Not in schema yet
-      gender: "Not Provided",
-      maritalStatus: "Not Provided",
-      nationality: "Not Provided",
+      dob: employee.date_of_birth || "Not Provided",
+      gender: employee.gender || "Not Provided",
+      maritalStatus: employee.marital_status || "Not Provided",
+      nationality: employee.nationality || "Not Provided",
       address: employee.address || "Not Provided",
     },
-    emergency: {
-      name: "Not Provided",
-      relationship: "Not Provided",
-      phone: "Not Provided",
-      email: "Not Provided",
-    },
-    bank: {
-      name: "Not Provided",
-      accountNumber: "******* ****",
-      routingNumber: "Not Provided",
-      accountName: "Not Provided",
-    },
+    emergency: { name: "Not Provided", relationship: "Not Provided", phone: "Not Provided", email: "Not Provided" },
+    bank: { name: "Not Provided", accountNumber: "******* ****", routingNumber: "Not Provided", accountName: "Not Provided" },
     work: {
       department: employee.department,
       designation: employee.designation,
@@ -99,22 +93,15 @@ export default function EmployeeViewPage() {
       location: "Not Provided",
       manager: "Not Provided",
     },
-    skills: {
-      education: {
-        degree: "Not Provided",
-        institution: "Not Provided",
-      },
-      certifications: [],
-      coreSkills: [],
-    },
+    skills: { education: { degree: "Not Provided", institution: "Not Provided" }, certifications: [], coreSkills: [] },
     role: {
-      systemRole: "User",
-      permissions: ["Employee View"],
+      systemRole: employee.role?.name || "No Role Assigned",
+      permissions: [],
       lastLogin: "Never",
     },
   };
 
-  const employeeRef = displayData; // Use this as the base for the rest of the UI
+  const employeeRef = displayData;
 
   return (
     <div className="max-w-6xl mx-auto pb-10">

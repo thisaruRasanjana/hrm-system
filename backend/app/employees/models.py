@@ -1,4 +1,5 @@
-from sqlalchemy import Column, String, Integer, Date, Enum, Text
+from sqlalchemy import Column, String, Integer, Date, Enum, Text, ForeignKey
+from sqlalchemy.orm import relationship
 from app.database.base import Base
 import enum
 
@@ -10,7 +11,7 @@ class Employee(Base):
     __tablename__ = "employees"
 
     id = Column(Integer, primary_key=True, index=True)
-    employee_id = Column(String(50), unique=True, index=True) # e.g. #EMP-001
+    employee_id = Column(String(50), unique=True, index=True)
     first_name = Column(String(100), nullable=False)
     last_name = Column(String(100), nullable=False)
     email = Column(String(255), unique=True, index=True, nullable=False)
@@ -20,3 +21,12 @@ class Employee(Base):
     designation = Column(String(100), nullable=False)
     joined_date = Column(Date, nullable=True)
     status = Column(Enum(EmployeeStatus), default=EmployeeStatus.active)
+
+    # Personal Information
+    date_of_birth = Column(Date, nullable=True)
+    gender = Column(String(20), nullable=True)
+    marital_status = Column(String(20), nullable=True)
+    nationality = Column(String(100), nullable=True)
+
+    role_id = Column(Integer, ForeignKey("roles.id"), nullable=True)
+    role = relationship("Role", back_populates="employees")
