@@ -1,42 +1,106 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { IconArrowLeft } from "../../components/icons";
+import { IconArrowLeft } from "@/components/icons";
+import { api } from "@/lib/api";
 
-// Hardcoded data matching the Figma design for demonstration
-const INITIAL_EMPLOYEE_DATA = {
-  id: "#EMP-001",
-  firstName: "John",
-  lastName: "Doe",
-  email: "johndoe@email.com",
-  phone: "+1 234 567 8900",
-  address: "123 Business Avenue, New York, NY 10001",
-  work: {
-    department: "Human Resources",
-    designation: "HR Manager",
-    joinedDate: "2020-01-15",
-    status: "active",
-  },
-};
+interface Employee {
+  id: number;
+  employee_id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string;
+  address: string;
+  department: string;
+  designation: string;
+  joined_date: string;
+  status: string;
+}
 
 export default function EmployeeEditPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const empId = searchParams.get("id") || INITIAL_EMPLOYEE_DATA.id;
+  const id = searchParams.get("id");
 
-  const [formData, setFormData] = useState(INITIAL_EMPLOYEE_DATA);
+  const [formData, setFormData] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    phone: "",
+    address: "",
+    work: {
+      department: "Human Resources",
+      designation: "",
+      joinedDate: "",
+      status: "active",
+    },
+  });
+
+  const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!id) return;
+    const fetchEmployee = async () => {
+      try {
+        const data = await api.get<Employee>(`/employees/${id}`);
+        setFormData({
+          firstName: data.first_name,
+          lastName: data.last_name,
+          email: data.email,
+          phone: data.phone,
+          address: data.address || "",
+          work: {
+            department: data.department,
+            designation: data.designation,
+            joinedDate: data.joined_date || "",
+            status: data.status,
+          },
+        });
+      } catch (error) {
+        console.error("Failed to fetch employee:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchEmployee();
+  }, [id]);
 
   // Shared input styling
   const inputClass = "w-full px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-[14px] text-gray-900 placeholder-gray-400 outline-none focus:ring-2 focus:ring-[#EE7F22]/20 focus:border-[#EE7F22] transition-colors duration-200 mt-1.5";
   const labelClass = "block text-[12px] font-bold text-gray-700 uppercase";
   const requiredAsterisk = <span className="text-[#EF4444] ml-1">*</span>;
 
-  const handleSave = () => {
-    console.log("Saving employee data:", formData);
-    router.push("/");
+  const handleSave = async () => {
+    if (!id) return;
+    setIsSubmitting(true);
+    try {
+      const payload = {
+        first_name: formData.firstName,
+        last_name: formData.lastName,
+        email: formData.email,
+        phone: formData.phone,
+        address: formData.address,
+        department: formData.work.department,
+        designation: formData.work.designation,
+        joined_date: formData.work.joinedDate || null,
+        status: formData.work.status,
+      };
+
+      await api.put(`/employees/${id}`, payload);
+      router.push("/");
+    } catch (error) {
+      console.error("Failed to update employee:", error);
+      alert("Failed to update employee.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
+
+  if (loading) return <div className="p-10 text-center text-gray-400">Loading employee details...</div>;
 
   return (
     <div className="max-w-[1000px] mx-auto pb-20 pt-2">
@@ -201,23 +265,26 @@ export default function EmployeeEditPage() {
           </div>
         </div>
 
-        {/* Action Buttons */}
         <div className="flex justify-end gap-4 mt-8">
           <button 
             type="button"
-            className="px-6 py-2.5 rounded-xl bg-gray-100 text-gray-700 font-medium text-[14px] hover:bg-gray-200 transition-colors"
+            onClick={handleSave}
+            disabled={isSubmitting}
+            className="px-6 py-2.5 rounded-xl bg-gray-100 text-gray-700 font-medium text-[14px] hover:bg-gray-200 transition-colors disabled:opacity-50"
           >
-            Save
+            {isSubmitting ? "Saving..." : "Save"}
           </button>
-          <Link 
-            href={`/EmployeeManegement/assign-role?id=${encodeURIComponent(empId)}`}
-            className="px-6 py-2.5 rounded-xl bg-[#EE7F22] text-white font-medium text-[14px] hover:bg-[#d66f1b] shadow-sm hover:shadow-md transition-all flex items-center gap-2"
+          <button 
+            type="button"
+            onClick={handleSave}
+            disabled={isSubmitting}
+            className="px-6 py-2.5 rounded-xl bg-[#EE7F22] text-white font-medium text-[14px] hover:bg-[#d66f1b] shadow-sm hover:shadow-md transition-all flex items-center gap-2 disabled:opacity-50"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="20 6 9 17 4 12"></polyline>
             </svg>
-            Assign New Permissions & Save
-          </Link>
+            {isSubmitting ? "Saving..." : "Assign New Permissions & Save"}
+          </button>
         </div>
       </div>
     </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { 
@@ -12,72 +12,8 @@ import {
   IconBank,
   IconShieldCheck,
   IconRibbon
-} from "../../components/icons";
-
-// Hardcoded data matching the Figma design for demonstration
-const EMPLOYEE_DATA = {
-  id: "#EMP-001",
-  name: "John Doe",
-  department: "Human Resources",
-  designation: "Senior Developer",
-  status: "ACTIVE",
-  email: "john.doe@company.com",
-  phone: "+1 (555) 123-4567",
-  personal: {
-    dob: "15 Mar, 1990",
-    gender: "Male",
-    maritalStatus: "Single",
-    nationality: "American",
-    address: "123 Business Avenue, New York, NY 10001",
-  },
-  emergency: {
-    name: "Jane Doe",
-    relationship: "Spouse",
-    phone: "+1 (555) 987-6543",
-    email: "jane.doe@email.com",
-  },
-  bank: {
-    name: "Chase Bank",
-    accountNumber: "******* 4567",
-    routingNumber: "021000021",
-    accountName: "John Doe",
-  },
-  work: {
-    department: "Human Resources",
-    designation: "Senior Developer",
-    joinedDate: "Jan 15, 2020",
-    employmentType: "Full-Time",
-    location: "New York Office",
-    manager: "Sarah Smith",
-  },
-  skills: {
-    education: {
-      degree: "Bachelor of Science in Computer Science",
-      institution: "Stanford University, 2012",
-    },
-    certifications: [
-      "PMP Certified",
-      "AWS Solutions Architect",
-      "Scrum Master Certified"
-    ],
-    coreSkills: [
-      "Project Management", 
-      "Leadership", 
-      "Team Building",
-      "Strategic Planning"
-    ],
-  },
-  role: {
-    systemRole: "HR Manager",
-    permissions: [
-      "Employee Management",
-      "Leave Management",
-      "Document Management",
-      "System Settings"
-    ],
-    lastLogin: "08 Feb, 2026 at 09:45 AM",
-  },
-};
+} from "@/components/icons";
+import { api } from "@/lib/api";
 
 // Reusable component for stacked data fields (Label on top, Value on bottom)
 function DataField({ label, value }: { label: string, value: React.ReactNode }) {
@@ -89,12 +25,96 @@ function DataField({ label, value }: { label: string, value: React.ReactNode }) 
   );
 }
 
+interface Employee {
+  id: number;
+  employee_id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string;
+  address: string;
+  department: string;
+  designation: string;
+  joined_date: string;
+  status: string;
+}
+
 export default function EmployeeViewPage() {
   const searchParams = useSearchParams();
-  const empId = searchParams.get("id") || EMPLOYEE_DATA.id;
+  const id = searchParams.get("id");
+  const [employee, setEmployee] = useState<Employee | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  // In a real app, we would fetch employee data based on empId here
-  const employee = EMPLOYEE_DATA;
+  useEffect(() => {
+    if (!id) return;
+    const fetchEmployee = async () => {
+      try {
+        const data = await api.get<Employee>(`/employees/${id}`);
+        setEmployee(data);
+      } catch (error) {
+        console.error("Failed to fetch employee:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchEmployee();
+  }, [id]);
+
+  if (loading) return <div className="p-10 text-center text-gray-400">Loading employee details...</div>;
+  if (!employee) return <div className="p-10 text-center text-red-500">Employee not found.</div>;
+
+  // Manual mapping of backend flat model to frontend nested prototype structure
+  const displayData = {
+    id: employee.employee_id,
+    name: `${employee.first_name} ${employee.last_name}`,
+    email: employee.email,
+    phone: employee.phone,
+    department: employee.department,
+    designation: employee.designation,
+    status: employee.status.toUpperCase(),
+    personal: {
+      dob: "Not Provided", // Not in schema yet
+      gender: "Not Provided",
+      maritalStatus: "Not Provided",
+      nationality: "Not Provided",
+      address: employee.address || "Not Provided",
+    },
+    emergency: {
+      name: "Not Provided",
+      relationship: "Not Provided",
+      phone: "Not Provided",
+      email: "Not Provided",
+    },
+    bank: {
+      name: "Not Provided",
+      accountNumber: "******* ****",
+      routingNumber: "Not Provided",
+      accountName: "Not Provided",
+    },
+    work: {
+      department: employee.department,
+      designation: employee.designation,
+      joinedDate: employee.joined_date || "Not Provided",
+      employmentType: "Full-Time",
+      location: "Not Provided",
+      manager: "Not Provided",
+    },
+    skills: {
+      education: {
+        degree: "Not Provided",
+        institution: "Not Provided",
+      },
+      certifications: [],
+      coreSkills: [],
+    },
+    role: {
+      systemRole: "User",
+      permissions: ["Employee View"],
+      lastLogin: "Never",
+    },
+  };
+
+  const employeeRef = displayData; // Use this as the base for the rest of the UI
 
   return (
     <div className="max-w-6xl mx-auto pb-10">
@@ -135,22 +155,22 @@ export default function EmployeeViewPage() {
 
         {/* Core Info & Contact */}
         <div className="flex flex-col justify-center w-full">
-          <h2 className="text-2xl font-bold text-[#212B36] mb-1">{employee.name}</h2>
-          <div className="text-[15px] text-gray-500 mb-0.5">{employee.designation}</div>
-          <div className="text-sm text-gray-400 mb-3">{employee.department} Department</div>
+          <h2 className="text-2xl font-bold text-[#212B36] mb-1">{employeeRef.name}</h2>
+          <div className="text-[15px] text-gray-500 mb-0.5">{employeeRef.designation}</div>
+          <div className="text-sm text-gray-400 mb-3">{employeeRef.department} Department</div>
           
           <span className="inline-block px-4 py-1 rounded-full text-[11px] font-bold tracking-wider bg-[#F9A15D] text-white self-start mb-6">
-            {employee.status}
+            {employeeRef.status}
           </span>
           
           <div className="flex flex-wrap items-center gap-6 mt-auto">
             <div className="flex items-center gap-2 text-[13px] text-gray-500">
               <IconMail />
-              {employee.email}
+              {employeeRef.email}
             </div>
             <div className="flex items-center gap-2 text-[13px] text-gray-500">
               <IconPhone />
-              {employee.phone}
+              {employeeRef.phone}
             </div>
           </div>
         </div>
@@ -169,12 +189,12 @@ export default function EmployeeViewPage() {
               <h3 className="text-[17px] font-bold text-[#212B36]">Personal Information</h3>
             </div>
             <div className="flex flex-col gap-6">
-              <DataField label="Employee ID" value={employee.id} />
-              <DataField label="Date of Birth" value={employee.personal.dob} />
-              <DataField label="Gender" value={employee.personal.gender} />
-              <DataField label="Marital Status" value={employee.personal.maritalStatus} />
-              <DataField label="Nationality" value={employee.personal.nationality} />
-              <DataField label="Full Address" value={employee.personal.address} />
+              <DataField label="Employee ID" value={employeeRef.id} />
+              <DataField label="Date of Birth" value={employeeRef.personal.dob} />
+              <DataField label="Gender" value={employeeRef.personal.gender} />
+              <DataField label="Marital Status" value={employeeRef.personal.maritalStatus} />
+              <DataField label="Nationality" value={employeeRef.personal.nationality} />
+              <DataField label="Full Address" value={employeeRef.personal.address} />
             </div>
           </div>
 
@@ -185,10 +205,10 @@ export default function EmployeeViewPage() {
               <h3 className="text-[17px] font-bold text-[#212B36]">Emergency Contact</h3>
             </div>
             <div className="flex flex-col gap-6">
-              <DataField label="Contact Name" value={employee.emergency.name} />
-              <DataField label="Relationship" value={employee.emergency.relationship} />
-              <DataField label="Phone Number" value={employee.emergency.phone} />
-              <DataField label="Email Address" value={employee.emergency.email} />
+              <DataField label="Contact Name" value={employeeRef.emergency.name} />
+              <DataField label="Relationship" value={employeeRef.emergency.relationship} />
+              <DataField label="Phone Number" value={employeeRef.emergency.phone} />
+              <DataField label="Email Address" value={employeeRef.emergency.email} />
             </div>
           </div>
           {/* Bank Details */}
@@ -198,10 +218,10 @@ export default function EmployeeViewPage() {
               <h3 className="text-[17px] font-bold text-[#212B36]">Bank Details</h3>
             </div>
             <div className="flex flex-col gap-6">
-              <DataField label="Bank Name" value={employee.bank.name} />
-              <DataField label="Account Number" value={employee.bank.accountNumber} />
-              <DataField label="Routing Number" value={employee.bank.routingNumber} />
-              <DataField label="Account Holder Name" value={employee.bank.accountName} />
+              <DataField label="Bank Name" value={employeeRef.bank.name} />
+              <DataField label="Account Number" value={employeeRef.bank.accountNumber} />
+              <DataField label="Routing Number" value={employeeRef.bank.routingNumber} />
+              <DataField label="Account Holder Name" value={employeeRef.bank.accountName} />
             </div>
           </div>
           
@@ -217,14 +237,14 @@ export default function EmployeeViewPage() {
               <h3 className="text-[17px] font-bold text-[#212B36]">Work Information</h3>
             </div>
             <div className="flex flex-col gap-6">
-              <DataField label="Department" value={employee.work.department} />
-              <DataField label="Designation" value={employee.work.designation} />
-              <DataField label="Joined Date" value={employee.work.joinedDate} />
-              <DataField label="Employment Type" value={employee.work.employmentType} />
-              <DataField label="Work Location" value={employee.work.location} />
-              <DataField label="Reporting Manager" value={employee.work.manager} />
-              <DataField label="Work Email" value={employee.email} />
-              <DataField label="Work Phone" value={employee.phone} />
+              <DataField label="Department" value={employeeRef.work.department} />
+              <DataField label="Designation" value={employeeRef.work.designation} />
+              <DataField label="Joined Date" value={employeeRef.work.joinedDate} />
+              <DataField label="Employment Type" value={employeeRef.work.employmentType} />
+              <DataField label="Work Location" value={employeeRef.work.location} />
+              <DataField label="Reporting Manager" value={employeeRef.work.manager} />
+              <DataField label="Work Email" value={employeeRef.email} />
+              <DataField label="Work Phone" value={employeeRef.phone} />
             </div>
           </div>
 
@@ -239,15 +259,15 @@ export default function EmployeeViewPage() {
               <div>
                 <span className="text-xs font-semibold text-gray-500 block mb-3">Education</span>
                 <div className="flex flex-col gap-1.5">
-                  <span className="text-[14.5px] text-[#212B36]">{employee.skills.education.degree}</span>
-                  <span className="text-[13.5px] text-[#a0aab5]">{employee.skills.education.institution}</span>
+                  <span className="text-[14.5px] text-[#212B36]">{employeeRef.skills.education.degree}</span>
+                  <span className="text-[13.5px] text-[#a0aab5]">{employeeRef.skills.education.institution}</span>
                 </div>
               </div>
 
               <div>
                 <span className="text-xs font-semibold text-gray-500 block mb-3">Certifications</span>
                 <ul className="flex flex-col gap-3">
-                  {employee.skills.certifications.map((cert, index) => (
+                  {employeeRef.skills.certifications.map((cert, index) => (
                     <li key={index} className="text-[14.5px] text-[#212B36]">
                       • {cert}
                     </li>
@@ -258,7 +278,7 @@ export default function EmployeeViewPage() {
               <div>
                 <span className="text-xs font-semibold text-gray-500 block mb-3">Core Skills</span>
                 <div className="flex flex-wrap gap-2.5">
-                  {employee.skills.coreSkills.map((skill, index) => (
+                  {employeeRef.skills.coreSkills.map((skill, index) => (
                     <span 
                       key={index} 
                       className="px-4 py-2 bg-[#F6F7F8] text-[#637381] rounded-full text-[13.5px] border border-gray-100/50"
@@ -278,12 +298,12 @@ export default function EmployeeViewPage() {
               <h3 className="text-[17px] font-bold text-[#212B36]">Role & Permissions</h3>
             </div>
             <div className="flex flex-col gap-6">
-              <DataField label="System Role" value={employee.role.systemRole} />
+              <DataField label="System Role" value={employeeRef.role.systemRole} />
               
               <div>
                 <span className="text-xs font-semibold text-gray-500 block mb-3">Access Permissions</span>
                 <ul className="flex flex-col gap-2.5">
-                  {employee.role.permissions.map((perm, index) => (
+                  {employeeRef.role.permissions.map((perm, index) => (
                     <li key={index} className="text-[13px] text-[#212B36] flex items-center gap-2.5">
                       <span className="w-1.5 h-1.5 bg-[#F9A15D] rounded-full"></span>
                       {perm}
@@ -292,7 +312,7 @@ export default function EmployeeViewPage() {
                 </ul>
               </div>
 
-              <DataField label="Last Login" value={employee.role.lastLogin} />
+              <DataField label="Last Login" value={employeeRef.role.lastLogin} />
             </div>
           </div>
           

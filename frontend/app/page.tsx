@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { IconSearch, IconChevron, IconEye, IconEdit, IconTrash } from "./components/icons";
+import { IconSearch, IconChevron, IconEye, IconEdit, IconTrash } from "@/components/icons";
+import { api } from "@/lib/api";
 
 /**
  * Reusable Select Filter component with custom chevron
@@ -31,39 +32,43 @@ function FilterSelect({ value, onChange, children, className = "" }: FilterSelec
   );
 }
 
-const EMPLOYEES = [
-  { id: "#EMP-001", name: "John Doe",        department: "Human Resources", designation: "Senior Developer",    status: "active" },
-  { id: "#EMP-002", name: "Sarah Smith",     department: "Design",          designation: "UI Engineer",         status: "active" },
-  { id: "#EMP-003", name: "Michael Chen",    department: "Marketing",       designation: "Marketing Lead",      status: "active" },
-  { id: "#EMP-004", name: "Elena",           department: "Human Resources", designation: "HR Manager",          status: "active" },
-  { id: "#EMP-005", name: "David Wilson",    department: "Human Resources", designation: "HR Manager",          status: "inactive" },
-  { id: "#EMP-006", name: "Amy Johnson",     department: "Design",          designation: "UX Designer",         status: "active" },
-  { id: "#EMP-007", name: "James Anderson",  department: "Engineering",     designation: "Backend Developer",   status: "active" },
-  { id: "#EMP-008", name: "Lisa Park",       department: "Marketing",       designation: "Content Strategist",  status: "active" },
-  { id: "#EMP-009", name: "Robert Taylor",   department: "Engineering",     designation: "DevOps Engineer",     status: "inactive" },
-  { id: "#EMP-010", name: "Nina Patel",      department: "Design",          designation: "Product Designer",    status: "active" },
-  { id: "#EMP-011", name: "Chris Evans",     department: "Engineering",     designation: "Frontend Developer",  status: "active" },
-  { id: "#EMP-012", name: "Maria Garcia",    department: "Human Resources", designation: "Recruiter",           status: "active" },
-  { id: "#EMP-013", name: "Tom Harris",      department: "Marketing",       designation: "SEO Specialist",      status: "inactive" },
-  { id: "#EMP-014", name: "Rachel Kim",      department: "Design",          designation: "Graphic Designer",    status: "active" },
-  { id: "#EMP-015", name: "Kevin Brown",     department: "Engineering",     designation: "QA Engineer",         status: "active" },
-  { id: "#EMP-016", name: "Sophie Turner",   department: "Human Resources", designation: "Training Manager",    status: "active" },
-  { id: "#EMP-017", name: "Alex Martinez",   department: "Engineering",     designation: "Senior Developer",    status: "active" },
-  { id: "#EMP-018", name: "Emily Davis",     department: "Marketing",       designation: "Brand Manager",       status: "inactive" },
-  { id: "#EMP-019", name: "Daniel Lee",      department: "Engineering",     designation: "System Architect",    status: "active" },
-  { id: "#EMP-020", name: "Olivia White",    department: "Design",          designation: "UI Engineer",         status: "active" },
-];
+interface Employee {
+  id: number;
+  employee_id: string;
+  first_name: string;
+  last_name: string;
+  department: string;
+  designation: string;
+  status: string;
+}
 
 export default function EmployeeManagementPage() {
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [department, setDepartment] = useState("all");
   const [role, setRole] = useState("all");
 
-  const filteredEmployees = EMPLOYEES.filter((emp) => {
+  useEffect(() => {
+    const fetchEmployees = async () => {
+      try {
+        const data = await api.get<Employee[]>("/employees/");
+        setEmployees(data);
+      } catch (error) {
+        console.error("Failed to fetch employees:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchEmployees();
+  }, []);
+
+  const filteredEmployees = employees.filter((emp) => {
+    const fullName = `${emp.first_name} ${emp.last_name}`.toLowerCase();
     const matchesSearch =
       searchQuery === "" ||
-      emp.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      emp.id.toLowerCase().includes(searchQuery.toLowerCase());
+      fullName.includes(searchQuery.toLowerCase()) ||
+      emp.employee_id.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesDept = department === "all" || emp.department === department;
     const matchesRole = role === "all" || emp.designation === role;
     return matchesSearch && matchesDept && matchesRole;
@@ -135,36 +140,46 @@ export default function EmployeeManagementPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filteredEmployees.map((emp) => (
-                <tr key={emp.id} className="hover:bg-gray-50/50 transition-colors">
-                  <td className="px-6 py-5 text-sm font-bold text-[#212B36]">{emp.id}</td>
-                  <td className="px-6 py-5 text-sm text-gray-600">{emp.name}</td>
-                  <td className="px-6 py-5 text-sm text-gray-500">{emp.department}</td>
-                  <td className="px-6 py-5 text-sm text-gray-500">{emp.designation}</td>
-                  <td className="px-6 py-5">
-                    <span className={`inline-block px-4 py-1 rounded-full text-[11px] font-bold tracking-wider ${
-                      emp.status === "active"
-                        ? "bg-[#F9A15D] text-white"
-                        : "bg-[#919EAB] text-white"
-                    }`}>
-                      {emp.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-5">
-                    <div className="flex items-center justify-end gap-4 text-gray-400">
-                      <Link href={`/EmployeeManegement/view?id=${encodeURIComponent(emp.id)}`} className="hover:text-gray-600 transition-colors" aria-label="View">
-                        <IconEye />
-                      </Link>
-                      <Link href={`/EmployeeManegement/edit?id=${encodeURIComponent(emp.id)}`} className="hover:text-gray-600 transition-colors" aria-label="Edit">
-                        <IconEdit />
-                      </Link>
-                      <Link href={`/EmployeeManegement/delete?id=${encodeURIComponent(emp.id)}`} className="hover:text-red-500 transition-colors" aria-label="Delete">
-                        <IconTrash />
-                      </Link>
-                    </div>
-                  </td>
+              {loading ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-10 text-center text-gray-400">Loading employees...</td>
                 </tr>
-              ))}
+              ) : filteredEmployees.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-10 text-center text-gray-400">No employees found</td>
+                </tr>
+              ) : (
+                filteredEmployees.map((emp) => (
+                  <tr key={emp.id} className="hover:bg-gray-50/50 transition-colors">
+                    <td className="px-6 py-5 text-sm font-bold text-[#212B36]">{emp.employee_id}</td>
+                    <td className="px-6 py-5 text-sm text-gray-600">{emp.first_name} {emp.last_name}</td>
+                    <td className="px-6 py-5 text-sm text-gray-500">{emp.department}</td>
+                    <td className="px-6 py-5 text-sm text-gray-500">{emp.designation}</td>
+                    <td className="px-6 py-5">
+                      <span className={`inline-block px-4 py-1 rounded-full text-[11px] font-bold tracking-wider ${
+                        emp.status === "active"
+                          ? "bg-[#F9A15D] text-white"
+                          : "bg-[#919EAB] text-white"
+                      }`}>
+                        {emp.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-5">
+                      <div className="flex items-center justify-end gap-4 text-gray-400">
+                        <Link href={`/EmployeeManegement/view?id=${emp.id}`} className="hover:text-gray-600 transition-colors" aria-label="View">
+                          <IconEye />
+                        </Link>
+                        <Link href={`/EmployeeManegement/edit?id=${emp.id}`} className="hover:text-gray-600 transition-colors" aria-label="Edit">
+                          <IconEdit />
+                        </Link>
+                        <Link href={`/EmployeeManegement/delete?id=${emp.id}`} className="hover:text-red-500 transition-colors" aria-label="Delete">
+                          <IconTrash />
+                        </Link>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

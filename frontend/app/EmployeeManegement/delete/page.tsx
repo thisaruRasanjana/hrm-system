@@ -1,41 +1,60 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { IconArrowLeft, IconTrash } from "../../components/icons";
+import { IconArrowLeft, IconTrash } from "@/components/icons";
+import { api } from "@/lib/api";
 
-// Hardcoded data for demonstration
-const EMPLOYEES = [
-  { id: "#EMP-001", name: "John Doe",        department: "Human Resources", designation: "Senior Developer",    status: "active" },
-  { id: "#EMP-002", name: "Sarah Smith",     department: "Design",          designation: "UI Engineer",         status: "active" },
-  { id: "#EMP-003", name: "Michael Chen",    department: "Marketing",       designation: "Marketing Lead",      status: "active" },
-  { id: "#EMP-004", name: "Elena",           department: "Human Resources", designation: "HR Manager",          status: "active" },
-  { id: "#EMP-005", name: "David Wilson",    department: "Human Resources", designation: "HR Manager",          status: "inactive" },
-];
+interface Employee {
+  id: number;
+  employee_id: string;
+  first_name: string;
+  last_name: string;
+  department: string;
+  designation: string;
+}
 
 export default function DeleteEmployeePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const empId = searchParams.get("id");
+  const id = searchParams.get("id");
 
+  const [employee, setEmployee] = useState<Employee | null>(null);
+  const [loading, setLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const employee = EMPLOYEES.find((emp) => emp.id === empId) || {
-    id: empId || "Unknown ID",
-    name: "Unknown Employee",
-    department: "-",
-    designation: "-",
+  useEffect(() => {
+    if (!id) return;
+    const fetchEmployee = async () => {
+      try {
+        const data = await api.get<Employee>(`/employees/${id}`);
+        setEmployee(data);
+      } catch (error) {
+        console.error("Failed to fetch employee:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchEmployee();
+  }, [id]);
+
+  const handleDelete = async () => {
+    if (!id) return;
+    setIsDeleting(true);
+    try {
+      await api.delete(`/employees/${id}`);
+      router.push("/");
+    } catch (error) {
+      console.error("Failed to delete employee:", error);
+      alert("Failed to delete employee.");
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
-  const handleDelete = () => {
-    setIsDeleting(true);
-    // Simulate API call
-    setTimeout(() => {
-      console.log(`Deleted employee ${empId}`);
-      router.push("/");
-    }, 800);
-  };
+  if (loading) return <div className="p-10 text-center text-gray-400">Loading employee details...</div>;
+  if (!employee) return <div className="p-10 text-center text-red-500">Employee not found.</div>;
 
   return (
     <div className="max-w-[700px] mx-auto pb-20 pt-10">
@@ -69,11 +88,11 @@ export default function DeleteEmployeePage() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <p className="text-[12px] font-bold text-gray-400 uppercase">Employee ID</p>
-              <p className="text-[14px] font-medium text-gray-900 mt-1">{employee.id}</p>
+              <p className="text-[14px] font-medium text-gray-900 mt-1">{employee.employee_id}</p>
             </div>
             <div>
               <p className="text-[12px] font-bold text-gray-400 uppercase">Name</p>
-              <p className="text-[14px] font-medium text-gray-900 mt-1">{employee.name}</p>
+              <p className="text-[14px] font-medium text-gray-900 mt-1">{employee.first_name} {employee.last_name}</p>
             </div>
             <div>
               <p className="text-[12px] font-bold text-gray-400 uppercase">Department</p>

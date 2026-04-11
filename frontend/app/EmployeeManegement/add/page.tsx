@@ -3,7 +3,8 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { IconArrowLeft } from "../../components/icons";
+import { IconArrowLeft } from "@/components/icons";
+import { api } from "@/lib/api";
 
 export default function EmployeeAddPage() {
   const router = useRouter();
@@ -22,14 +23,37 @@ export default function EmployeeAddPage() {
     },
   });
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   // Shared input styling
   const inputClass = "w-full px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-[14px] text-gray-900 placeholder-gray-400 outline-none focus:ring-2 focus:ring-[#EE7F22]/20 focus:border-[#EE7F22] transition-colors duration-200 mt-1.5";
   const labelClass = "block text-[12px] font-bold text-gray-700 uppercase";
   const requiredAsterisk = <span className="text-[#EF4444] ml-1">*</span>;
 
-  const handleSave = () => {
-    console.log("Adding employee data:", formData);
-    router.push("/");
+  const handleSave = async () => {
+    setIsSubmitting(true);
+    try {
+      const payload = {
+        employee_id: `EMP-${Math.floor(1000 + Math.random() * 9000)}`, // Simple auto-gen for now
+        first_name: formData.firstName,
+        last_name: formData.lastName,
+        email: formData.email,
+        phone: formData.phone,
+        address: formData.address,
+        department: formData.work.department,
+        designation: formData.work.designation,
+        joined_date: formData.work.joinedDate || null,
+        status: formData.work.status,
+      };
+
+      await api.post("/employees/", payload);
+      router.push("/");
+    } catch (error) {
+      console.error("Failed to add employee:", error);
+      alert("Failed to add employee. Please check your data.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -199,19 +223,23 @@ export default function EmployeeAddPage() {
         <div className="flex justify-end gap-3 mt-8">
           <button 
             type="button"
-            className="px-6 py-2.5 rounded-xl bg-[#F8F9FA] text-[#212B36] font-medium text-[14px] hover:bg-gray-100 transition-colors"
+            onClick={handleSave}
+            disabled={isSubmitting}
+            className="px-6 py-2.5 rounded-xl bg-[#F8F9FA] text-[#212B36] font-medium text-[14px] hover:bg-gray-100 transition-colors disabled:opacity-50"
           >
-            Save
+            {isSubmitting ? "Saving..." : "Save"}
           </button>
-          <Link 
-            href="/EmployeeManegement/assign-role"
-            className="px-6 py-2.5 rounded-xl bg-[#EE7F22] text-white font-medium text-[14px] hover:bg-[#d66f1b] shadow-sm hover:shadow-md transition-all flex items-center gap-2"
+          <button 
+            type="button"
+            onClick={handleSave}
+            disabled={isSubmitting}
+            className="px-6 py-2.5 rounded-xl bg-[#EE7F22] text-white font-medium text-[14px] hover:bg-[#d66f1b] shadow-sm hover:shadow-md transition-all flex items-center gap-2 disabled:opacity-50"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="20 6 9 17 4 12"></polyline>
             </svg>
-            Assign New Permissions & Save
-          </Link>
+            {isSubmitting ? "Saving..." : "Assign New Permissions & Save"}
+          </button>
         </div>
       </div>
     </div>
