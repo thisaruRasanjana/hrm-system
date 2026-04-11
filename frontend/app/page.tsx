@@ -99,29 +99,15 @@ export default function EmployeeManagementPage() {
         <FilterSelect className="w-44" value={department} onChange={setDepartment}>
           <option value="all">All Departments</option>
           <option value="Human Resources">Human Resources</option>
+          <option value="Engineering">Engineering</option>
           <option value="Design">Design</option>
           <option value="Marketing">Marketing</option>
-          <option value="Engineering">Engineering</option>
+          <option value="Sales">Sales</option>
+          <option value="Finance">Finance</option>
+          <option value="Operations">Operations</option>
         </FilterSelect>
         <FilterSelect className="w-36" value={role} onChange={setRole}>
           <option value="all">All Roles</option>
-          <option value="Senior Developer">Senior Developer</option>
-          <option value="UI Engineer">UI Engineer</option>
-          <option value="HR Manager">HR Manager</option>
-          <option value="Marketing Lead">Marketing Lead</option>
-          <option value="UX Designer">UX Designer</option>
-          <option value="Backend Developer">Backend Developer</option>
-          <option value="Frontend Developer">Frontend Developer</option>
-          <option value="DevOps Engineer">DevOps Engineer</option>
-          <option value="QA Engineer">QA Engineer</option>
-          <option value="Product Designer">Product Designer</option>
-          <option value="Graphic Designer">Graphic Designer</option>
-          <option value="System Architect">System Architect</option>
-          <option value="Recruiter">Recruiter</option>
-          <option value="Training Manager">Training Manager</option>
-          <option value="Content Strategist">Content Strategist</option>
-          <option value="SEO Specialist">SEO Specialist</option>
-          <option value="Brand Manager">Brand Manager</option>
         </FilterSelect>
       </div>
 
