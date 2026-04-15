@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 interface Props {
   active: "request" | "history" | "approval" | "reports";
@@ -8,14 +8,17 @@ interface Props {
 
 export default function LeaveTabs({ active }: Props) {
   const router = useRouter();
+  const pathname = usePathname();
+
+  const isReportsActive = active === "reports" || pathname.startsWith("/reports");
 
   return (
     <div className="flex gap-6 border-b pb-2">
       <button
         onClick={() => router.push("/apply-leave")}
-        className={`pb-2 font-medium text-sm ${
+        className={`pb-2 text-sm font-medium ${
           active === "request"
-            ? "text-orange-500 border-b-2 border-orange-500"
+            ? "border-b-2 border-orange-500 text-orange-500"
             : "text-gray-500"
         }`}
       >
@@ -24,9 +27,9 @@ export default function LeaveTabs({ active }: Props) {
 
       <button
         onClick={() => router.push("/leave-history")}
-        className={`pb-2 font-medium text-sm ${
+        className={`pb-2 text-sm font-medium ${
           active === "history"
-            ? "text-orange-500 border-b-2 border-orange-500"
+            ? "border-b-2 border-orange-500 text-orange-500"
             : "text-gray-500"
         }`}
       >
@@ -35,20 +38,20 @@ export default function LeaveTabs({ active }: Props) {
 
       <button
         onClick={() => router.push("/approval")}
-        className={`pb-2 font-medium text-sm ${
+        className={`pb-2 text-sm font-medium ${
           active === "approval"
-            ? "text-orange-500 border-b-2 border-orange-500"
+            ? "border-b-2 border-orange-500 text-orange-500"
             : "text-gray-500"
         }`}
       >
-        Approval Panel
+        Approval panel
       </button>
 
       <button
         onClick={() => router.push("/reports")}
-        className={`pb-2 font-medium text-sm ${
-          active === "reports"
-            ? "text-orange-500 border-b-2 border-orange-500"
+        className={`pb-2 text-sm font-medium ${
+          isReportsActive
+            ? "border-b-2 border-orange-500 text-orange-500"
             : "text-gray-500"
         }`}
       >
