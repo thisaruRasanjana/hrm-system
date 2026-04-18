@@ -12,6 +12,8 @@ interface Props {
   department: string;
   setDepartment: (value: string) => void;
   departments: string[];
+  onExportPdf?: () => void;
+  onExportCsv?: () => void;
 }
 
 export default function ReportFilterBar({
@@ -22,8 +24,10 @@ export default function ReportFilterBar({
   department,
   setDepartment,
   departments,
+  onExportPdf,
+  onExportCsv,
 }: Props) {
-  const periodButton = (value: ReportPeriod, label: string) =>
+  const periodButton = (value: ReportPeriod) =>
     `text-sm pb-2 px-2 ${
       period === value
         ? "text-orange-500 border-b-2 border-orange-500"
@@ -37,30 +41,37 @@ export default function ReportFilterBar({
           <div className="flex items-center gap-12">
             <button
               onClick={() => setPeriod("weekly")}
-              className={periodButton("weekly", "Weekly")}
+              className={periodButton("weekly")}
             >
               Weekly
             </button>
             <button
               onClick={() => setPeriod("monthly")}
-              className={periodButton("monthly", "Monthly")}
+              className={periodButton("monthly")}
             >
               Monthly
             </button>
             <button
               onClick={() => setPeriod("annually")}
-              className={periodButton("annually", "Annually")}
+              className={periodButton("annually")}
             >
               Annually
             </button>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <button className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-4 py-2 text-sm font-medium text-white hover:bg-orange-600">
+            <button
+              onClick={onExportPdf}
+              className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-4 py-2 text-sm font-medium text-white hover:bg-orange-600"
+            >
               <FileText size={16} />
               Export PDF
             </button>
-            <button className="inline-flex items-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+
+            <button
+              onClick={onExportCsv}
+              className="inline-flex items-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
               <Download size={16} />
               Export CSV
             </button>
