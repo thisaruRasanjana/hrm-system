@@ -8,7 +8,7 @@ from app.auth import models as auth_models  # if exists# ✅ import router
 from app.leave.router import router as leave_router
 from fastapi.staticfiles import StaticFiles
 from app.reports.router import router as reports_router
-app.include_router(reports_router)
+
 
 app = FastAPI(title="HRM Backend")
 
@@ -41,6 +41,7 @@ def startup():
         print("⚠ Database engine not initialized")
 
 app.include_router(leave_router)
+app.include_router(reports_router)
 
 @app.get("/")
 def root():

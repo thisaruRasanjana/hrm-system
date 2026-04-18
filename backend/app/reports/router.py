@@ -8,6 +8,9 @@ from app.database.database import get_db
 from app.reports.schemas import LeaveReportResponse
 from app.reports.service import get_leave_report, generate_leave_report_csv
 
+from fastapi.responses import StreamingResponse
+from app.reports.service import generate_leave_report_pdf
+
 router = APIRouter(prefix="/reports", tags=["Reports"])
 
 
@@ -56,4 +59,16 @@ def export_leave_report_csv(
         headers={
             "Content-Disposition": "attachment; filename=leave_report.csv"
         },
+    )
+
+@router.get("/leave/pdf")
+def download_leave_pdf(db: Session = Depends(get_db)):
+    data = get_leave_report(db)
+
+    pdf_buffer = generate_leave_report_pdf(data)
+
+    return StreamingResponse(
+        pdf_buffer,
+        media_type="application/pdf",
+        headers={"Content-Disposition": "attachment; filename=leave_report.pdf"},
     )

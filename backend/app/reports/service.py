@@ -2,9 +2,15 @@ from io import StringIO
 import csv
 from datetime import date
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+#from sqlalchemy import func
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet
+from io import BytesIO
 
 from app.leave.models import LeaveRequest, LeaveType
+from app.employees.models import Employee
 
 
 def build_leave_report_query(
@@ -16,8 +22,19 @@ def build_leave_report_query(
     end_date: date | None = None,
 ):
     query = (
-        db.query(LeaveRequest, LeaveType.name.label("leave_type_name"))
+        db.query(
+            LeaveRequest, 
+            LeaveType.name.label("leave_type_name"),
+            Employee.employee_id.label("employee_code"),
+            Employee.first_name,
+            Employee.last_name,
+            Employee.department,
+            Employee.designation,
+            Employee.joined_date,
+            Employee.status.label("employee_status"),
+            )
         .join(LeaveType, LeaveRequest.leave_type_id == LeaveType.id)
+        .outerjoin(Employee, LeaveRequest.employee_id == Employee.id)
     )
 
     if employee_id is not None:
@@ -29,11 +46,16 @@ def build_leave_report_query(
     if status:
         query = query.filter(LeaveRequest.status == status)
 
-    if start_date is not None:
-        query = query.filter(LeaveRequest.start_date >= start_date)
+    if start_date is not None and end_date is not None:
+        query = query.filter(
+            LeaveRequest.start_date <= end_date,
+            LeaveRequest.end_date >= start_date,)
 
-    if end_date is not None:
-        query = query.filter(LeaveRequest.end_date <= end_date)
+    elif start_date is not None:
+        query = query.filter(LeaveRequest.end_date >= start_date)
+    elif end_date is not None:
+        query = query.filter(LeaveRequest.start_date <= end_date)    
+
 
     return query.order_by(LeaveRequest.start_date.desc())
 
@@ -62,7 +84,16 @@ def get_leave_report(
     rejected_requests = 0
     req_info_requests = 0
 
-    for leave, leave_type_name in results:
+    for (leave, 
+         leave_type_name,
+           employee_code,
+           first_name,
+           last_name,
+           department,
+           designation,
+           joined_date,
+           employee_status,
+    ) in results:
         total_leave_days += float(leave.total_days or 0)
 
         if leave.status == "APPROVED":
@@ -77,6 +108,12 @@ def get_leave_report(
         records.append({
             "leave_request_id": leave.leave_request_id,
             "employee_id": leave.employee_id,
+            "employee_code": employee_code,
+            "employee_name": f"{first_name} {last_name}".strip() or None,
+            "department": department,
+            "designation": designation,
+            "joined_date": joined_date,
+            "employee_status": employee_status.value if employee_status else None,
             "leave_type_id": leave.leave_type_id,
             "leave_type_name": leave_type_name,
             "start_date": leave.start_date,
@@ -124,7 +161,13 @@ def generate_leave_report_csv(report_data: dict) -> str:
 
     writer.writerow([
         "Request ID",
-        "Employee ID",
+        "Employee DB ID",
+        "Employee Code",
+        "Employee Name",
+        "Department",
+        "Designation",
+        "Joined Date",
+        "Employee Status",
         "Leave Type ID",
         "Leave Type Name",
         "Start Date",
@@ -143,6 +186,12 @@ def generate_leave_report_csv(report_data: dict) -> str:
         writer.writerow([
             row["leave_request_id"],
             row["employee_id"],
+            row.get("employee_code"),
+            row.get("employee_name"),
+            row.get("department"),
+            row.get("designation"),
+            row.get("joined_date"),
+            row.get("employee_status"),
             row["leave_type_id"],
             row["leave_type_name"],
             row["start_date"],
@@ -158,3 +207,49 @@ def generate_leave_report_csv(report_data: dict) -> str:
         ])
 
     return output.getvalue()
+
+def generate_leave_report_pdf(data):
+    buffer = BytesIO()
+
+    doc = SimpleDocTemplate(buffer, pagesize=letter)
+    elements = []
+
+    styles = getSampleStyleSheet()
+
+    # Title
+    elements.append(Paragraph("Leave Report", styles["Title"]))
+
+    # Summary
+    summary = data["summary"]
+    elements.append(Paragraph(f"Total Requests: {summary['total_requests']}", styles["Normal"]))
+    elements.append(Paragraph(f"Total Leave Days: {summary['total_leave_days']}", styles["Normal"]))
+    elements.append(Paragraph(f"Approved: {summary['approved_requests']}", styles["Normal"]))
+    elements.append(Paragraph(f"Pending: {summary['pending_requests']}", styles["Normal"]))
+
+    # Table
+    table_data = [
+        ["Employee", "Department", "Leave Type", "Days", "Status"]
+    ]
+
+    for r in data["records"]:
+        table_data.append([
+            r["employee_name"],
+            r["department"],
+            r["leave_type_name"],
+            str(r["total_days"]),
+            r["status"],
+        ])
+
+    table = Table(table_data)
+
+    table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.grey),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
+        ("GRID", (0, 0), (-1, -1), 1, colors.black),
+    ]))
+
+    elements.append(table)
+
+    doc.build(elements)
+    buffer.seek(0)
+    return buffer

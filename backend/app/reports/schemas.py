@@ -6,6 +6,12 @@ from typing import Optional, List
 class LeaveReportRow(BaseModel):
     leave_request_id: int
     employee_id: int
+    employee_code: Optional[str] = None
+    employee_name: Optional[str] = None
+    department: Optional[str] = None
+    designation: Optional[str] = None
+    joined_date: Optional[date] = None
+    employee_status: Optional[str] = None
     leave_type_id: int
     leave_type_name: Optional[str] = None
     start_date: date

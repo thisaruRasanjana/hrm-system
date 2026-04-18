@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { notFound, useParams } from "next/navigation";
+import { useParams, notFound } from "next/navigation";
+
 import Sidebar from "@/components/Sidebar";
 import TopBar from "@/components/TopBar";
 import LeaveTabs from "@/components/LeaveTabs";
@@ -13,12 +14,7 @@ import AttendanceRecordsTable from "@/components/reports/AttendanceRecordsTable"
 import LeaveHistoryPanel from "@/components/reports/LeaveHistoryPanel";
 import ViolationsPanel from "@/components/reports/ViolationsPanel";
 import ManagerNotesCard from "@/components/reports/ManagerNotesCard";
-import {
-  attendanceByEmployee,
-  employeeDetails,
-  leaveHistoryByEmployee,
-  violationsByEmployee,
-} from "../data";
+
 import { DetailTab, ReportPeriod } from "../types";
 
 export default function EmployeeReportDetailPage() {
@@ -28,15 +24,58 @@ export default function EmployeeReportDetailPage() {
   const [period, setPeriod] = useState<ReportPeriod>("monthly");
   const [activeTab, setActiveTab] = useState<DetailTab>("attendance");
 
-  const employee = employeeDetails[employeeId];
+  const [employee, setEmployee] = useState<any>(null);
+  const [leaveRecords, setLeaveRecords] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  if (!employee) {
-    notFound();
-  }
+  // ✅ Fetch data from backend
+  useEffect(() => {
+    fetch(`http://127.0.0.1:8000/reports/leave?employee_id=${employeeId}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (!data.records || data.records.length === 0) {
+          notFound();
+          return;
+        }
 
-  const attendanceRecords = attendanceByEmployee[employeeId] || [];
-  const leaveRecords = leaveHistoryByEmployee[employeeId] || [];
-  const violationRecords = violationsByEmployee[employeeId] || [];
+        const first = data.records[0];
+
+        // ✅ Set employee info
+        setEmployee({
+          id: employeeId,
+          name: first.employee_name || "N/A",
+          employeeCode: first.employee_code || "N/A",
+          department: first.department || "N/A",
+          position: first.designation || "N/A",
+          manager: "N/A",
+          joinDate: first.joined_date || "",
+          attendanceRate: 0,
+          absentDays: 0,
+          lateArrivals: 0,
+          totalViolations: 0,
+        });
+
+        // ✅ Set leave records
+        const mappedLeaves = data.records.map((r: any) => ({
+          type: r.leave_type_name,
+          startDate: r.start_date,
+          endDate: r.end_date,
+          days: r.total_days,
+          reason: r.reason,
+          status: r.status,
+        }));
+
+        setLeaveRecords(mappedLeaves);
+        setLoading(false);
+      })
+      .catch(() => {
+        notFound();
+      });
+  }, [employeeId]);
+
+  // ⚠️ Placeholder (until backend ready)
+  const attendanceRecords: any[] = [];
+  const violationRecords: any[] = [];
 
   const content = useMemo(() => {
     if (activeTab === "attendance") {
@@ -50,7 +89,12 @@ export default function EmployeeReportDetailPage() {
     return <ViolationsPanel records={violationRecords} />;
   }, [activeTab, attendanceRecords, leaveRecords, violationRecords]);
 
-  
+  // ✅ Loading state
+  if (loading) {
+    return <div className="p-10">Loading...</div>;
+  }
+
+  if (!employee) return null;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -79,8 +123,13 @@ export default function EmployeeReportDetailPage() {
             period={period}
             setPeriod={setPeriod}
           />
-          
-          <EmployeeReportStats employee={employee} activeTab={activeTab} period={period} setPeriod={setPeriod} />
+
+          <EmployeeReportStats
+            employee={employee}
+            activeTab={activeTab}
+            period={period}
+            setPeriod={setPeriod}
+          />
 
           <EmployeeDetailTabs
             activeTab={activeTab}
