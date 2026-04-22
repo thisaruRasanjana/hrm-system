@@ -44,8 +44,8 @@ export default function EvaluateInterviewPage() {
   const [saving, setSaving] = useState(false);
   const [roundNumber, setRoundNumber] = useState(1);
 
-  // MOCK USER: In the future this will come from the Auth/RBAC context
-  const loggedInUserName = "Sachintha Dilshan (Mock)";
+  // TODO: Replace with identity from Auth context once auth module is implemented
+  const [evaluatorName, setEvaluatorName] = useState("");
 
   const [ratings, setRatings] = useState({
     technical_skills: 0,
@@ -70,7 +70,14 @@ export default function EvaluateInterviewPage() {
     })
     .then(r => r.json())
     .then((evals: any[]) => {
-      setRoundNumber(Array.isArray(evals) ? evals.length + 1 : 1);
+      // Determine current round: all panel members for a given phase share the
+      // same round_number. Round increments only when the panel head decides
+      // "Proceed to Next Round" as a final decision.
+      const maxRound =
+        Array.isArray(evals) && evals.length > 0
+          ? Math.max(...evals.map((e: any) => e.round_number))
+          : 0;
+      setRoundNumber(maxRound > 0 ? maxRound : 1);
       setLoading(false);
     })
     .catch(err => {
@@ -95,6 +102,14 @@ export default function EvaluateInterviewPage() {
 
   const handleSave = async () => {
     if (!candidate?.application_id) return;
+
+    // Validate all 5 criteria are rated (spec §9.2)
+    const unrated = Object.entries(ratings).filter(([, val]) => val === 0);
+    if (unrated.length > 0) {
+      alert("Please rate all 5 evaluation criteria before saving.");
+      return;
+    }
+
     setSaving(true);
     
     try {
@@ -103,9 +118,10 @@ export default function EvaluateInterviewPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...ratings,
+          round_number: roundNumber,
           comments,
           needs_another_round: needsRound,
-          evaluator_name: loggedInUserName
+          evaluator_name: evaluatorName.trim() || "Anonymous",
         })
       });
 
@@ -203,22 +219,22 @@ export default function EvaluateInterviewPage() {
               </div>
             </div>
 
-            {/* Right: Score + comments + progress + toggle */}
-            <div className="w-[350px] space-y-6 flex flex-col">
-              
+            {/* Right: Score + comments + progress + evaluator + toggle + actions */}
+            <div className="w-[350px] flex flex-col gap-4">
+
               <div className="bg-orange-400 text-white rounded-xl shadow-sm p-6 flex flex-col items-center justify-center h-40">
                 <p className="text-sm font-medium mb-1 opacity-90">Overall Score</p>
                 <p className="text-5xl font-bold mb-2">{calculateScore()}%</p>
                 <p className="text-xs opacity-80">Based on ratings</p>
               </div>
 
-              <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6 flex-1 flex flex-col">
+              <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
                 <h3 className="text-sm font-bold text-gray-800 mb-3">Panel Comments</h3>
                 <textarea
                   value={comments}
                   onChange={(e) => setComments(e.target.value)}
                   placeholder="Share your observations, key strengths, areas of improvement..."
-                  className="w-full flex-1 border border-gray-200 rounded-lg p-3 text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-300 resize-none min-h-[120px]"
+                  className="w-full border border-gray-200 rounded-lg p-3 text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-300 resize-none h-28"
                 />
               </div>
 
@@ -232,6 +248,18 @@ export default function EvaluateInterviewPage() {
                     />
                   ))}
                 </div>
+              </div>
+
+              <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
+                <h3 className="text-sm font-bold text-gray-800 mb-3">Evaluator Name</h3>
+                <input
+                  type="text"
+                  value={evaluatorName}
+                  onChange={(e) => setEvaluatorName(e.target.value)}
+                  placeholder="Your full name"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-300"
+                />
+                <p className="text-xs text-gray-400 mt-1">Required to prevent duplicate submissions</p>
               </div>
 
               <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6 flex items-center justify-between">
@@ -252,24 +280,24 @@ export default function EvaluateInterviewPage() {
                 </button>
               </div>
 
+              {/* Actions — anchored to the bottom of the right column */}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => router.back()}
+                  className="flex-1 py-3 bg-white border border-gray-300 rounded-xl text-gray-700 text-sm font-medium hover:bg-gray-50 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="flex-1 py-3 bg-orange-400 disabled:opacity-60 hover:bg-orange-500 rounded-xl text-white text-sm font-medium transition"
+                >
+                  {saving ? "Saving..." : "Save Evaluation"}
+                </button>
+              </div>
+
             </div>
-          </div>
-          
-          {/* Actions */}
-          <div className="flex justify-end gap-4 mt-6">
-            <button
-              onClick={() => router.back()}
-              className="px-8 py-3 bg-white border border-gray-300 rounded-xl text-gray-700 text-sm font-medium hover:bg-gray-50 transition"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="px-8 py-3 bg-orange-400 disabled:opacity-60 hover:bg-orange-500 rounded-xl text-white text-sm font-medium transition"
-            >
-              {saving ? "Saving..." : "Save Evaluation"}
-            </button>
           </div>
 
         </main>

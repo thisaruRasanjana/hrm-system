@@ -78,13 +78,12 @@ function DecisionBadge({ decision }: { decision: string | null }) {
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, string> = {
-    "Not Called": "bg-gray-100 text-gray-500",
-    "Called": "bg-blue-100 text-blue-600",
-    "Evaluated": "bg-orange-100 text-orange-600",
-    "Another Round Needed": "bg-yellow-100 text-yellow-700",
-    "Selected": "bg-green-100 text-green-700",
-    "Rejected": "bg-red-100 text-red-600",
-    "Keep for Future": "bg-purple-100 text-purple-600",
+    "Uploaded":       "bg-gray-100 text-gray-500",
+    "Called":         "bg-blue-100 text-blue-600",
+    "First Round":    "bg-orange-100 text-orange-600",
+    "Second Round":   "bg-purple-100 text-purple-600",
+    "Job Offered":    "bg-green-100 text-green-700",
+    "Rejected":       "bg-red-100 text-red-600",
   };
   return (
     <span className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap ${map[status] ?? "bg-gray-100 text-gray-500"}`}>
@@ -99,12 +98,28 @@ export default function VacancyDetailPage() {
 
   const [vacancy, setVacancy] = useState<Vacancy | null>(null);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [linkCopied, setLinkCopied] = useState(false);
+
+  const copyShareLink = () => {
+    const url = `${window.location.origin}/jobs/${vacancyId}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    });
+  };
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All Status");
 
   const [activeTab, setActiveTab] = useState<"all" | "evaluated">("all");
   const [evaluatedCandidates, setEvaluatedCandidates] = useState<EvaluatedCandidate[]>([]);
   const [evaluatedLoading, setEvaluatedLoading] = useState(false);
+
+  // "See More" state — show top 5 by default, expand on demand (spec §1.3.2 / §1.3.3)
+  const [showAllCandidates, setShowAllCandidates] = useState(false);
+  const TOP_N = 5;
+
+  // Re-run AI Screening state
+  const [rerunning, setRerunning] = useState(false);
 
   useEffect(() => {
     if (!vacancyId) return;
@@ -138,13 +153,35 @@ export default function VacancyDetailPage() {
       });
   }, [activeTab, vacancyId]);
 
-  const filtered = candidates.filter((c) => {
-    const matchesSearch =
-      search === "" || c.full_name.toLowerCase().includes(search.toLowerCase());
-    const matchesStatus =
-      statusFilter === "All Status" || c.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  const sorted = candidates
+    .filter((c) => {
+      const matchesSearch =
+        search === "" || c.full_name.toLowerCase().includes(search.toLowerCase());
+      const matchesStatus =
+        statusFilter === "All Status" || c.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    })
+    .sort((a, b) => (b.ai_score ?? 0) - (a.ai_score ?? 0));
+
+  const displayed = showAllCandidates ? sorted : sorted.slice(0, TOP_N);
+
+  const rerunAI = async () => {
+    setRerunning(true);
+    try {
+      await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/recruitment/vacancies/${vacancyId}/run-ai-screening`,
+        { method: "POST" }
+      );
+      // Refresh candidate list to show updated scores
+      const data = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/recruitment/vacancies/${vacancyId}/candidates`
+      ).then((r) => r.json());
+      if (Array.isArray(data)) setCandidates(data);
+    } catch (err) {
+      console.error("Re-run AI failed:", err);
+    }
+    setRerunning(false);
+  };
 
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
@@ -168,14 +205,51 @@ export default function VacancyDetailPage() {
               Candidates – {vacancy?.title ?? ""}
             </h2>
 
-            {vacancy?.status === "Active" && (
-              <Link
-                href={`/recruitment/${vacancyId}/upload`}
-                className="bg-orange-400 hover:bg-orange-500 text-white px-5 py-2.5 rounded-xl text-sm font-medium transition-colors"
-              >
-                + Add CV
-              </Link>
-            )}
+            <div className="flex items-center gap-3">
+              {vacancy?.status === "Active" && (
+                <button
+                  onClick={copyShareLink}
+                  className={`flex items-center gap-2 border px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                    linkCopied
+                      ? "border-green-400 text-green-600 bg-green-50"
+                      : "border-gray-200 text-gray-600 hover:border-orange-300 hover:text-orange-500 hover:bg-orange-50"
+                  }`}
+                >
+                  {linkCopied ? (
+                    <>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      Link Copied!
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                      </svg>
+                      Share Job Posting
+                    </>
+                  )}
+                </button>
+              )}
+              {vacancy?.status === "Active" && (
+                <button
+                  onClick={rerunAI}
+                  disabled={rerunning}
+                  className="border border-orange-400 text-orange-500 hover:bg-orange-50 disabled:opacity-60 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors"
+                >
+                  {rerunning ? "Re-scoring..." : "↺ Re-run AI Screening"}
+                </button>
+              )}
+              {vacancy?.status === "Active" && (
+                <Link
+                  href={`/recruitment/${vacancyId}/upload`}
+                  className="bg-orange-400 hover:bg-orange-500 text-white px-5 py-2.5 rounded-xl text-sm font-medium transition-colors"
+                >
+                  + Add CV
+                </Link>
+              )}
+            </div>
           </div>
 
           {/* Tabs */}
@@ -208,13 +282,12 @@ export default function VacancyDetailPage() {
                 />
                 <FilterSelect value={statusFilter} onChange={setStatusFilter}>
                   <option>All Status</option>
-                  <option>Not Called</option>
+                  <option>Uploaded</option>
                   <option>Called</option>
-                  <option>Evaluated</option>
-                  <option>Another Round Needed</option>
-                  <option>Selected</option>
+                  <option>First Round</option>
+                  <option>Second Round</option>
+                  <option>Job Offered</option>
                   <option>Rejected</option>
-                  <option>Keep for Future</option>
                 </FilterSelect>
               </div>
 
@@ -230,31 +303,47 @@ export default function VacancyDetailPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filtered.length === 0 ? (
+                    {sorted.length === 0 ? (
                       <tr>
                         <td colSpan={5} className="text-center py-12 text-gray-400 text-sm">
                           No candidates found.
                         </td>
                       </tr>
                     ) : (
-                      filtered.map((c) => (
-                        <tr key={c.id} className="border-t border-gray-100 hover:bg-gray-50 transition-colors">
-                          <td className="px-6 py-4 text-gray-800 text-sm">{c.full_name}</td>
-                          <td className="px-6 py-4 text-gray-600 text-sm text-center">{c.phone}</td>
-                          <td className="px-6 py-4 text-gray-600 text-sm text-center">{c.ai_score ?? "-"}%</td>
-                          <td className="px-6 py-4 text-center">
-                            <StatusBadge status={c.status} />
-                          </td>
-                          <td className="px-6 py-4 text-sm text-center">
-                            <Link
-                              href={`/recruitment/${vacancyId}/candidates/${c.id}`}
-                              className="text-orange-500 hover:text-orange-600 font-medium transition-colors"
-                            >
-                              View
-                            </Link>
-                          </td>
-                        </tr>
-                      ))
+                      <>
+                        {displayed.map((c) => (
+                          <tr key={c.id} className="border-t border-gray-100 hover:bg-gray-50 transition-colors">
+                            <td className="px-6 py-4 text-gray-800 text-sm">{c.full_name}</td>
+                            <td className="px-6 py-4 text-gray-600 text-sm text-center">{c.phone}</td>
+                            <td className="px-6 py-4 text-gray-600 text-sm text-center">{c.ai_score != null ? `${c.ai_score}%` : <span className="text-blue-500 animate-pulse text-xs">Processing...</span>}</td>
+                            <td className="px-6 py-4 text-center">
+                              <StatusBadge status={c.status} />
+                            </td>
+                            <td className="px-6 py-4 text-sm text-center">
+                              <Link
+                                href={`/recruitment/${vacancyId}/candidates/${c.id}`}
+                                className="text-orange-500 hover:text-orange-600 font-medium transition-colors"
+                              >
+                                View
+                              </Link>
+                            </td>
+                          </tr>
+                        ))}
+                        {sorted.length > TOP_N && (
+                          <tr className="border-t border-gray-100">
+                            <td colSpan={5} className="text-center py-4">
+                              <button
+                                onClick={() => setShowAllCandidates(!showAllCandidates)}
+                                className="text-orange-500 hover:text-orange-600 text-sm font-medium transition-colors"
+                              >
+                                {showAllCandidates
+                                  ? `▲ Show Top ${TOP_N} Only`
+                                  : `▼ See All ${sorted.length} Candidates`}
+                              </button>
+                            </td>
+                          </tr>
+                        )}
+                      </>
                     )}
                   </tbody>
                 </table>

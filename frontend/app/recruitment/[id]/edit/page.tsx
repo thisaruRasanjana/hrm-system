@@ -6,6 +6,7 @@ import Link from "next/link";
 import Sidebar from "@/components/Sidebar";
 import TopBar from "@/components/Topbar";
 import { IconChevron } from "@/components/Icons";
+import RichTextEditor from "@/components/RichTextEditor";
 
 const inputCls =
   "w-full border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-700 placeholder-gray-400 bg-white focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-300 transition";
@@ -17,7 +18,7 @@ type Vacancy = {
   experience_level: string | null;
   description: string | null;
   requirements: string | null;
-  required_skills: string | null;
+  required_skills: string | null;  // kept for DB compat — no longer shown in UI
   status: string;
 };
 
@@ -124,7 +125,6 @@ export default function EditVacancyPage() {
   const [form, setForm] = useState({
     description: "",
     requirements: "",
-    required_skills: "",
     status: "Active",
   });
 
@@ -163,7 +163,6 @@ export default function EditVacancyPage() {
         setForm({
           description: v.description ?? "",
           requirements: v.requirements ?? "",
-          required_skills: v.required_skills ?? "",
           status: v.status ?? "Active",
         });
 
@@ -378,12 +377,10 @@ export default function EditVacancyPage() {
                 <label className="block mb-2 text-sm font-medium text-gray-700">
                   Job Description
                 </label>
-                <textarea
-                  className={`${inputCls} h-32`}
-                  value={form.description}
-                  onChange={(e) =>
-                    setForm({ ...form, description: e.target.value })
-                  }
+                <RichTextEditor
+                  content={form.description}
+                  onChange={(html) => setForm({ ...form, description: html })}
+                  placeholder="Describe the role, responsibilities, and day-to-day tasks…"
                 />
               </div>
 
@@ -392,27 +389,10 @@ export default function EditVacancyPage() {
                 <label className="block mb-2 text-sm font-medium text-gray-700">
                   Requirements
                 </label>
-                <textarea
-                  className={`${inputCls} h-32`}
-                  value={form.requirements}
-                  onChange={(e) =>
-                    setForm({ ...form, requirements: e.target.value })
-                  }
-                />
-              </div>
-
-              {/* Required Skills */}
-              <div>
-                <label className="block mb-2 text-sm font-medium text-gray-700">
-                  Required Skills <span className="text-gray-400 font-normal">(e.g. Python, React, SQL)</span>
-                </label>
-                <textarea
-                  className={`${inputCls} h-24`}
-                  value={form.required_skills}
-                  onChange={(e) =>
-                    setForm({ ...form, required_skills: e.target.value })
-                  }
-                  placeholder="Comma-separated important skills for matching..."
+                <RichTextEditor
+                  content={form.requirements}
+                  onChange={(html) => setForm({ ...form, requirements: html })}
+                  placeholder="List qualifications, degrees, certifications, years of experience…"
                 />
               </div>
 

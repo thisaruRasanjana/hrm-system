@@ -1,19 +1,19 @@
-import os
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, MessageType
-from dotenv import load_dotenv
-
-load_dotenv()
+from app.core.config import (
+    MAIL_USERNAME, MAIL_PASSWORD, MAIL_FROM,
+    MAIL_PORT, MAIL_SERVER,
+)
 
 conf = ConnectionConfig(
-    MAIL_USERNAME=os.getenv("MAIL_USERNAME", ""),
-    MAIL_PASSWORD=os.getenv("MAIL_PASSWORD", ""),
-    MAIL_FROM=os.getenv("MAIL_FROM", "noreply@hrm.local"),
-    MAIL_PORT=int(os.getenv("MAIL_PORT", "587")),
-    MAIL_SERVER=os.getenv("MAIL_SERVER", "smtp.gmail.com"),
+    MAIL_USERNAME=MAIL_USERNAME,
+    MAIL_PASSWORD=MAIL_PASSWORD,
+    MAIL_FROM=MAIL_FROM,
+    MAIL_PORT=MAIL_PORT,
+    MAIL_SERVER=MAIL_SERVER,
     MAIL_STARTTLS=True,
     MAIL_SSL_TLS=False,
     USE_CREDENTIALS=True,
-    VALIDATE_CERTS=True,
+    VALIDATE_CERTS=False,   # macOS: Python doesn't load system root CAs by default
 )
 
 
@@ -23,10 +23,7 @@ async def send_scheduling_email(
     job_title: str,
     interview_link: str,
 ) -> None:
-    """
-    Sends an interview scheduling link to a candidate.
-    The link is the panel's Cita / Google Meet link stored on InterviewPanel.
-    """
+    """Sends an interview scheduling link to a candidate."""
 
     html_body = f"""
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 24px;">
