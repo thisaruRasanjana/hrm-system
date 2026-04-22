@@ -12,7 +12,16 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.detail || `API Request failed: ${response.status}`);
+    // FastAPI 422 returns detail as an array of validation errors
+    if (Array.isArray(errorData.detail)) {
+      const messages = errorData.detail.map((e: any) => `${e.loc?.slice(-1)[0]}: ${e.msg}`).join(", ");
+      throw new Error(messages);
+    }
+    throw new Error(
+      typeof errorData.detail === "string"
+        ? errorData.detail
+        : `API Request failed: ${response.status}`
+    );
   }
 
   return response.json();
