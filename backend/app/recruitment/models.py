@@ -32,6 +32,7 @@ class Candidate(Base):
     cv_file_path = Column(String(500), nullable=False)
     uploaded_at = Column(DateTime, default=datetime.utcnow)
     ai_score = Column(Float, nullable=True)
+    ai_reasoning = Column(Text, nullable=True)
 
     applications = relationship("Application", back_populates="candidate", cascade="all, delete-orphan")
 
@@ -70,7 +71,7 @@ class InterviewPanel(Base):
 
     interview_link = Column(String, nullable=True)
 
-    vacancy = relationship("Vacancy")
+    vacancy = relationship("Vacancy", back_populates="panel")
 
 
 class InterviewEvaluation(Base):

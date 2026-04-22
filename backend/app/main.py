@@ -1,28 +1,24 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
+from app.core.config import CORS_ORIGINS
 from app.database.database import engine
 from app.database.base import Base
-from app.recruitment import models as recruitment_models
 from app.recruitment.router import router as recruitment_router
+from app.recruitment.public_router import router as public_router
 from app.employees.router import router as employees_router
 
 app = FastAPI(title="HRM Backend")
 
-app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
-
-import os
-
-ALLOWED_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",")
-
+# ── CORS ──────────────────────────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# ── Startup ───────────────────────────────────────────────────────────────────
 @app.on_event("startup")
 def startup():
     try:
@@ -33,9 +29,11 @@ def startup():
         print("WARNING: Database connection failed")
         print(e)
 
+# ── Routers ───────────────────────────────────────────────────────────────────
 app.include_router(recruitment_router)
+app.include_router(public_router)
 app.include_router(employees_router)
 
 @app.get("/")
 def root():
-    return {"message": "HRM backend with DB connected"}
+    return {"message": "HRM Backend"}

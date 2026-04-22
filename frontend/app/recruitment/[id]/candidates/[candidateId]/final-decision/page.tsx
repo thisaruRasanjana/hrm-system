@@ -49,9 +49,9 @@ const CRITERIA = [
 ];
 
 const DECISIONS = [
-  { id: "Selected", label: "Select Candidate", sub: "Proceed with offer letter", icon: "✓" },
-  { id: "Rejected", label: "Reject Candidate", sub: "Does not meet requirements", icon: "✕" },
-  { id: "Keep for Future", label: "Keep for Future", sub: "Archive for opportunities", icon: "🗄" },
+  { id: "Proceed to Next Round", label: "Proceed to Next Round", sub: "Schedule another interview round", icon: "→" },
+  { id: "Job Offered",           label: "Job Offered",           sub: "Extend an offer to this candidate", icon: "✓" },
+  { id: "Rejected",              label: "Rejected",              sub: "Does not meet requirements",      icon: "✕" },
 ];
 
 function initials(name: string) {
