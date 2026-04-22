@@ -103,3 +103,35 @@ body {
 .ProseMirror u {
   text-decoration: underline;
 }
+
+/* =========================
+   Global Modal Animations
+========================= */
+
+@keyframes modal-fade-zoom {
+  0% {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-modal {
+  animation: modal-fade-zoom 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes backdrop-fade {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.animate-backdrop {
+  animation: backdrop-fade 0.25s ease-out forwards;
+}

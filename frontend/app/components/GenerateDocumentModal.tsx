@@ -180,8 +180,8 @@ export default function GenerateDocumentModal({ request, onClose, onSuccess }: P
    * ────────────────────────────────────────────────────── */
   if (hasNoTemplate) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-        <div className="bg-white rounded-[24px] shadow-2xl overflow-hidden flex flex-col w-[680px] max-h-[90vh]">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-backdrop">
+        <div className="bg-white rounded-[24px] shadow-2xl overflow-hidden flex flex-col w-[680px] max-h-[90vh] animate-modal">
           {/* Header */}
           <div className="px-8 py-6 flex items-start justify-between border-b border-gray-100">
             <div className="flex items-center gap-4">
@@ -334,9 +334,9 @@ export default function GenerateDocumentModal({ request, onClose, onSuccess }: P
    *  Render: Normal Template Mode
    * ────────────────────────────────────────────────────── */
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-backdrop">
       <div
-        className={`bg-white rounded-[24px] shadow-2xl overflow-hidden flex flex-col transition-all duration-300 ${
+        className={`bg-white rounded-[24px] shadow-2xl overflow-hidden flex flex-col transition-all duration-300 animate-modal ${
           previewMode ? "w-[900px] max-h-[90vh]" : "w-[680px] max-h-[90vh]"
         }`}
       >

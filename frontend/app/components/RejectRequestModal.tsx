@@ -40,8 +40,8 @@ export default function RejectRequestModal({ request, onClose, onSuccess }: Prop
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-      <div className="bg-white w-[540px] rounded-3xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 p-7">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-backdrop">
+      <div className="bg-white w-[540px] rounded-3xl shadow-xl overflow-hidden animate-modal p-7">
         
         {/* Header */}
         <div className="flex items-start justify-between border-b-2 border-gray-200 pb-6 mb-6">

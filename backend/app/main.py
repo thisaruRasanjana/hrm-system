@@ -10,6 +10,7 @@ from app.database.base import Base
 # Import models so tables are registered
 from app.documents.models.model import EmployeeDocument
 from app.documents.models.template_model import DocumentTemplate
+from app.documents.models.document_type_model import DocumentType  # noqa: F401 — registers table
 
 # Routers
 from app.documents.routers.router import router as documents_router
@@ -18,6 +19,7 @@ from app.documents.routers.approval_router import router as approval_router
 from app.documents.routers.template_router import router as template_router
 from app.documents.routers import hr_request_router
 from app.documents.routers import hr_own_document_router
+from app.documents.routers.document_type_router import router as document_type_router
 
 EMAIL_POLL_INTERVAL = 60  # seconds between each email check
 
@@ -82,6 +84,9 @@ app.include_router(approval_router)
 
 # Template management router
 app.include_router(template_router)
+
+# Document type management
+app.include_router(document_type_router)
 
 
 @app.get("/")
