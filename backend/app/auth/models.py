@@ -26,6 +26,6 @@ class Role(Base):
     is_system = Column(Integer, default=0) # 1 for built-in, 0 for custom
 
     permissions = relationship("Permission", secondary=role_permissions, back_populates="roles")
-    employees = relationship("Employee", back_populates="role")
+    # employees relationship is configured from Employee side via backref
 
 Permission.roles = relationship("Role", secondary=role_permissions, back_populates="permissions")

@@ -43,4 +43,8 @@ class Employee(Base):
     bank_branch = Column(String(100), nullable=True)
 
     role_id = Column(Integer, ForeignKey("roles.id"), nullable=True)
-    role = relationship("Role", back_populates="employees")
+    role = relationship("Role", backref="employees", foreign_keys=[role_id])
+
+# Deferred import to avoid circular import — ensures Role is in the mapper registry
+# when Employee.role relationship is configured by SQLAlchemy
+from app.auth import models as _auth_models  # noqa: F401, E402
