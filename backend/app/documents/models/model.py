@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Enum, DateTime, Boolean, Text, ForeignKey
+from sqlalchemy import Column, String, Enum, DateTime, Boolean, Text, Integer
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 import uuid
@@ -20,8 +20,8 @@ class EmployeeDocument(Base):
     # Primary ID
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
 
-    # Employee who uploaded the document
-    employee_id = Column(UUID(as_uuid=True), nullable=False)
+    # Employee who uploaded the document (FK to employees.id)
+    employee_id = Column(Integer, nullable=False)
 
     # Document type (NIC, Passport, Certificates, etc.)
     document_type = Column(String, nullable=False)
@@ -44,7 +44,7 @@ class EmployeeDocument(Base):
     uploaded_at = Column(DateTime(timezone=True), server_default=func.now())
 
     # Review details (HR / Manager approval)
-    reviewed_by = Column(UUID(as_uuid=True), nullable=True)
+    reviewed_by = Column(Integer, nullable=True)
     reviewed_at = Column(DateTime(timezone=True), nullable=True)
 
     # Reason if document rejected

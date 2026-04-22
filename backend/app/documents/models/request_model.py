@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Enum, DateTime
+from sqlalchemy import Column, String, Enum, DateTime, Integer
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 import uuid
@@ -20,7 +20,7 @@ class DocumentRequest(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
 
-    employee_id = Column(UUID(as_uuid=True), nullable=True) # Allowed to be null for external requests
+    employee_id = Column(Integer, nullable=True) # Allowed to be null for external requests
     source = Column(String, default="INTERNAL")             # "INTERNAL" or "EXTERNAL"
     requester_email = Column(String, nullable=True)         # Tracking the external sender's email
 

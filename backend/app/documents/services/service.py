@@ -14,7 +14,7 @@ ALLOWED_FILE_TYPES = [
     "image/jpeg",
     "image/png"
 ]
-def save_file(file: UploadFile, employee_id: UUID) -> str:
+def save_file(file: UploadFile, employee_id: int) -> str:
     os.makedirs(BASE_UPLOAD_DIR, exist_ok=True)
 
     file_path = os.path.join(
@@ -29,7 +29,7 @@ def save_file(file: UploadFile, employee_id: UUID) -> str:
 
 def upload_employee_document(
     db: Session,
-    employee_id: UUID,
+    employee_id: int,
     document_type: str,
     is_mandatory: bool,
     file: UploadFile
@@ -77,7 +77,7 @@ def upload_employee_document(
     db.refresh(new_document)
 
     return new_document
-def get_employee_documents(db: Session, employee_id: UUID):
+def get_employee_documents(db: Session, employee_id: int):
     return (
         db.query(EmployeeDocument)
         .filter(EmployeeDocument.employee_id == employee_id)
@@ -87,7 +87,7 @@ def get_employee_documents(db: Session, employee_id: UUID):
 def download_employee_document(
     db: Session,
     document_id: UUID,
-    employee_id: UUID
+    employee_id: int
 ):
     document = (
         db.query(EmployeeDocument)

@@ -86,7 +86,7 @@ def get_pending_documents(db: Session, current_user: Employee):
 
 
 # Approve document
-def approve_document(document_id: UUID, reviewer_id: UUID, db: Session):
+def approve_document(document_id: UUID, reviewer_id: int, db: Session):
 
     document = (
         db.query(EmployeeDocument)
@@ -121,7 +121,7 @@ def approve_document(document_id: UUID, reviewer_id: UUID, db: Session):
 
 
 # Reject document
-def reject_document(document_id: UUID, reviewer_id: UUID, reason: str, db: Session):
+def reject_document(document_id: UUID, reviewer_id: int, reason: str, db: Session):
 
     document = (
         db.query(EmployeeDocument)
