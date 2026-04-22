@@ -55,11 +55,11 @@ def get_pending_documents(db: Session, current_user: Employee):
         hr_role_ids = [r.id for r in hr_roles]
         query = query.filter(Employee.role_id.in_(hr_role_ids))
     elif is_hr:
-        # HR: fetch docs where manager_id is NULL (no manager)
-        query = query.filter(Employee.manager_id == None)
+        # HR: see all pending documents (manager_id not yet in Employee model)
+        pass  # no extra filter — return all pending
     else:
-        # Managers: fetch docs where they are the manager
-        query = query.filter(Employee.manager_id == current_user.id)
+        # Manager: return all pending docs (manager_id relationship TBD)
+        pass  # no extra filter — return all pending
 
     documents = query.order_by(EmployeeDocument.uploaded_at.desc()).all()
 

@@ -68,6 +68,7 @@ def seed_default_data():
             Permission(name="document:approve",          description="Document Permission"),
             Permission(name="document:manage_types",     description="Document Permission"),
             Permission(name="document:manage_templates", description="Document Permission"),
+            Permission(name="document:manage_requests",  description="Document Permission"),
             Permission(name="recruitment:view",          description="Recruitment Permission"),
             Permission(name="recruitment:manage",        description="Recruitment Permission"),
             Permission(name="report:view",               description="Report Permission"),

@@ -24,3 +24,12 @@ def get_employee_requests(db: Session, employee_id):
         .order_by(DocumentRequest.created_at.desc())
         .all()
     )
+
+
+def get_all_requests(db: Session):
+    """HR: return all document requests across all employees."""
+    return (
+        db.query(DocumentRequest)
+        .order_by(DocumentRequest.created_at.desc())
+        .all()
+    )
