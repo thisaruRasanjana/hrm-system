@@ -83,11 +83,11 @@ export default function TemplateAddModal({ onClose, onSuccess }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-backdrop"
       onClick={onClose}
     >
       <div
-        className="bg-white w-[640px] max-h-[90vh] rounded-2xl shadow-2xl flex flex-col"
+        className="bg-white w-[640px] max-h-[90vh] rounded-2xl shadow-2xl flex flex-col animate-modal"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

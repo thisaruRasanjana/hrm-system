@@ -57,10 +57,10 @@ export default function DocumentReviewModal({
 
   return (
 
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 animate-backdrop">
 
       {/* Modal */}
-      <div className="bg-white w-[1000px] max-h-[90vh] rounded-xl shadow-xl flex flex-col">
+      <div className="bg-white w-[1000px] max-h-[90vh] rounded-xl shadow-xl flex flex-col animate-modal">
 
         {/* Header */}
         <div className="flex justify-between items-start px-6 py-4 border-b">

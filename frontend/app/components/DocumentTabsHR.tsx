@@ -10,6 +10,7 @@ const tabs = [
   { name: "Approval Document", path: "/hr/documents/approval" },
   { name: "Template Management", path: "/hr/documents/templates_management" },
   { name: "Request Management", path: "/hr/documents/request_management" },
+  { name: "Document Types", path: "/hr/documents/document_types" },
 ];
 
 export default function DocumentTabsHR() {
