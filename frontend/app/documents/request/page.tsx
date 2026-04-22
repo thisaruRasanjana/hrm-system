@@ -38,7 +38,7 @@ export default function HRRequestDocumentPage() {
 
   const fetchRequests = async () => {
     const res = await fetch(
-      `http://localhost:8000/hr-own-document-requests/${employeeDbId}`,
+      `http://localhost:8000/document-requests/${employeeDbId}`,
       { headers: { "X-Employee-ID": employeeDbId } }
     );
     const data = await res.json();
@@ -58,7 +58,7 @@ export default function HRRequestDocumentPage() {
       return;
     }
 
-    const res = await fetch("http://localhost:8000/hr-own-document-requests/", {
+    const res = await fetch("http://localhost:8000/document-requests/", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

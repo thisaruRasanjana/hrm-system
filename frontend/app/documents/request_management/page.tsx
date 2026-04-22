@@ -66,7 +66,7 @@ export default function HRRequestManagementPage() {
     setIsSyncing(true);
     setSyncMessage(null);
     try {
-      const res = await fetch(`http://localhost:8000/hr-document-requests/sync-emails`, {
+      const res = await fetch(`http://localhost:8000/document-requests/sync-emails`, {
         method: "POST",
         headers: { "X-Employee-ID": employeeDbId },
       });
@@ -108,7 +108,7 @@ export default function HRRequestManagementPage() {
     setAssigningEmployee(true);
     try {
       const res = await fetch(
-        `http://localhost:8000/hr-document-requests/${selectedRequest.id}/assign-employee`,
+        `http://localhost:8000/document-requests/${selectedRequest.id}/assign-employee`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -131,7 +131,7 @@ export default function HRRequestManagementPage() {
   const fetchRequests = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`http://localhost:8000/hr-document-requests/`, {
+      const res = await fetch(`http://localhost:8000/document-requests/`, {
         headers: { "X-Employee-ID": employeeDbId },
       });
       const data = await res.json();
@@ -162,7 +162,7 @@ export default function HRRequestManagementPage() {
 
   const handleMarkInProgress = async (id: string) => {
     try {
-      await fetch(`http://localhost:8000/hr-document-requests/${id}/status`, {
+      await fetch(`http://localhost:8000/document-requests/${id}/status`, {
         method: "PUT",
         headers: { "Content-Type": "application/json", "X-Employee-ID": employeeDbId },
         body: JSON.stringify({ status: "IN_PROGRESS" })
