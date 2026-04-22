@@ -5,7 +5,7 @@ from datetime import datetime
 
 
 class CreateRequest(BaseModel):
-    employee_id: Optional[UUID] = None
+    employee_id: Optional[int] = None
     document_type: str
     purpose: str
 
@@ -16,7 +16,7 @@ from app.documents.models.request_model import RequestStatus
 
 class RequestResponse(BaseModel):
     id: UUID
-    employee_id: Optional[UUID] = None
+    employee_id: Optional[int] = None
     document_type: str
     purpose: str
     status: RequestStatus

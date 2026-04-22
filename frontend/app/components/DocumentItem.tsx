@@ -9,8 +9,8 @@ interface Props {
   status: "APPROVED" | "PENDING_REVIEW" | "REJECTED" | "NOT_UPLOADED";
   isMandatory: boolean;
   rejectionReason?: string;
-  employeeId: string;
-  uploadEndpoint: string;
+  employeeId?: string;
+  uploadEndpoint?: string;
 }
 
 export default function DocumentItem({
@@ -47,6 +47,10 @@ export default function DocumentItem({
   ) => {
 
     if (!e.target.files || e.target.files.length === 0) return;
+    if (!employeeId || !uploadEndpoint) {
+      setError("Upload configuration missing");
+      return;
+    }
 
     const file = e.target.files[0];
 

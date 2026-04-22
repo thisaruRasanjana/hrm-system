@@ -30,7 +30,7 @@ type MergedDocument = {
 };
 
 // TODO: replace with real authenticated employee ID
-const employeeId = "11111111-1111-1111-1111-111111111111";
+const employeeId = 2;
 
 export default function DocumentsPage() {
   const [docTypes, setDocTypes] = useState<DocType[]>([]);

@@ -23,7 +23,7 @@ export default function HRRequestDocumentPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
-  const hrId = "22222222-2222-2222-2222-222222222222";
+  const hrId = 8;
 
   const documentTypes = [
     "Service Letter",

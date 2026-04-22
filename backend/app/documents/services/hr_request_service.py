@@ -58,7 +58,7 @@ def update_request_status(db: Session, request_id: UUID, status: RequestStatus, 
     return request
 
 
-def assign_employee_to_request(db: Session, request_id: UUID, employee_id: UUID):
+def assign_employee_to_request(db: Session, request_id: UUID, employee_id: int):
     """Link an internal employee to an external document request before generation."""
     request = db.query(DocumentRequest).filter(DocumentRequest.id == request_id).first()
     if not request:

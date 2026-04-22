@@ -12,7 +12,7 @@ router = APIRouter(
 )
 @router.post("/upload", response_model=schemas.DocumentUploadResponse)
 def upload_document(
-    employee_id: UUID = Form(...),
+    employee_id: int = Form(...),
     document_type: str = Form(...),
     is_mandatory: bool = Form(False),
     file: UploadFile = File(...),
@@ -30,14 +30,14 @@ def upload_document(
     response_model=list[schemas.EmployeeDocumentResponse]
 )
 def get_my_documents(
-    employee_id: UUID,
+    employee_id: int,
     db: Session = Depends(get_db)
 ):
     return service.get_employee_documents(db, employee_id)
 @router.get("/download/{document_id}")
 def download_document(
     document_id: UUID,
-    employee_id: UUID,
+    employee_id: int,
     db: Session = Depends(get_db)
 ):
     return service.download_employee_document(

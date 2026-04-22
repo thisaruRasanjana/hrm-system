@@ -22,7 +22,7 @@ def create_request(
 
 @router.get("/{employee_id}", response_model=list[request_schema.RequestResponse])
 def get_requests(
-    employee_id: UUID,
+    employee_id: int,
     db: Session = Depends(get_db)
 ):
     return request_service.get_employee_requests(db, employee_id)
