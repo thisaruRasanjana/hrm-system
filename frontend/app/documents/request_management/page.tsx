@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import DocumentTabsHR from "../../../components/DocumentTabsHR";
+import DocumentTabsHR from "../../components/DocumentTabsHR";
 import { Search, Clock, FileText, CheckCircle, XCircle, ArrowLeft, AlertCircle, User, Mail, Calendar } from "lucide-react";
-import GenerateDocumentModal from "../../../components/GenerateDocumentModal";
-import RejectRequestModal from "../../../components/RejectRequestModal";
+import GenerateDocumentModal from "../../components/GenerateDocumentModal";
+import RejectRequestModal from "../../components/RejectRequestModal";
 
 type RequestType = {
   id: string;
@@ -39,6 +39,11 @@ export default function HRRequestManagementPage() {
   const [employeeResults, setEmployeeResults] = useState<{id: string; name: string}[]>([]);
   const [assigningEmployee, setAssigningEmployee] = useState(false);
 
+  const employeeDbId =
+    typeof window !== "undefined"
+      ? (localStorage.getItem("employeeDbId") ?? "8")
+      : "8";
+
   const handleForceDownload = async (path: string, e: React.MouseEvent) => {
     e.preventDefault();
     try {
@@ -61,7 +66,10 @@ export default function HRRequestManagementPage() {
     setIsSyncing(true);
     setSyncMessage(null);
     try {
-      const res = await fetch(`http://localhost:8000/hr-document-requests/sync-emails`, { method: "POST" });
+      const res = await fetch(`http://localhost:8000/hr-document-requests/sync-emails`, {
+        method: "POST",
+        headers: { "X-Employee-ID": employeeDbId },
+      });
       const data = await res.json();
       if (data.status === "success") {
         setSyncMessage({ text: `Synced ${data.processed_emails} new requests.`, type: "success" });
@@ -74,7 +82,7 @@ export default function HRRequestManagementPage() {
       setSyncMessage({ text: "Failed to sync emails.", type: "error" });
     } finally {
       setIsSyncing(false);
-      setTimeout(() => setSyncMessage(null), 4000); // Clear message after 4 seconds
+      setTimeout(() => setSyncMessage(null), 4000);
     }
   };
 
@@ -123,15 +131,18 @@ export default function HRRequestManagementPage() {
   const fetchRequests = async () => {
     setLoading(true);
     try {
-      // Fetch all requests to calculate total counts for all tabs at once
-      const res = await fetch(`http://localhost:8000/hr-document-requests/`);
+      const res = await fetch(`http://localhost:8000/hr-document-requests/`, {
+        headers: { "X-Employee-ID": employeeDbId },
+      });
       const data = await res.json();
-      setRequests(data);
+      // Guard: backend returns a 401/403 object if auth fails
+      const safeData = Array.isArray(data) ? data : [];
+      setRequests(safeData);
 
       // Update selectedRequest implicitly if it changed status
       setSelectedRequest((prev) => {
         if (!prev) return null;
-        const upToDate = data.find((r: RequestType) => r.id === prev.id);
+        const upToDate = safeData.find((r: RequestType) => r.id === prev.id);
         return upToDate || prev;
       });
 
@@ -153,7 +164,7 @@ export default function HRRequestManagementPage() {
     try {
       await fetch(`http://localhost:8000/hr-document-requests/${id}/status`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "X-Employee-ID": employeeDbId },
         body: JSON.stringify({ status: "IN_PROGRESS" })
       });
       fetchRequests();

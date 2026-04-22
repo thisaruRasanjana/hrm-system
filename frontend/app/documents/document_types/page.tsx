@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import DocumentTabs from "../../../components/DocumentTabsHR";
+import DocumentTabs from "../../components/DocumentTabsHR";
 import {
   PlusCircle, Trash2, Pencil, Check, X, ToggleLeft, ToggleRight, FileType,
 } from "lucide-react";
@@ -35,9 +35,14 @@ export default function DocumentTypesPage() {
   const [editMandatory, setEditMandatory] = useState(false);
   const [editError, setEditError] = useState("");
 
+  const employeeDbId =
+    typeof window !== "undefined"
+      ? (localStorage.getItem("employeeDbId") ?? "8")
+      : "8";
+
   const fetchTypes = () => {
     setLoading(true);
-    fetch(`${API}/`)
+    fetch(`${API}/`, { headers: { "X-Employee-ID": employeeDbId } })
       .then((r) => r.json())
       .then((data) => setTypes(Array.isArray(data) ? data : []))
       .catch(console.error)
@@ -54,7 +59,7 @@ export default function DocumentTypesPage() {
     try {
       const res = await fetch(`${API}/`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "X-Employee-ID": employeeDbId },
         body: JSON.stringify({ name: name.trim(), description: description.trim() || null, is_mandatory: isMandatory }),
       });
       if (!res.ok) {
@@ -73,7 +78,7 @@ export default function DocumentTypesPage() {
   const toggleActive = async (type: DocType) => {
     await fetch(`${API}/${type.id}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-Employee-ID": employeeDbId },
       body: JSON.stringify({ is_active: !type.is_active }),
     });
     fetchTypes();
@@ -81,7 +86,7 @@ export default function DocumentTypesPage() {
 
   const handleDelete = async (id: string) => {
     if (!confirm("Delete this document type? Existing uploads will not be affected.")) return;
-    await fetch(`${API}/${id}`, { method: "DELETE" });
+    await fetch(`${API}/${id}`, { method: "DELETE", headers: { "X-Employee-ID": employeeDbId } });
     fetchTypes();
   };
 
@@ -100,7 +105,7 @@ export default function DocumentTypesPage() {
     try {
       const res = await fetch(`${API}/${id}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "X-Employee-ID": employeeDbId },
         body: JSON.stringify({ name: editName.trim(), description: editDescription.trim() || null, is_mandatory: editMandatory }),
       });
       if (!res.ok) {
