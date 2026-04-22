@@ -6,17 +6,21 @@ from fastapi.responses import FileResponse
 
 from app.database.database import get_db
 from app.documents.services import service
+from app.auth.dependencies import require_permission
+
 router = APIRouter(
     prefix="/documents",
     tags=["Documents"]
 )
+
 @router.post("/upload", response_model=schemas.DocumentUploadResponse)
 def upload_document(
     employee_id: UUID = Form(...),
     document_type: str = Form(...),
     is_mandatory: bool = Form(False),
     file: UploadFile = File(...),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user = Depends(require_permission("document:upload"))
 ):
     return service.upload_employee_document(
         db=db,
@@ -25,20 +29,24 @@ def upload_document(
         is_mandatory=is_mandatory,
         file=file
     )
+
 @router.get(
     "/my-documents",
     response_model=list[schemas.EmployeeDocumentResponse]
 )
 def get_my_documents(
     employee_id: UUID,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user = Depends(require_permission("document:upload"))  # Assuming upload and view use the same permission, or adjust as needed
 ):
     return service.get_employee_documents(db, employee_id)
+
 @router.get("/download/{document_id}")
 def download_document(
     document_id: UUID,
     employee_id: UUID,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user = Depends(require_permission("document:upload"))
 ):
     return service.download_employee_document(
         db=db,

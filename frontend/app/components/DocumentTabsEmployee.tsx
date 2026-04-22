@@ -7,11 +7,11 @@ import { motion } from "framer-motion";
 const tabs = [
   {
     name: "My Document",
-    path: "/employee/documents",
+    path: "/documents",
   },
   {
     name: "Request Document",
-    path: "/employee/documents/request",
+    path: "/documents/request",
   },
 ];
 
@@ -23,7 +23,7 @@ export default function DocumentTabsEmployee() {
       {tabs.map((tab) => {
         let active = false;
 
-        if (tab.path === "/employee/documents") {
+        if (tab.path === "/documents") {
           active = pathname === tab.path;
         } else {
           active = pathname.startsWith(tab.path);

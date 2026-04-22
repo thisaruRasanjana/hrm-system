@@ -6,6 +6,7 @@ import {
   FileText,
   Settings,
 } from "lucide-react";
+import Link from "next/link";
 
 export default function SidebarHR() {
   return (
@@ -54,10 +55,12 @@ export default function SidebarHR() {
             Leave
           </div>
 
-          <div className="menuItemActive">
-            <FileText size={18} />
-            Document
-          </div>
+          <Link href="/documents">
+            <div className="menuItemActive">
+              <FileText size={18} />
+              Document
+            </div>
+          </Link>
 
           <div className="menuItem">
             <Settings size={18} />

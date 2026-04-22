@@ -33,15 +33,35 @@ def _send_email(to_email: str, subject: str, body: str):
 
 
 # Get all pending documents
-def get_pending_documents(db: Session):
+def get_pending_documents(db: Session, current_user: Employee):
 
-    documents = (
+    from app.auth.models import Role
+
+    role = db.query(Role).filter(Role.id == current_user.role_id).first()
+    role_name = role.name.lower() if role else ""
+
+    query = (
         db.query(EmployeeDocument, Employee)
         .outerjoin(Employee, Employee.id == EmployeeDocument.employee_id)
         .filter(EmployeeDocument.status == DocumentStatus.PENDING_REVIEW)
-        .order_by(EmployeeDocument.uploaded_at.desc())
-        .all()
     )
+
+    is_admin = "admin" in role_name
+    is_hr = "hr" in role_name
+
+    if is_admin:
+        # Super Admin: fetch docs uploaded by users with "HR" role
+        hr_roles = db.query(Role).filter(Role.name.ilike("%hr%")).all()
+        hr_role_ids = [r.id for r in hr_roles]
+        query = query.filter(Employee.role_id.in_(hr_role_ids))
+    elif is_hr:
+        # HR: fetch docs where manager_id is NULL (no manager)
+        query = query.filter(Employee.manager_id == None)
+    else:
+        # Managers: fetch docs where they are the manager
+        query = query.filter(Employee.manager_id == current_user.id)
+
+    documents = query.order_by(EmployeeDocument.uploaded_at.desc()).all()
 
     result = []
 
