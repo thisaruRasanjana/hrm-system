@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { IconArrowLeft } from "@/components/icons";
@@ -12,6 +12,7 @@ export default function EmployeeAddPage() {
   const router = useRouter();
 
   const [formData, setFormData] = useState({
+    employeeId: "",
     firstName: "",
     lastName: "",
     email: "",
@@ -21,6 +22,17 @@ export default function EmployeeAddPage() {
     gender: "",
     maritalStatus: "",
     nationality: "",
+    // Emergency Contact
+    emergencyContactName: "",
+    emergencyContactPhone: "",
+    emergencyContactRelation: "",
+    // Skills & Qualifications
+    skills: "",
+    qualifications: "",
+    // Bank Details
+    bankName: "",
+    bankAccountNo: "",
+    bankBranch: "",
     work: {
       department: "Human Resources",
       designation: "",
@@ -32,21 +44,29 @@ export default function EmployeeAddPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Initialize with a random ID
+  useEffect(() => {
+    setFormData(prev => ({
+      ...prev,
+      employeeId: `EMP-${Math.floor(1000 + Math.random() * 9000)}`
+    }));
+  }, []);
+
   const inputClass = "w-full px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-[14px] text-gray-900 placeholder-gray-400 outline-none focus:ring-2 focus:ring-[#EE7F22]/20 focus:border-[#EE7F22] transition-colors duration-200 mt-1.5";
   const labelClass = "block text-[12px] font-bold text-gray-700 uppercase";
   const requiredAsterisk = <span className="text-[#EF4444] ml-1">*</span>;
   const selectClass = `${inputClass} appearance-none cursor-pointer`;
 
   const handleSave = async (redirectToRole: boolean = false) => {
-    if (!formData.firstName || !formData.lastName || !formData.email || !formData.phone || !formData.work.designation) {
-      setError("Please fill in all required fields.");
+    if (!formData.employeeId || !formData.firstName || !formData.lastName || !formData.email || !formData.phone || !formData.work.designation) {
+      setError("Please fill in all required fields (marked with *).");
       return;
     }
     setError(null);
     setIsSubmitting(true);
     try {
       const payload = {
-        employee_id: `EMP-${Math.floor(1000 + Math.random() * 9000)}`,
+        employee_id: formData.employeeId,
         first_name: formData.firstName,
         last_name: formData.lastName,
         email: formData.email,
@@ -60,6 +80,15 @@ export default function EmployeeAddPage() {
         gender: formData.gender || null,
         marital_status: formData.maritalStatus || null,
         nationality: formData.nationality || null,
+        // New Fields
+        emergency_contact_name: formData.emergencyContactName || null,
+        emergency_contact_phone: formData.emergencyContactPhone || null,
+        emergency_contact_relation: formData.emergencyContactRelation || null,
+        skills: formData.skills || null,
+        qualifications: formData.qualifications || null,
+        bank_name: formData.bankName || null,
+        bank_account_no: formData.bankAccountNo || null,
+        bank_branch: formData.bankBranch || null,
       };
 
       const created = await api.post<{ id: number }>("/employees/", payload);
@@ -71,7 +100,7 @@ export default function EmployeeAddPage() {
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to add employee.";
-      setError(msg.includes("422") ? "Please check your data — a required field may be invalid or the email is already used." : msg);
+      setError(msg.includes("422") ? "Please check your data — a required field may be invalid or the Employee ID/Email is already used." : msg);
     } finally {
       setIsSubmitting(false);
     }
@@ -98,6 +127,20 @@ export default function EmployeeAddPage() {
         {/* Basic Information */}
         <div className="bg-white rounded-xl border border-gray-200 p-8">
           <h2 className="text-[16px] font-bold text-[#212B36] mb-6">Basic Information</h2>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div>
+              <label className={labelClass}>EMPLOYEE ID {requiredAsterisk}</label>
+              <input 
+                type="text" 
+                placeholder="EMP-0001" 
+                value={formData.employeeId} 
+                onChange={(e) => setFormData({...formData, employeeId: e.target.value})} 
+                className={inputClass} 
+              />
+            </div>
+            <div className="hidden md:block"></div>
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
             <div>
@@ -148,7 +191,7 @@ export default function EmployeeAddPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
             <div>
               <label className={labelClass}>MARITAL STATUS</label>
               <select value={formData.maritalStatus} onChange={(e) => setFormData({...formData, maritalStatus: e.target.value})} className={selectClass}>
@@ -163,6 +206,69 @@ export default function EmployeeAddPage() {
               <label className={labelClass}>NATIONALITY</label>
               <input type="text" placeholder="e.g., Sri Lankan" value={formData.nationality} onChange={(e) => setFormData({...formData, nationality: e.target.value})} className={inputClass} />
             </div>
+          </div>
+        </div>
+
+        {/* Emergency Contact */}
+        <div className="bg-white rounded-xl border border-gray-200 p-8">
+          <h2 className="text-[16px] font-bold text-[#212B36] mb-6">Emergency Contact</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div>
+              <label className={labelClass}>CONTACT NAME</label>
+              <input type="text" placeholder="Enter contact name" value={formData.emergencyContactName} onChange={(e) => setFormData({...formData, emergencyContactName: e.target.value})} className={inputClass} />
+            </div>
+            <div>
+              <label className={labelClass}>RELATIONSHIP</label>
+              <input type="text" placeholder="e.g., Spouse, Parent" value={formData.emergencyContactRelation} onChange={(e) => setFormData({...formData, emergencyContactRelation: e.target.value})} className={inputClass} />
+            </div>
+          </div>
+          <div>
+            <label className={labelClass}>PHONE NUMBER</label>
+            <input type="tel" placeholder="+94 77 000 0000" value={formData.emergencyContactPhone} onChange={(e) => setFormData({...formData, emergencyContactPhone: e.target.value})} className={inputClass} />
+          </div>
+        </div>
+
+        {/* Skills & Qualifications */}
+        <div className="bg-white rounded-xl border border-gray-200 p-8">
+          <h2 className="text-[16px] font-bold text-[#212B36] mb-6">Skills & Qualifications</h2>
+          <div className="space-y-6">
+            <div>
+              <label className={labelClass}>SKILLS</label>
+              <textarea 
+                placeholder="List skills separated by commas (e.g., JavaScript, React, SQL)" 
+                value={formData.skills} 
+                onChange={(e) => setFormData({...formData, skills: e.target.value})} 
+                className={`${inputClass} min-h-[100px] py-3 resize-none`}
+              />
+            </div>
+            <div>
+              <label className={labelClass}>QUALIFICATIONS</label>
+              <textarea 
+                placeholder="Enter educational qualifications and certifications" 
+                value={formData.qualifications} 
+                onChange={(e) => setFormData({...formData, qualifications: e.target.value})} 
+                className={`${inputClass} min-h-[100px] py-3 resize-none`}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Bank Details */}
+        <div className="bg-white rounded-xl border border-gray-200 p-8">
+          <h2 className="text-[16px] font-bold text-[#212B36] mb-6">Bank Details</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div>
+              <label className={labelClass}>BANK NAME</label>
+              <input type="text" placeholder="Enter bank name" value={formData.bankName} onChange={(e) => setFormData({...formData, bankName: e.target.value})} className={inputClass} />
+            </div>
+            <div>
+              <label className={labelClass}>ACCOUNT NUMBER</label>
+              <input type="text" placeholder="Enter account number" value={formData.bankAccountNo} onChange={(e) => setFormData({...formData, bankAccountNo: e.target.value})} className={inputClass} />
+            </div>
+          </div>
+          <div>
+            <label className={labelClass}>BRANCH NAME</label>
+            <input type="text" placeholder="Enter branch name" value={formData.bankBranch} onChange={(e) => setFormData({...formData, bankBranch: e.target.value})} className={inputClass} />
           </div>
         </div>
 

@@ -13,6 +13,9 @@ interface Employee {
   email: string; phone: string; address: string; department: string;
   designation: string; joined_date: string; status: string;
   date_of_birth?: string; gender?: string; marital_status?: string; nationality?: string;
+  emergency_contact_name?: string; emergency_contact_phone?: string; emergency_contact_relation?: string;
+  skills?: string; qualifications?: string;
+  bank_name?: string; bank_account_no?: string; bank_branch?: string;
 }
 
 export default function EmployeeEditPage() {
@@ -21,8 +24,11 @@ export default function EmployeeEditPage() {
   const id = searchParams.get("id");
 
   const [formData, setFormData] = useState({
-    firstName: "", lastName: "", email: "", phone: "", address: "",
+    employeeId: "", firstName: "", lastName: "", email: "", phone: "", address: "",
     dateOfBirth: "", gender: "", maritalStatus: "", nationality: "",
+    emergencyContactName: "", emergencyContactPhone: "", emergencyContactRelation: "",
+    skills: "", qualifications: "",
+    bankName: "", bankAccountNo: "", bankBranch: "",
     work: { department: "Human Resources", designation: "", joinedDate: "", status: "active" },
   });
 
@@ -36,10 +42,19 @@ export default function EmployeeEditPage() {
       try {
         const data = await api.get<Employee>(`/employees/${id}`);
         setFormData({
+          employeeId: data.employee_id,
           firstName: data.first_name, lastName: data.last_name,
           email: data.email, phone: data.phone, address: data.address || "",
           dateOfBirth: data.date_of_birth || "", gender: data.gender || "",
           maritalStatus: data.marital_status || "", nationality: data.nationality || "",
+          emergencyContactName: data.emergency_contact_name || "",
+          emergencyContactPhone: data.emergency_contact_phone || "",
+          emergencyContactRelation: data.emergency_contact_relation || "",
+          skills: data.skills || "",
+          qualifications: data.qualifications || "",
+          bankName: data.bank_name || "",
+          bankAccountNo: data.bank_account_no || "",
+          bankBranch: data.bank_branch || "",
           work: { department: data.department, designation: data.designation, joinedDate: data.joined_date || "", status: data.status },
         });
       } catch (error) {
@@ -58,17 +73,37 @@ export default function EmployeeEditPage() {
 
   const handleSave = async (redirectToRole: boolean = false) => {
     if (!id) return;
+    if (!formData.employeeId || !formData.firstName || !formData.lastName || !formData.email || !formData.phone || !formData.work.designation) {
+      setError("Please fill in all required fields (marked with *).");
+      return;
+    }
     setError(null);
     setIsSubmitting(true);
     try {
       const payload = {
-        first_name: formData.firstName, last_name: formData.lastName,
-        email: formData.email, phone: formData.phone,
-        address: formData.address || null, department: formData.work.department,
-        designation: formData.work.designation, joined_date: formData.work.joinedDate || null,
+        employee_id: formData.employeeId,
+        first_name: formData.firstName, 
+        last_name: formData.lastName,
+        email: formData.email, 
+        phone: formData.phone,
+        address: formData.address || null, 
+        department: formData.work.department,
+        designation: formData.work.designation, 
+        joined_date: formData.work.joinedDate || null,
         status: formData.work.status,
-        date_of_birth: formData.dateOfBirth || null, gender: formData.gender || null,
-        marital_status: formData.maritalStatus || null, nationality: formData.nationality || null,
+        date_of_birth: formData.dateOfBirth || null, 
+        gender: formData.gender || null,
+        marital_status: formData.maritalStatus || null, 
+        nationality: formData.nationality || null,
+        // New Fields
+        emergency_contact_name: formData.emergencyContactName || null,
+        emergency_contact_phone: formData.emergencyContactPhone || null,
+        emergency_contact_relation: formData.emergencyContactRelation || null,
+        skills: formData.skills || null,
+        qualifications: formData.qualifications || null,
+        bank_name: formData.bankName || null,
+        bank_account_no: formData.bankAccountNo || null,
+        bank_branch: formData.bankBranch || null,
       };
       await api.put(`/employees/${id}`, payload);
       if (redirectToRole) {
@@ -77,7 +112,8 @@ export default function EmployeeEditPage() {
         router.push("/");
       }
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to update employee.");
+      const msg = err instanceof Error ? err.message : "Failed to update employee.";
+      setError(msg.includes("422") ? "Please check your data — a required field may be invalid or the Employee ID/Email is already used." : msg);
     } finally {
       setIsSubmitting(false);
     }
@@ -101,6 +137,21 @@ export default function EmployeeEditPage() {
         {/* Basic Information */}
         <div className="bg-white rounded-xl border border-gray-200 p-8">
           <h2 className="text-[16px] font-bold text-[#212B36] mb-6">Basic Information</h2>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div>
+              <label className={labelClass}>EMPLOYEE ID {requiredAsterisk}</label>
+              <input 
+                type="text" 
+                placeholder="EMP-0001" 
+                value={formData.employeeId} 
+                onChange={(e) => setFormData({...formData, employeeId: e.target.value})} 
+                className={inputClass} 
+              />
+            </div>
+            <div className="hidden md:block"></div>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
             <div>
               <label className={labelClass}>FIRST NAME {requiredAsterisk}</label>
@@ -164,6 +215,69 @@ export default function EmployeeEditPage() {
           </div>
         </div>
 
+        {/* Emergency Contact */}
+        <div className="bg-white rounded-xl border border-gray-200 p-8">
+          <h2 className="text-[16px] font-bold text-[#212B36] mb-6">Emergency Contact</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div>
+              <label className={labelClass}>CONTACT NAME</label>
+              <input type="text" placeholder="Enter contact name" value={formData.emergencyContactName} onChange={(e) => setFormData({...formData, emergencyContactName: e.target.value})} className={inputClass} />
+            </div>
+            <div>
+              <label className={labelClass}>RELATIONSHIP</label>
+              <input type="text" placeholder="e.g., Spouse, Parent" value={formData.emergencyContactRelation} onChange={(e) => setFormData({...formData, emergencyContactRelation: e.target.value})} className={inputClass} />
+            </div>
+          </div>
+          <div>
+            <label className={labelClass}>PHONE NUMBER</label>
+            <input type="tel" placeholder="+94 77 000 0000" value={formData.emergencyContactPhone} onChange={(e) => setFormData({...formData, emergencyContactPhone: e.target.value})} className={inputClass} />
+          </div>
+        </div>
+
+        {/* Skills & Qualifications */}
+        <div className="bg-white rounded-xl border border-gray-200 p-8">
+          <h2 className="text-[16px] font-bold text-[#212B36] mb-6">Skills & Qualifications</h2>
+          <div className="space-y-6">
+            <div>
+              <label className={labelClass}>SKILLS</label>
+              <textarea 
+                placeholder="List skills separated by commas (e.g., JavaScript, React, SQL)" 
+                value={formData.skills} 
+                onChange={(e) => setFormData({...formData, skills: e.target.value})} 
+                className={`${inputClass} min-h-[100px] py-3 resize-none`}
+              />
+            </div>
+            <div>
+              <label className={labelClass}>QUALIFICATIONS</label>
+              <textarea 
+                placeholder="Enter educational qualifications and certifications" 
+                value={formData.qualifications} 
+                onChange={(e) => setFormData({...formData, qualifications: e.target.value})} 
+                className={`${inputClass} min-h-[100px] py-3 resize-none`}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Bank Details */}
+        <div className="bg-white rounded-xl border border-gray-200 p-8">
+          <h2 className="text-[16px] font-bold text-[#212B36] mb-6">Bank Details</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div>
+              <label className={labelClass}>BANK NAME</label>
+              <input type="text" placeholder="Enter bank name" value={formData.bankName} onChange={(e) => setFormData({...formData, bankName: e.target.value})} className={inputClass} />
+            </div>
+            <div>
+              <label className={labelClass}>ACCOUNT NUMBER</label>
+              <input type="text" placeholder="Enter account number" value={formData.bankAccountNo} onChange={(e) => setFormData({...formData, bankAccountNo: e.target.value})} className={inputClass} />
+            </div>
+          </div>
+          <div>
+            <label className={labelClass}>BRANCH NAME</label>
+            <input type="text" placeholder="Enter branch name" value={formData.bankBranch} onChange={(e) => setFormData({...formData, bankBranch: e.target.value})} className={inputClass} />
+          </div>
+        </div>
+
         {/* Work Information */}
         <div className="bg-white rounded-xl border border-gray-200 p-8">
           <h2 className="text-[16px] font-bold text-[#212B36] mb-6">Work Information</h2>
@@ -187,8 +301,8 @@ export default function EmployeeEditPage() {
             <div>
               <label className={labelClass}>EMPLOYMENT STATUS</label>
               <div className="flex bg-gray-100 p-1.5 rounded-lg w-fit mt-1.5">
-                <button type="button" onClick={() => setFormData({...formData, work: {...formData.work, status: "active"}})} className={`px-8 py-2 rounded-md text-[14px] font-medium transition-all duration-200 ${formData.work.status === "active" ? "bg-[#EE7F22] text-white shadow-sm" : "text-gray-500 hover:bg-gray-200/50"}`}>Active</button>
-                <button type="button" onClick={() => setFormData({...formData, work: {...formData.work, status: "inactive"}})} className={`px-8 py-2 rounded-md text-[14px] font-medium transition-all duration-200 ${formData.work.status === "inactive" ? "bg-white text-gray-800 shadow-sm" : "text-gray-500 hover:bg-gray-200/50"}`}>Inactive</button>
+                <button type="button" onClick={() => setFormData({...formData, work: {...formData.work, status: "active"}})} className={`px-8 py-2 rounded-md text-[14px] font-medium transition-all duration-200 ${formData.work.status === "active" ? "bg-[#EE7F22] text-white shadow-sm" : "text-gray-500 hover:text-gray-700 hover:bg-gray-200/50"}`}>Active</button>
+                <button type="button" onClick={() => setFormData({...formData, work: {...formData.work, status: "inactive"}})} className={`px-8 py-2 rounded-md text-[14px] font-medium transition-all duration-200 ${formData.work.status === "inactive" ? "bg-white text-gray-800 shadow-sm" : "text-gray-500 hover:text-gray-700 hover:bg-gray-200/50"}`}>Inactive</button>
               </div>
             </div>
           </div>
@@ -196,7 +310,7 @@ export default function EmployeeEditPage() {
 
         {/* Action Buttons */}
         <div className="flex justify-end gap-4 mt-8">
-          <button type="button" onClick={() => handleSave(false)} disabled={isSubmitting} className="px-6 py-2.5 rounded-xl bg-gray-100 text-gray-700 font-medium text-[14px] hover:bg-gray-200 transition-colors disabled:opacity-50">
+          <button type="button" onClick={() => handleSave(false)} disabled={isSubmitting} className="px-6 py-2.5 rounded-xl bg-[#F8F9FA] text-[#212B36] font-medium text-[14px] hover:bg-gray-100 transition-colors disabled:opacity-50">
             {isSubmitting ? "Saving..." : "Save"}
           </button>
           <button type="button" onClick={() => handleSave(true)} disabled={isSubmitting} className="px-6 py-2.5 rounded-xl bg-[#EE7F22] text-white font-medium text-[14px] hover:bg-[#d66f1b] shadow-sm hover:shadow-md transition-all flex items-center gap-2 disabled:opacity-50">

@@ -22,11 +22,20 @@ class EmployeeBase(BaseModel):
     gender: Optional[str] = None
     marital_status: Optional[str] = None
     nationality: Optional[str] = None
+    emergency_contact_name: Optional[str] = None
+    emergency_contact_phone: Optional[str] = None
+    emergency_contact_relation: Optional[str] = None
+    skills: Optional[str] = None
+    qualifications: Optional[str] = None
+    bank_name: Optional[str] = None
+    bank_account_no: Optional[str] = None
+    bank_branch: Optional[str] = None
 
 class EmployeeCreate(EmployeeBase):
     pass
 
 class EmployeeUpdate(BaseModel):
+    employee_id: Optional[str] = None
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     email: Optional[EmailStr] = None
@@ -40,6 +49,14 @@ class EmployeeUpdate(BaseModel):
     gender: Optional[str] = None
     marital_status: Optional[str] = None
     nationality: Optional[str] = None
+    emergency_contact_name: Optional[str] = None
+    emergency_contact_phone: Optional[str] = None
+    emergency_contact_relation: Optional[str] = None
+    skills: Optional[str] = None
+    qualifications: Optional[str] = None
+    bank_name: Optional[str] = None
+    bank_account_no: Optional[str] = None
+    bank_branch: Optional[str] = None
 
 class RoleInfo(BaseModel):
     id: int
