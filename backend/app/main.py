@@ -13,7 +13,11 @@ from app.auth.models import Role, Permission
 from app.documents.models.model import EmployeeDocument
 from app.documents.models.template_model import DocumentTemplate
 from app.documents.models.document_type_model import DocumentType
-import app.recruitment.models as recruitment_models  # registers recruitment tables
+import app.recruitment.models as recruitment_models  # noqa: F401 — registers all recruitment tables
+from app.recruitment.models import (  # noqa: F401
+    Vacancy, Candidate, Application,
+    InterviewPanel, InterviewEvaluation, FinalDecision,
+)
 
 # Routers — Documents module
 from app.employees.router import router as employee_router

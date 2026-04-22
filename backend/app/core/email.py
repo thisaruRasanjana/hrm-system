@@ -4,17 +4,25 @@ from app.core.config import (
     MAIL_PORT, MAIL_SERVER,
 )
 
-conf = ConnectionConfig(
-    MAIL_USERNAME=MAIL_USERNAME,
-    MAIL_PASSWORD=MAIL_PASSWORD,
-    MAIL_FROM=MAIL_FROM,
-    MAIL_PORT=MAIL_PORT,
-    MAIL_SERVER=MAIL_SERVER,
-    MAIL_STARTTLS=True,
-    MAIL_SSL_TLS=False,
-    USE_CREDENTIALS=True,
-    VALIDATE_CERTS=False,   # macOS: Python doesn't load system root CAs by default
-)
+# Build ConnectionConfig lazily so a missing/invalid MAIL_FROM default
+# doesn't crash the server on startup when email is not yet configured.
+_conf: ConnectionConfig | None = None
+
+def _get_conf() -> ConnectionConfig:
+    global _conf
+    if _conf is None:
+        _conf = ConnectionConfig(
+            MAIL_USERNAME=MAIL_USERNAME,
+            MAIL_PASSWORD=MAIL_PASSWORD,
+            MAIL_FROM=MAIL_FROM,
+            MAIL_PORT=MAIL_PORT,
+            MAIL_SERVER=MAIL_SERVER,
+            MAIL_STARTTLS=True,
+            MAIL_SSL_TLS=False,
+            USE_CREDENTIALS=True,
+            VALIDATE_CERTS=False,
+        )
+    return _conf
 
 
 async def send_scheduling_email(
@@ -59,5 +67,5 @@ async def send_scheduling_email(
         subtype=MessageType.html,
     )
 
-    fm = FastMail(conf)
+    fm = FastMail(_get_conf())
     await fm.send_message(message)
