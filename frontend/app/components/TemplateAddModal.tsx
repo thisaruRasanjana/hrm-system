@@ -65,17 +65,26 @@ export default function TemplateAddModal({ onClose, onSuccess }: Props) {
     if (templateType === "FILE" && file) formData.append("file", file);
 
     try {
+      const employeeDbId =
+        typeof window !== "undefined"
+          ? (localStorage.getItem("employeeDbId") ?? "8")
+          : "8";
+
       const res = await fetch("http://localhost:8000/document-templates/", {
         method: "POST",
+        headers: { "X-Employee-ID": employeeDbId },
         body: formData,
       });
 
-      if (!res.ok) throw new Error("Failed to create template");
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(errBody.detail || "Failed to create template");
+      }
 
       onSuccess();
       onClose();
-    } catch (err) {
-      setError("Failed to create template. Please try again.");
+    } catch (err: any) {
+      setError(err.message || "Failed to create template. Please try again.");
     } finally {
       setLoading(false);
     }

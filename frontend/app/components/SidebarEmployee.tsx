@@ -4,6 +4,7 @@ import {
   FileText,
   Settings,
 } from "lucide-react";
+import Link from "next/link";
 
 export default function Sidebar() {
   return (
@@ -45,10 +46,12 @@ export default function Sidebar() {
           </div>
 
           {/* Document (Active) */}
-          <div className="flex items-center gap-3 px-3 py-2 rounded-md text-[#F2924E] font-medium cursor-pointer">
-            <FileText size={18} className="text-[#F2924E]" />
-            Document
-          </div>
+          <Link href="/documents">
+            <div className="flex items-center gap-3 px-3 py-2 rounded-md text-[#F2924E] font-medium cursor-pointer">
+              <FileText size={18} className="text-[#F2924E]" />
+              Document
+            </div>
+          </Link>
 
           {/* Settings */}
           <div className="flex items-center gap-3 px-3 py-2 rounded-md text-gray-600 hover:bg-gray-200 cursor-pointer">

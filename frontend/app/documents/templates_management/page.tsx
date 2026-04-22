@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { Plus, Eye, Pencil, Trash2, FileText, LayoutTemplate } from "lucide-react";
-import DocumentTabsHR from "../../../components/DocumentTabsHR";
-import TemplateAddModal from "../../../components/TemplateAddModal";
-import TemplateEditModal from "../../../components/TemplateEditModal";
-import TemplatePreviewModal from "../../../components/TemplatePreviewModal";
+import DocumentTabsHR from "../../components/DocumentTabsHR";
+import TemplateAddModal from "../../components/TemplateAddModal";
+import TemplateEditModal from "../../components/TemplateEditModal";
+import TemplatePreviewModal from "../../components/TemplatePreviewModal";
 
 type Template = {
   id: number;
@@ -27,12 +27,19 @@ export default function TemplatesManagementPage() {
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  const employeeDbId =
+    typeof window !== "undefined"
+      ? (localStorage.getItem("employeeDbId") ?? "8")
+      : "8";
+
   const fetchTemplates = async () => {
     setLoading(true);
     try {
-      const res = await fetch("http://localhost:8000/document-templates/");
+      const res = await fetch("http://localhost:8000/document-templates/", {
+        headers: { "X-Employee-ID": employeeDbId },
+      });
       const data = await res.json();
-      setTemplates(data);
+      setTemplates(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error("Failed to fetch templates", err);
     } finally {
@@ -50,6 +57,7 @@ export default function TemplatesManagementPage() {
     try {
       await fetch(`http://localhost:8000/document-templates/${deleteId}`, {
         method: "DELETE",
+        headers: { "X-Employee-ID": employeeDbId },
       });
       setDeleteId(null);
       fetchTemplates();
