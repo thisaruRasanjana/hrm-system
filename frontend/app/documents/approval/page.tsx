@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import DocumentReviewModal from "../../../components/DocumentReviewModal";
-import StatusBadge from "../../../components/statusBadge";
-import DocumentTabs from "../../../components/DocumentTabsHR";
+import DocumentReviewModal from "../../components/DocumentReviewModal";
+import StatusBadge from "../../components/statusBadge";
+import DocumentTabs from "../../components/DocumentTabsHR";
 import { Clock } from "lucide-react";
 
 type Document = {
@@ -26,9 +26,15 @@ export default function ApprovalPage() {
   }, []);
 
   async function fetchDocuments() {
-    const res = await fetch("http://127.0.0.1:8000/documents/review/pending");
+    const employeeDbId =
+      typeof window !== "undefined"
+        ? (localStorage.getItem("employeeDbId") ?? "8")
+        : "8";
+    const res = await fetch("http://127.0.0.1:8000/documents/review/pending", {
+      headers: { "X-Employee-ID": employeeDbId },
+    });
     const data = await res.json();
-    setDocuments(data);
+    setDocuments(Array.isArray(data) ? data : []);
   }
 
   return (

@@ -10,20 +10,19 @@ from app.documents.services.approval_service import (
 )
 
 from app.documents.schemas.approval_schema import RejectDocumentRequest
+from app.auth.dependencies import require_permission
 
 router = APIRouter(prefix="/documents/review", tags=["Document Approval"])
 
 
 @router.get("/pending")
-def pending_documents(db: Session = Depends(get_db)):
-    return get_pending_documents(db)
+def pending_documents(db: Session = Depends(get_db), current_user = Depends(require_permission("document:approve"))):
+    return get_pending_documents(db, current_user)
 
 
 @router.put("/{document_id}/approve")
-def approve(document_id: UUID, db: Session = Depends(get_db)):
-
-    reviewer_id = None  # Later we will use logged-in HR user
-
+def approve(document_id: UUID, db: Session = Depends(get_db), current_user = Depends(require_permission("document:approve"))):
+    reviewer_id = current_user.id
     return approve_document(document_id, reviewer_id, db)
 
 
@@ -31,11 +30,10 @@ def approve(document_id: UUID, db: Session = Depends(get_db)):
 def reject(
     document_id: UUID,
     data: RejectDocumentRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user = Depends(require_permission("document:approve"))
 ):
-
-    reviewer_id = None
-
+    reviewer_id = current_user.id
     return reject_document(
         document_id,
         reviewer_id,

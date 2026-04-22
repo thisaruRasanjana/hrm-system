@@ -5,12 +5,12 @@ import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
 
 const tabs = [
-  { name: "My Document", path: "/hr/documents" },
-  { name: "Request Document", path: "/hr/documents/request" },
-  { name: "Approval Document", path: "/hr/documents/approval" },
-  { name: "Template Management", path: "/hr/documents/templates_management" },
-  { name: "Request Management", path: "/hr/documents/request_management" },
-  { name: "Document Types", path: "/hr/documents/document_types" },
+  { name: "My Document", path: "/documents" },
+  { name: "Request Document", path: "/documents/request" },
+  { name: "Approval Document", path: "/documents/approval" },
+  { name: "Template Management", path: "/documents/templates_management" },
+  { name: "Request Management", path: "/documents/request_management" },
+  { name: "Document Types", path: "/documents/document_types" },
 ];
 
 export default function DocumentTabsHR() {
@@ -21,7 +21,7 @@ export default function DocumentTabsHR() {
       {tabs.map((tab) => {
         let active = false;
 
-        if (tab.path === "/hr/documents") {
+        if (tab.path === "/documents") {
           // Only exact match
           active = pathname === tab.path;
         } else {

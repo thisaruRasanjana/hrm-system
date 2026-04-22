@@ -4,7 +4,7 @@ import Link from "next/link";
 import { FileText, X } from "lucide-react";
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import DocumentTabsEmployee from "@/app/components/DocumentTabsEmployee";
+import DocumentTabsHR from "@/app/components/DocumentTabsHR";
 
 type Request = {
   id: string;
@@ -12,11 +12,9 @@ type Request = {
   purpose: string;
   status: string;
   created_at: string;
-  rejection_reason?: string;
-  generated_document_path?: string;
 };
 
-export default function RequestDocumentPage() {
+export default function HRRequestDocumentPage() {
   const [documentType, setDocumentType] = useState("");
   const [purpose, setPurpose] = useState("");
   const [requests, setRequests] = useState<Request[]>([]);
@@ -25,25 +23,11 @@ export default function RequestDocumentPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
-  const employeeId = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
-
-  const handleForceDownload = async (path: string, e: React.MouseEvent) => {
-    e.preventDefault();
-    try {
-      const response = await fetch(`http://localhost:8000/${path}`);
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = path.split("/").pop() || "document.pdf";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
-    } catch (err) {
-      console.error("Download failed", err);
-    }
-  };
+  // Integer DB id from localStorage (set at login); fallback to seeded test employee
+  const employeeDbId =
+    typeof window !== "undefined"
+      ? (localStorage.getItem("employeeDbId") ?? "6")
+      : "6";
 
   const documentTypes = [
     "Service Letter",
@@ -54,11 +38,11 @@ export default function RequestDocumentPage() {
 
   const fetchRequests = async () => {
     const res = await fetch(
-      `http://localhost:8000/document-requests/${employeeId}`
+      `http://localhost:8000/hr-own-document-requests/${employeeDbId}`,
+      { headers: { "X-Employee-ID": employeeDbId } }
     );
-
     const data = await res.json();
-    setRequests(data);
+    setRequests(Array.isArray(data) ? data : []);
   };
 
   useEffect(() => {
@@ -68,19 +52,20 @@ export default function RequestDocumentPage() {
   const handleSubmit = async () => {
     setMessage("");
     setError("");
-    
+
     if (!documentType || !purpose) {
       setError("Please fill all fields");
       return;
     }
 
-    const res = await fetch("http://localhost:8000/document-requests/", {
+    const res = await fetch("http://localhost:8000/hr-own-document-requests/", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "X-Employee-ID": employeeDbId,
       },
       body: JSON.stringify({
-        employee_id: employeeId,
+        employee_id: employeeDbId,
         document_type: documentType,
         purpose: purpose,
       }),
@@ -104,7 +89,7 @@ export default function RequestDocumentPage() {
     <div className="space-y-8 w-full">
 
       {/* Tabs */}
-     <DocumentTabsEmployee />
+     <DocumentTabsHR />
 
       {/* Title */}
       <div>
@@ -236,21 +221,9 @@ export default function RequestDocumentPage() {
               </p>
             </div>
 
-            <div className="flex items-center gap-3">
-              <span className={`px-3 py-1 text-xs rounded-full font-medium ${
-                req.status === 'COMPLETED' ? 'bg-green-100 text-green-600' : 
-                req.status === 'REJECTED' ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-600'
-              }`}>
-                {req.status}
-              </span>
-
-              <button
-                onClick={() => setSelectedRequest(req)}
-                className="bg-gray-200 hover:bg-gray-300 text-xs px-3 py-1 rounded-md transition"
-              >
-                View
-              </button>
-            </div>
+            <span className="bg-green-100 text-green-600 px-3 py-1 text-xs rounded-full font-medium">
+              {req.status}
+            </span>
           </div>
         ))}
 
@@ -318,28 +291,6 @@ export default function RequestDocumentPage() {
               {selectedRequest.purpose}
             </p>
           </div>
-
-          {selectedRequest.status === 'REJECTED' && selectedRequest.rejection_reason && (
-            <div className="border border-red-200 bg-red-50 rounded-lg p-3 mt-4">
-              <p className="text-red-700 text-xs font-bold uppercase tracking-wider mb-1">Rejection Reason</p>
-              <p className="text-red-600 text-sm">
-                {selectedRequest.rejection_reason}
-              </p>
-            </div>
-          )}
-
-          {selectedRequest.status === 'COMPLETED' && selectedRequest.generated_document_path && (
-            <div className="mt-4 pt-4 border-t border-gray-100">
-              <p className="text-gray-500 mb-2">Generated Document</p>
-              <a
-                href={`http://localhost:8000/${selectedRequest.generated_document_path}`}
-                onClick={(e) => handleForceDownload(selectedRequest.generated_document_path!, e)}
-                className="w-full flex items-center justify-center gap-2 bg-[#F2924E]/10 hover:bg-[#F2924E]/20 text-[#F2924E] border border-[#F2924E]/20 transition py-2.5 rounded-lg font-bold text-sm cursor-pointer"
-              >
-                <FileText size={16} /> Download Document
-              </a>
-            </div>
-          )}
         </div>
 
         {/* Footer */}
