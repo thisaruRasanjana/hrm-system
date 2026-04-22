@@ -25,7 +25,7 @@ export default function RequestDocumentPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
-  const employeeId = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
+  const employeeId = 2;
 
   const handleForceDownload = async (path: string, e: React.MouseEvent) => {
     e.preventDefault();

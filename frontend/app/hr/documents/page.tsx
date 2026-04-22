@@ -34,7 +34,7 @@ const REQUIRED_DOCUMENTS = [
 export default function HRDocumentsPage() {
   const [uploadedDocs, setUploadedDocs] = useState<UploadedDocument[]>([]);
 
-  const hrId = "22222222-2222-2222-2222-222222222222";
+  const hrId = 8;
 
   useEffect(() => {
     fetch(

@@ -12,7 +12,7 @@ router = APIRouter(
 
 @router.post("/hr-own-documents/upload", response_model=schemas.DocumentUploadResponse)
 def upload_hr_document(
-    employee_id: UUID = Form(...),
+    employee_id: int = Form(...),
     document_type: str = Form(...),
     is_mandatory: bool = Form(False),
     file: UploadFile = File(...),
@@ -31,7 +31,7 @@ def upload_hr_document(
     response_model=list[schemas.EmployeeDocumentResponse]
 )
 def get_hr_my_documents(
-    hr_id: UUID,
+    hr_id: int,
     db: Session = Depends(get_db)
 ):
     return service.get_employee_documents(db, hr_id)
@@ -47,7 +47,7 @@ def create_hr_request(
 
 @router.get("/hr-own-document-requests/{hr_id}", response_model=list[request_schema.RequestResponse])
 def get_hr_requests(
-    hr_id: UUID,
+    hr_id: int,
     db: Session = Depends(get_db)
 ):
     return request_service.get_employee_requests(db, hr_id)

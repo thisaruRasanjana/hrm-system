@@ -72,8 +72,7 @@ def assign_employee(
     data: dict,
     db: Session = Depends(get_db)
 ):
-    from uuid import UUID as UUIDType
-    employee_id = UUIDType(data["employee_id"])
+    employee_id = int(data["employee_id"])
     return hr_request_service.assign_employee_to_request(db, request_id, employee_id)
 
 

@@ -14,7 +14,7 @@ class HRGenerateDocumentRequest(BaseModel):
 
 class HRRequestResponse(BaseModel):
     id: UUID
-    employee_id: Optional[UUID] = None
+    employee_id: Optional[int] = None
     employee_name: Optional[str] = "External Request"
     document_type: str
     purpose: str

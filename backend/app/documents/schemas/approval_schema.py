@@ -6,7 +6,7 @@ from typing import Optional
 
 class DocumentApprovalResponse(BaseModel):
     id: UUID
-    employee_id: UUID
+    employee_id: int
     document_type: str
     file_name: str
     file_path: str
