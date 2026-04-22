@@ -13,8 +13,9 @@ from app.auth.models import Role, Permission
 from app.documents.models.model import EmployeeDocument
 from app.documents.models.template_model import DocumentTemplate
 from app.documents.models.document_type_model import DocumentType
+import app.recruitment.models as recruitment_models  # registers recruitment tables
 
-# Routers
+# Routers — Documents module
 from app.employees.router import router as employee_router
 from app.auth.router import router as auth_router
 from app.documents.routers.router import router as documents_router
@@ -22,6 +23,9 @@ from app.documents.routers import request_router
 from app.documents.routers.approval_router import router as approval_router
 from app.documents.routers.template_router import router as template_router
 from app.documents.routers.document_type_router import router as document_type_router
+
+# Routers — Recruitment module
+from app.recruitment.router import router as recruitment_router
 
 EMAIL_POLL_INTERVAL = 60  # seconds between each email check
 
@@ -48,32 +52,36 @@ def seed_default_data():
             return
 
         default_permissions = [
-            Permission(name="employee:view",   description="Employee Permission"),
-            Permission(name="employee:create", description="Employee Permission"),
-            Permission(name="employee:edit",   description="Employee Permission"),
-            Permission(name="employee:delete", description="Employee Permission"),
-            Permission(name="leave:view",      description="Leave Permission"),
-            Permission(name="leave:approve",   description="Leave Permission"),
-            Permission(name="document:view",   description="Document Permission"),
-            Permission(name="document:upload", description="Document Permission"),
-            Permission(name="document:request",description="Document Permission"),
-            Permission(name="document:approve",description="Document Permission"),
-            Permission(name="document:manage_types",description="Document Permission"),
-            Permission(name="document:manage_templates",description="Document Permission"),
-            Permission(name="recruitment:view",description="Recruitment Permission"),
-            Permission(name="recruitment:manage",description="Recruitment Permission"),
-            Permission(name="report:view",     description="Report Permission"),
+            Permission(name="employee:view",             description="Employee Permission"),
+            Permission(name="employee:create",           description="Employee Permission"),
+            Permission(name="employee:edit",             description="Employee Permission"),
+            Permission(name="employee:delete",           description="Employee Permission"),
+            Permission(name="leave:view",                description="Leave Permission"),
+            Permission(name="leave:approve",             description="Leave Permission"),
+            Permission(name="document:view",             description="Document Permission"),
+            Permission(name="document:upload",           description="Document Permission"),
+            Permission(name="document:request",          description="Document Permission"),
+            Permission(name="document:approve",          description="Document Permission"),
+            Permission(name="document:manage_types",     description="Document Permission"),
+            Permission(name="document:manage_templates", description="Document Permission"),
+            Permission(name="recruitment:view",          description="Recruitment Permission"),
+            Permission(name="recruitment:manage",        description="Recruitment Permission"),
+            Permission(name="report:view",               description="Report Permission"),
         ]
         db.add_all(default_permissions)
         db.commit()
 
         all_perms = db.query(Permission).all()
         hr_manager = Role(name="HR Manager", description="Full HR access", is_system=1, permissions=all_perms)
-        employee_role = Role(name="Employee", description="Standard employee access", is_system=1,
-                             permissions=[p for p in all_perms if p.name in ("employee:view", "document:view", "document:upload", "leave:view")])
+        employee_role = Role(
+            name="Employee", description="Standard employee access", is_system=1,
+            permissions=[p for p in all_perms if p.name in ("employee:view", "document:view", "document:upload", "leave:view")]
+        )
         admin_role = Role(name="Admin", description="System administrator", is_system=1, permissions=all_perms)
-        manager_role = Role(name="Manager", description="Department manager access", is_system=1,
-                            permissions=[p for p in all_perms if p.name in ("employee:view", "employee:edit", "leave:view", "leave:approve", "document:view", "report:view")])
+        manager_role = Role(
+            name="Manager", description="Department manager access", is_system=1,
+            permissions=[p for p in all_perms if p.name in ("employee:view", "employee:edit", "leave:view", "leave:approve", "document:view", "report:view")]
+        )
 
         db.add_all([hr_manager, employee_role, admin_role, manager_role])
         db.commit()
@@ -101,7 +109,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="HRM Backend",
-    description="HRMS Document Management API",
+    description="HRMS API — Documents + Recruitment",
     version="1.0.0",
     lifespan=lifespan
 )
@@ -116,6 +124,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Document module routers
 app.include_router(employee_router)
 app.include_router(auth_router)
 app.include_router(documents_router)
@@ -124,9 +133,12 @@ app.include_router(approval_router)
 app.include_router(template_router)
 app.include_router(document_type_router)
 
+# Recruitment module routers
+app.include_router(recruitment_router)
+
 @app.get("/")
 def root():
     return {
         "message": "HRM Backend Running",
         "status": "OK"
-    }
+    }
