@@ -28,5 +28,19 @@ class Employee(Base):
     marital_status = Column(String(20), nullable=True)
     nationality = Column(String(100), nullable=True)
 
+    # Emergency Contact
+    emergency_contact_name = Column(String(100), nullable=True)
+    emergency_contact_phone = Column(String(20), nullable=True)
+    emergency_contact_relation = Column(String(50), nullable=True)
+
+    # Skills & Qualifications
+    skills = Column(Text, nullable=True)
+    qualifications = Column(Text, nullable=True)
+
+    # Bank Details
+    bank_name = Column(String(100), nullable=True)
+    bank_account_no = Column(String(50), nullable=True)
+    bank_branch = Column(String(100), nullable=True)
+
     role_id = Column(Integer, ForeignKey("roles.id"), nullable=True)
     role = relationship("Role", back_populates="employees")

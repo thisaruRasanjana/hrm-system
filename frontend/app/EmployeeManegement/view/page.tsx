@@ -3,9 +3,9 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { 
-  IconArrowLeft, 
-  IconMail, 
+import {
+  IconArrowLeft,
+  IconMail,
   IconPhone,
   IconUserSelect,
   IconBriefcase,
@@ -42,6 +42,15 @@ interface Employee {
   marital_status?: string;
   nationality?: string;
   role?: { id: number; name: string };
+  // New Fields
+  emergency_contact_name?: string;
+  emergency_contact_phone?: string;
+  emergency_contact_relation?: string;
+  skills?: string;
+  qualifications?: string;
+  bank_name?: string;
+  bank_account_no?: string;
+  bank_branch?: string;
 }
 
 export default function EmployeeViewPage() {
@@ -83,17 +92,28 @@ export default function EmployeeViewPage() {
       nationality: employee.nationality || "Not Provided",
       address: employee.address || "Not Provided",
     },
-    emergency: { name: "Not Provided", relationship: "Not Provided", phone: "Not Provided", email: "Not Provided" },
-    bank: { name: "Not Provided", accountNumber: "******* ****", routingNumber: "Not Provided", accountName: "Not Provided" },
+    emergency: {
+      name: employee.emergency_contact_name || "Not Provided",
+      relationship: employee.emergency_contact_relation || "Not Provided",
+      phone: employee.emergency_contact_phone || "Not Provided",
+    },
+    bank: {
+      name: employee.bank_name || "Not Provided",
+      accountNumber: employee.bank_account_no || "Not Provided",
+      branch: employee.bank_branch || "Not Provided",
+    },
     work: {
       department: employee.department,
       designation: employee.designation,
       joinedDate: employee.joined_date || "Not Provided",
       employmentType: "Full-Time",
-      location: "Not Provided",
-      manager: "Not Provided",
+      location: "Main Office",
+      manager: "Direct Supervisor",
     },
-    skills: { education: { degree: "Not Provided", institution: "Not Provided" }, certifications: [], coreSkills: [] },
+    skillsAndQualifications: {
+      qualifications: employee.qualifications || "Not Provided",
+      skills: employee.skills ? employee.skills.split(",").map(s => s.trim()) : []
+    },
     role: {
       systemRole: employee.role?.name || "No Role Assigned",
       permissions: [],
@@ -107,8 +127,8 @@ export default function EmployeeViewPage() {
     <div className="max-w-6xl mx-auto pb-10">
       {/* Header / Back Navigation */}
       <div className="mb-6 flex flex-col gap-1">
-        <Link 
-          href="/" 
+        <Link
+          href="/"
           className="inline-flex items-center gap-1.5 text-sm text-gray-600 hover:text-orange-500 transition-colors self-start mb-2"
         >
           <IconArrowLeft />
@@ -120,7 +140,7 @@ export default function EmployeeViewPage() {
 
       {/* Main Profile Summary Card */}
       <div className="bg-[#FAFBFB] rounded-2xl border border-gray-100 p-8 mb-6 flex flex-col md:flex-row gap-8 relative">
-        
+
         {/* Edit Button (Top Right) */}
         <Link
           href={`/EmployeeManegement/edit?id=${encodeURIComponent(employee.id)}`}
@@ -145,11 +165,11 @@ export default function EmployeeViewPage() {
           <h2 className="text-2xl font-bold text-[#212B36] mb-1">{employeeRef.name}</h2>
           <div className="text-[15px] text-gray-500 mb-0.5">{employeeRef.designation}</div>
           <div className="text-sm text-gray-400 mb-3">{employeeRef.department} Department</div>
-          
+
           <span className="inline-block px-4 py-1 rounded-full text-[11px] font-bold tracking-wider bg-[#F9A15D] text-white self-start mb-6">
             {employeeRef.status}
           </span>
-          
+
           <div className="flex flex-wrap items-center gap-6 mt-auto">
             <div className="flex items-center gap-2 text-[13px] text-gray-500">
               <IconMail />
@@ -165,10 +185,10 @@ export default function EmployeeViewPage() {
 
       {/* Two-Column Detail Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        
+
         {/* Left Column (Personal, Bank) */}
         <div className="space-y-6">
-          
+
           {/* Personal Information */}
           <div className="bg-[#FAFBFB] rounded-2xl border border-gray-100 p-8">
             <div className="flex items-center gap-3 mb-8">
@@ -195,7 +215,6 @@ export default function EmployeeViewPage() {
               <DataField label="Contact Name" value={employeeRef.emergency.name} />
               <DataField label="Relationship" value={employeeRef.emergency.relationship} />
               <DataField label="Phone Number" value={employeeRef.emergency.phone} />
-              <DataField label="Email Address" value={employeeRef.emergency.email} />
             </div>
           </div>
           {/* Bank Details */}
@@ -207,16 +226,15 @@ export default function EmployeeViewPage() {
             <div className="flex flex-col gap-6">
               <DataField label="Bank Name" value={employeeRef.bank.name} />
               <DataField label="Account Number" value={employeeRef.bank.accountNumber} />
-              <DataField label="Routing Number" value={employeeRef.bank.routingNumber} />
-              <DataField label="Account Holder Name" value={employeeRef.bank.accountName} />
+              <DataField label="Branch Name" value={employeeRef.bank.branch} />
             </div>
           </div>
-          
+
         </div>
 
         {/* Right Column (Work, Skills/Certs, Permissions) */}
         <div className="space-y-6">
-          
+
           {/* Work Information */}
           <div className="bg-[#FAFBFB] rounded-2xl border border-gray-100 p-8">
             <div className="flex items-center gap-3 mb-8">
@@ -241,38 +259,30 @@ export default function EmployeeViewPage() {
               <IconRibbon className="text-orange-400" />
               <h3 className="text-[17px] font-bold text-[#212B36]">Skills & Qualifications</h3>
             </div>
-            
+
             <div className="flex flex-col gap-8">
               <div>
-                <span className="text-xs font-semibold text-gray-500 block mb-3">Education</span>
+                <span className="text-xs font-semibold text-gray-500 block mb-3">Qualifications</span>
                 <div className="flex flex-col gap-1.5">
-                  <span className="text-[14.5px] text-[#212B36]">{employeeRef.skills.education.degree}</span>
-                  <span className="text-[13.5px] text-[#a0aab5]">{employeeRef.skills.education.institution}</span>
+                  <span className="text-[14.5px] text-[#212B36] whitespace-pre-wrap">{employeeRef.skillsAndQualifications.qualifications}</span>
                 </div>
               </div>
 
               <div>
-                <span className="text-xs font-semibold text-gray-500 block mb-3">Certifications</span>
-                <ul className="flex flex-col gap-3">
-                  {employeeRef.skills.certifications.map((cert, index) => (
-                    <li key={index} className="text-[14.5px] text-[#212B36]">
-                      • {cert}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              
-              <div>
                 <span className="text-xs font-semibold text-gray-500 block mb-3">Core Skills</span>
                 <div className="flex flex-wrap gap-2.5">
-                  {employeeRef.skills.coreSkills.map((skill, index) => (
-                    <span 
-                      key={index} 
-                      className="px-4 py-2 bg-[#F6F7F8] text-[#637381] rounded-full text-[13.5px] border border-gray-100/50"
-                    >
-                      {skill}
-                    </span>
-                  ))}
+                  {employeeRef.skillsAndQualifications.skills.length > 0 ? (
+                    employeeRef.skillsAndQualifications.skills.map((skill, index) => (
+                      <span
+                        key={index}
+                        className="px-4 py-2 bg-[#F6F7F8] text-[#637381] rounded-full text-[13.5px] border border-gray-100/50"
+                      >
+                        {skill}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-[13.5px] text-gray-400">Not Provided</span>
+                  )}
                 </div>
               </div>
             </div>
@@ -286,23 +296,27 @@ export default function EmployeeViewPage() {
             </div>
             <div className="flex flex-col gap-6">
               <DataField label="System Role" value={employeeRef.role.systemRole} />
-              
+
               <div>
                 <span className="text-xs font-semibold text-gray-500 block mb-3">Access Permissions</span>
                 <ul className="flex flex-col gap-2.5">
-                  {employeeRef.role.permissions.map((perm, index) => (
-                    <li key={index} className="text-[13px] text-[#212B36] flex items-center gap-2.5">
-                      <span className="w-1.5 h-1.5 bg-[#F9A15D] rounded-full"></span>
-                      {perm}
-                    </li>
-                  ))}
+                  {employeeRef.role.permissions.length > 0 ? (
+                    employeeRef.role.permissions.map((perm, index) => (
+                      <li key={index} className="text-[13px] text-[#212B36] flex items-center gap-2.5">
+                        <span className="w-1.5 h-1.5 bg-[#F9A15D] rounded-full"></span>
+                        {perm}
+                      </li>
+                    ))
+                  ) : (
+                    <span className="text-[13px] text-gray-400 italic">No specific permissions displayed. Roles control access.</span>
+                  )}
                 </ul>
               </div>
 
               <DataField label="Last Login" value={employeeRef.role.lastLogin} />
             </div>
           </div>
-          
+
         </div>
       </div>
     </div>
