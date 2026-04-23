@@ -1,18 +1,18 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
-import Sidebar from '@/components/Sidebar';
-import TopBar from '@/components/TopBar';
-import LeaveTabs from '@/components/LeaveTabs';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
+import Sidebar from '../../components/Sidebar';
+import TopBar from '../../components/TopBar';
+import LeaveTabs from '../../components/LeaveTabs';
 import ApprovalRequestCard, {
   ApprovalRequest,
-} from '@/components/ApprovalRequestCard';
+} from '../../components/ApprovalRequestCard';
 import ApprovalReviewModal, {
   ModalMode,
-} from '@/components/ApprovalReviewModal';
+} from '../../components/ApprovalReviewModal';
 import { Search, ChevronDown, CheckCircle2, XCircle } from 'lucide-react';
-
-const API_BASE_URL = 'http://127.0.0.1:8000';
+import { API_BASE_URL, getAuthHeaders } from '../lib/api';
 
 type BackendLeaveRequest = {
   leave_request_id: number;
@@ -32,8 +32,25 @@ type BackendLeaveRequest = {
   approved_date?: string | null;
 };
 
+type PendingRequestsResponse =
+  | BackendLeaveRequest[]
+  | {
+      items?: BackendLeaveRequest[];
+      data?: BackendLeaveRequest[];
+      results?: BackendLeaveRequest[];
+    };
+
 function formatDate(dateString: string) {
-  const date = new Date(dateString);
+  if (!dateString) return '--';
+
+  const normalized = /^\d{4}-\d{2}-\d{2}$/.test(dateString)
+    ? `${dateString}T00:00:00`
+    : dateString;
+
+  const date = new Date(normalized);
+
+  if (Number.isNaN(date.getTime())) return '--';
+
   return date.toLocaleDateString('en-US', {
     month: 'short',
     day: '2-digit',
@@ -41,6 +58,7 @@ function formatDate(dateString: string) {
 }
 
 function mapBackendToFrontend(item: BackendLeaveRequest): ApprovalRequest {
+  const urls = Array.isArray(item.attachment_urls) ? item.attachment_urls : [];
   return {
     id: item.leave_request_id,
     employeeName: `Employee ${item.employee_id}`,
@@ -51,7 +69,8 @@ function mapBackendToFrontend(item: BackendLeaveRequest): ApprovalRequest {
     startDate: formatDate(item.start_date),
     endDate: formatDate(item.end_date),
     durationText: item.half_day ? '0.5 Days' : `${item.total_days} Days`,
-    hasAttachment: !!item.attachment_urls && item.attachment_urls.length > 0,
+    hasAttachment: urls.length > 0,
+    attachmentUrls: urls,
     appliedOn: item.start_date,
     reason: item.reason || 'No reason provided',
     balances: {
@@ -59,6 +78,34 @@ function mapBackendToFrontend(item: BackendLeaveRequest): ApprovalRequest {
       casual: '--',
     },
   };
+}
+
+function extractRequestList(payload: PendingRequestsResponse): BackendLeaveRequest[] {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload.items)) return payload.items;
+  if (Array.isArray(payload.data)) return payload.data;
+  if (Array.isArray(payload.results)) return payload.results;
+  return [];
+}
+
+async function parseErrorResponse(response: Response): Promise<string> {
+  const fallback = `Request failed (${response.status} ${response.statusText})`;
+
+  try {
+    const text = await response.text();
+    if (!text) return fallback;
+
+    try {
+      const json = JSON.parse(text);
+      if (typeof json?.detail === 'string') return json.detail;
+      if (typeof json?.message === 'string') return json.message;
+      return text;
+    } catch {
+      return text;
+    }
+  } catch {
+    return fallback;
+  }
 }
 
 export default function ApprovalPage() {
@@ -75,34 +122,62 @@ export default function ApprovalPage() {
   const [messageType, setMessageType] = useState<'success' | 'error' | ''>('');
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const [role, setRole] = useState<string | null | undefined>(undefined);
 
-  const loadPendingRequests = async () => {
+  const router = useRouter();
+
+  useEffect(() => {
+    const storedRole = localStorage.getItem('role');
+    setRole(storedRole);
+  }, []);
+
+  useEffect(() => {
+    if (role === undefined) return;
+
+    if (role !== 'hr') {
+      router.replace('/apply-leave');
+    }
+  }, [role, router]);
+
+  const loadPendingRequests = useCallback(async () => {
     try {
       setLoading(true);
+      setActionMessage('');
+      setMessageType('');
 
       const response = await fetch(`${API_BASE_URL}/leave/requests/pending`, {
         method: 'GET',
+        headers: getAuthHeaders(),
+        cache: 'no-store',
       });
 
       if (!response.ok) {
-        throw new Error('Failed to load pending leave requests');
+        const errorMessage = await parseErrorResponse(response);
+        throw new Error(errorMessage || 'Failed to load pending leave requests');
       }
 
-      const data: BackendLeaveRequest[] = await response.json();
-      const mapped = data.map(mapBackendToFrontend);
-      setRequests(mapped);
+      const payload: PendingRequestsResponse = await response.json();
+      const items = extractRequestList(payload);
+      setRequests(items.map(mapBackendToFrontend));
     } catch (error) {
-      console.error(error);
-      setActionMessage('Failed to load pending leave requests.');
+      console.error('loadPendingRequests error:', error);
+      setRequests([]);
+      setActionMessage(
+        error instanceof Error
+          ? error.message
+          : 'Failed to load pending leave requests.'
+      );
       setMessageType('error');
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    loadPendingRequests();
-  }, []);
+    if (role === 'hr') {
+      loadPendingRequests();
+    }
+  }, [role, loadPendingRequests]);
 
   useEffect(() => {
     if (!actionMessage) return;
@@ -149,20 +224,25 @@ export default function ApprovalPage() {
     try {
       const response = await fetch(`${API_BASE_URL}/leave/requests/${request.id}`, {
         method: 'GET',
+        headers: getAuthHeaders(),
+        cache: 'no-store',
       });
 
       if (!response.ok) {
-        throw new Error('Failed to load leave request details');
+        const errorMessage = await parseErrorResponse(response);
+        throw new Error(errorMessage || 'Failed to load leave request details');
       }
 
       const data: BackendLeaveRequest = await response.json();
-      const mapped = mapBackendToFrontend(data);
-
-      setSelectedRequest(mapped);
+      setSelectedRequest(mapBackendToFrontend(data));
       setModalMode('review');
     } catch (error) {
-      console.error(error);
-      setActionMessage('Failed to load leave request details.');
+      console.error('openReview error:', error);
+      setActionMessage(
+        error instanceof Error
+          ? error.message
+          : 'Failed to load leave request details.'
+      );
       setMessageType('error');
     }
   };
@@ -183,6 +263,7 @@ export default function ApprovalPage() {
         {
           method: 'PATCH',
           headers: {
+            ...getAuthHeaders(),
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
@@ -192,17 +273,19 @@ export default function ApprovalPage() {
       );
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Failed to approve leave request');
+        const errorMessage = await parseErrorResponse(response);
+        throw new Error(errorMessage || 'Failed to approve leave request');
       }
 
       setActionMessage('Leave request approved successfully.');
       setMessageType('success');
       closeModal();
       await loadPendingRequests();
-    } catch (error: any) {
-      console.error(error);
-      setActionMessage(error.message || 'Failed to approve leave request.');
+    } catch (error) {
+      console.error('handleApprove error:', error);
+      setActionMessage(
+        error instanceof Error ? error.message : 'Failed to approve leave request.'
+      );
       setMessageType('error');
     } finally {
       setActionLoading(false);
@@ -220,6 +303,7 @@ export default function ApprovalPage() {
         {
           method: 'PATCH',
           headers: {
+            ...getAuthHeaders(),
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
@@ -229,17 +313,19 @@ export default function ApprovalPage() {
       );
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Failed to reject leave request');
+        const errorMessage = await parseErrorResponse(response);
+        throw new Error(errorMessage || 'Failed to reject leave request');
       }
 
       setActionMessage('Leave request rejected successfully.');
       setMessageType('success');
       closeModal();
       await loadPendingRequests();
-    } catch (error: any) {
-      console.error(error);
-      setActionMessage(error.message || 'Failed to reject leave request.');
+    } catch (error) {
+      console.error('handleReject error:', error);
+      setActionMessage(
+        error instanceof Error ? error.message : 'Failed to reject leave request.'
+      );
       setMessageType('error');
     } finally {
       setActionLoading(false);
@@ -257,6 +343,7 @@ export default function ApprovalPage() {
         {
           method: 'PATCH',
           headers: {
+            ...getAuthHeaders(),
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
@@ -266,22 +353,32 @@ export default function ApprovalPage() {
       );
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Failed to send info request');
+        const errorMessage = await parseErrorResponse(response);
+        throw new Error(errorMessage || 'Failed to send info request');
       }
 
       setActionMessage('Additional information request sent successfully.');
       setMessageType('success');
       closeModal();
       await loadPendingRequests();
-    } catch (error: any) {
-      console.error(error);
-      setActionMessage(error.message || 'Failed to send info request.');
+    } catch (error) {
+      console.error('handleRequestInfo error:', error);
+      setActionMessage(
+        error instanceof Error ? error.message : 'Failed to send info request.'
+      );
       setMessageType('error');
     } finally {
       setActionLoading(false);
     }
   };
+
+  if (role === undefined) {
+    return null;
+  }
+
+  if (role !== 'hr') {
+    return <div className="p-10 text-red-500 font-semibold">Access Denied</div>;
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -289,13 +386,13 @@ export default function ApprovalPage() {
       <TopBar />
 
       <div className="ml-64 pt-16">
-        <main className="px-10 py-8 min-h-[calc(100vh-4rem)] overflow-auto">
-          <LeaveTabs active="approval" />
+        <main className="px-10 pt-4 pb-8 min-h-[calc(100vh-4rem)] overflow-auto">
+          <LeaveTabs />
 
           <div className="mt-8 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <h1 className="text-[24px] font-bold leading-tight text-[#1F2937]">
-                Leave History
+                Approval Panel
               </h1>
               <p className="mt-1 text-[16px] text-[#667085]">
                 Review and manage pending leave requests
@@ -306,9 +403,7 @@ export default function ApprovalPage() {
               <span className="mr-2 text-[18px] font-bold text-[#F2924E]">
                 {filteredRequests.length}
               </span>
-              <span className="text-[16px] text-[#F2924E]">
-                Pending Requests
-              </span>
+              <span className="text-[16px] text-[#F2924E]">Pending Requests</span>
             </div>
           </div>
 
@@ -385,11 +480,7 @@ export default function ApprovalPage() {
                   : 'border-red-200 bg-red-50 text-red-700'
               }`}
             >
-              {messageType === 'success' ? (
-                <CheckCircle2 size={18} />
-              ) : (
-                <XCircle size={18} />
-              )}
+              {messageType === 'success' ? <CheckCircle2 size={18} /> : <XCircle size={18} />}
               <span>{actionMessage}</span>
             </div>
           )}

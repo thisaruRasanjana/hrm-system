@@ -51,16 +51,16 @@ export default function Sidebar() {
           const isActive =
             item.name === "Leave"
               ? pathname === "/apply-leave" ||
-                pathname === "/leave-history" ||
-                pathname === "/approval"
+              pathname === "/leave-history" ||
+              pathname === "/approval" ||
+              pathname === "/reports"
               : pathname === item.href || pathname.startsWith(item.href + "/");
           return (
             <Link
               key={item.name}
               href={item.href}
-              className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition ${
-                isActive ? "text-orange-500" : "text-gray-600 hover:bg-white/70"
-              }`}
+              className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition ${isActive ? "text-orange-500" : "text-gray-600 hover:bg-white/70"
+                }`}
             >
               <Icon
                 size={20}
@@ -78,4 +78,19 @@ export default function Sidebar() {
       </div>
     </aside>
   );
+
+  const role = localStorage.getItem("role");
+
+  <ul>
+    <li><Link href="/apply-leave">Apply Leave</Link></li>
+    <li><Link href="/leave-history">Leave History</Link></li>
+
+    {role !== "employee" && (
+      <li><Link href="/approval">Approval</Link></li>
+    )}
+
+    {role === "hr" && (
+      <li><Link href="/reports">Reports</Link></li>
+    )}
+  </ul>
 }

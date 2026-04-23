@@ -216,8 +216,21 @@ def generate_leave_report_pdf(data):
 
     styles = getSampleStyleSheet()
 
+    records = data.get("records", [])
+    has_employee = len(records) > 0
+    employee_name = records[0].get("employee_name", "N/A") if has_employee else "N/A"
+    employee_dept = records[0].get("department", "N/A") if has_employee else "N/A"
+    employee_code = records[0].get("employee_code", "N/A") if has_employee else "N/A"
+
     # Title
-    elements.append(Paragraph("Leave Report", styles["Title"]))
+    title = f"Employee Detailed Report - {employee_name}" if has_employee else "Leave Report Summary"
+    elements.append(Paragraph(title, styles["Title"]))
+
+    if has_employee:
+        elements.append(Paragraph(f"<b>Employee Name:</b> {employee_name}", styles["Normal"]))
+        elements.append(Paragraph(f"<b>Employee Code:</b> {employee_code}", styles["Normal"]))
+        elements.append(Paragraph(f"<b>Department:</b> {employee_dept}", styles["Normal"]))
+        elements.append(Paragraph("<br/>", styles["Normal"]))
 
     # Summary
     summary = data["summary"]
@@ -225,6 +238,7 @@ def generate_leave_report_pdf(data):
     elements.append(Paragraph(f"Total Leave Days: {summary['total_leave_days']}", styles["Normal"]))
     elements.append(Paragraph(f"Approved: {summary['approved_requests']}", styles["Normal"]))
     elements.append(Paragraph(f"Pending: {summary['pending_requests']}", styles["Normal"]))
+    elements.append(Paragraph("<br/>", styles["Normal"]))
 
     # Table
     table_data = [
