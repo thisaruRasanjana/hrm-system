@@ -12,13 +12,13 @@ export default function EmployeeReportTable({ rows }: Props) {
       <table className="w-full min-w-[1000px] border-separate border-spacing-0">
         <thead>
           <tr className="text-left text-xs uppercase text-gray-400">
-            <th className="px-4 py-4 font-medium">Employee</th>
+            <th className="px-4 py-4 font-medium">Employee Name</th>
             <th className="px-4 py-4 font-medium">Department</th>
-            <th className="px-4 py-4 font-medium">Total Leave</th>
-            <th className="px-4 py-4 font-medium">Used</th>
-            <th className="px-4 py-4 font-medium">Pending</th>
-            <th className="px-4 py-4 font-medium">Remaining</th>
-            <th className="px-4 py-4 font-medium">Last Leave</th>
+            <th className="px-4 py-4 font-medium">Allocated Leave Days</th>
+            <th className="px-4 py-4 font-medium">Used Leave Days</th>
+            <th className="px-4 py-4 font-medium">Pending Leave Days</th>
+            <th className="px-4 py-4 font-medium">Remaining Leave Balance</th>
+            <th className="px-4 py-4 font-medium">Last Leave Date</th>
             <th className="px-4 py-4 font-medium">Actions</th>
           </tr>
         </thead>
@@ -36,7 +36,13 @@ export default function EmployeeReportTable({ rows }: Props) {
               <td className="px-4 py-4 text-sm text-orange-500">{row.used} days</td>
               <td className="px-4 py-4 text-sm text-orange-500">{row.pending} days</td>
               <td className="px-4 py-4 text-sm text-green-600">{row.remaining} days</td>
-              <td className="px-4 py-4 text-sm text-gray-700">{row.lastLeave}</td>
+              <td className="px-4 py-4 text-sm text-gray-700">
+                {new Date(row.lastLeave).toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                })}
+              </td>
               <td className="px-4 py-4 text-sm">
                 <Link
                   href={`/reports/${row.id}`}

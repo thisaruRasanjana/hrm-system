@@ -102,18 +102,18 @@ export default function EmployeeReportDetailPage() {
       <TopBar />
 
       <div className="ml-64 pt-16">
-        <main className="min-h-[calc(100vh-4rem)] overflow-auto px-10 py-8">
-          <LeaveTabs active="reports" />
+        <main className="min-h-[calc(100vh-4rem)] overflow-auto px-10 pt-4 pb-8">
+          <LeaveTabs />
 
-          <div className="mt-6">
+          <div className="mt-2">
             <Link
               href="/reports"
-              className="text-sm text-orange-400 hover:text-orange-500"
+              className="text-sm text-orange-400 hover:text-orange-500 mb-2"
             >
               ← Back to Summary
             </Link>
 
-            <h1 className="mt-3 text-2xl font-semibold text-gray-900 md:text-4xl">
+            <h1 className="mt-3 text-2xl font-semibold text-gray-900 md:text-[24px]">
               Employee Detailed Report
             </h1>
           </div>

@@ -15,6 +15,27 @@ export default function EmployeeReportHeader({
   period,
   setPeriod,
 }: Props) {
+  const handleDownload = () => {
+    const today = new Date();
+    const startDate = new Date();
+
+    if (period === "weekly") {
+      startDate.setDate(today.getDate() - 7);
+    } else if (period === "monthly") {
+      startDate.setMonth(today.getMonth() - 1);
+    } else if (period === "annually") {
+      startDate.setFullYear(today.getFullYear() - 1);
+    }
+
+    const startStr = startDate.toISOString().split("T")[0];
+    const endStr = today.toISOString().split("T")[0];
+
+    // Construct the URL with filters and dates
+    const url = `http://127.0.0.1:8000/reports/leave/pdf?employee_id=${employee.id}&start_date=${startStr}&end_date=${endStr}`;
+    
+    // Trigger download
+    window.location.href = url;
+  };
   const getInitials = (name: string) => {
     if (!name) return "";
     return name
@@ -93,7 +114,10 @@ export default function EmployeeReportHeader({
         {/* RIGHT SIDE */}
         <div className="flex items-end gap-2">
           
-          <button className="mt-2 inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-[#F2924E] px-4 text-sm font-medium text-white shadow-sm transition hover:bg-[#d87c3b]">
+          <button 
+            onClick={handleDownload}
+            className="mt-2 inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-[#F2924E] px-4 text-sm font-medium text-white shadow-sm transition hover:bg-[#d87c3b]"
+          >
             <Download className="h-5 w-5" />
             Download Full Report(PDF)
           </button>

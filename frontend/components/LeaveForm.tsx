@@ -22,7 +22,7 @@ export default function LeaveForm() {
   return (
     <div className="bg-white p-6 rounded-lg shadow space-y-4">
       {/* Leave Type */}
-      <div>
+      {/*<div>
         <label className="block text-sm mb-1">Leave Type</label>
         <select
           value={leaveType}
@@ -35,7 +35,7 @@ export default function LeaveForm() {
           <option value="medical">Medical</option>
           
         </select>
-      </div>
+      </div> */}
 
       {/* Date Range */}
       <div className="grid grid-cols-2 gap-4">

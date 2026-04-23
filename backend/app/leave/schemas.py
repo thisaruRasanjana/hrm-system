@@ -45,6 +45,10 @@ class RejectLeaveRequest(BaseModel):
 class RequestInfoLeaveRequest(BaseModel):
     manager_comment: str
 
+class ResubmitLeaveRequest(BaseModel):
+    attachment_urls: Optional[List[str]] = []
+    reason: Optional[str] = None
+
 class LeaveTypeCreate(BaseModel):
     name: str
     description: Optional[str] = None

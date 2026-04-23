@@ -1,62 +1,72 @@
 "use client";
 
-import { usePathname, useRouter } from "next/navigation";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
 
-interface Props {
-  active: "request" | "history" | "approval" | "reports";
-}
-
-export default function LeaveTabs({ active }: Props) {
-  const router = useRouter();
+export default function LeaveTabs() {
   const pathname = usePathname();
+  const [activePath, setActivePath] = useState(pathname);
 
-  const isReportsActive = active === "reports" || pathname.startsWith("/reports");
+  // Sync internal state if URL changes externally (e.g. browser back button)
+  useEffect(() => {
+    setActivePath(pathname);
+  }, [pathname]);
+
+  // Sync read: ensures it doesn't drop to null during page transitions
+  const role = typeof window !== "undefined" ? localStorage.getItem("role") : null;
+
+  const tabs = [
+    { name: "Request Leave", path: "/apply-leave" },
+    { name: "Leave History", path: "/leave-history" },
+    ...(role === "hr"
+      ? [
+          { name: "Approval panel", path: "/approval" },
+          { name: "Get Reports", path: "/reports" },
+        ]
+      : []),
+  ];
 
   return (
-    <div className="flex gap-6 border-b pb-2">
-      <button
-        onClick={() => router.push("/apply-leave")}
-        className={`pb-2 text-sm font-medium ${
-          active === "request"
-            ? "border-b-2 border-orange-500 text-orange-500"
-            : "text-gray-500"
-        }`}
-      >
-        Request Leave
-      </button>
+    <div
+      suppressHydrationWarning
+      className="inline-flex w-max bg-white p-1 rounded-full shadow-lg relative mt-1 mb-6"
+    >
+      {tabs.map((tab) => {
+        let active = false;
 
-      <button
-        onClick={() => router.push("/leave-history")}
-        className={`pb-2 text-sm font-medium ${
-          active === "history"
-            ? "border-b-2 border-orange-500 text-orange-500"
-            : "text-gray-500"
-        }`}
-      >
-        Leave History
-      </button>
+        if (tab.path === "/apply-leave") {
+          active = activePath === tab.path;
+        } else {
+          active = activePath === tab.path || activePath.startsWith(`${tab.path}/`);
+        }
 
-      <button
-        onClick={() => router.push("/approval")}
-        className={`pb-2 text-sm font-medium ${
-          active === "approval"
-            ? "border-b-2 border-orange-500 text-orange-500"
-            : "text-gray-500"
-        }`}
-      >
-        Approval panel
-      </button>
-
-      <button
-        onClick={() => router.push("/reports")}
-        className={`pb-2 text-sm font-medium ${
-          isReportsActive
-            ? "border-b-2 border-orange-500 text-orange-500"
-            : "text-gray-500"
-        }`}
-      >
-        Get Reports
-      </button>
+        return (
+          <Link
+            key={tab.path}
+            href={tab.path}
+            onClick={() => setActivePath(tab.path)}
+            className={`relative px-6 py-2 rounded-full text-sm font-medium transition-colors duration-300 z-10 ${
+              active ? "text-white" : "text-gray-600 hover:text-gray-800"
+            }`}
+          >
+            {active && (
+              <motion.div
+                layoutId="active-leave-tab"
+                className="absolute inset-0 bg-[#F2924E] rounded-full -z-10"
+                transition={{
+                  type: "spring",
+                  stiffness: 500,
+                  damping: 30,
+                  mass: 0.5,
+                }}
+              />
+            )}
+            {tab.name}
+          </Link>
+        );
+      })}
     </div>
   );
 }

@@ -48,6 +48,34 @@ type BackendLeaveReportResponse = {
 
 const API_BASE_URL = "http://127.0.0.1:8000";
 
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function getPeriodDateRange(period: ReportPeriod): { start: string; end: string } {
+  const today = new Date();
+  const toYMD = (d: Date) => d.toISOString().split("T")[0];
+
+  if (period === "weekly") {
+    // Mon → Sun of the current week
+    const day = today.getDay(); // 0 = Sun
+    const diffToMon = (day + 6) % 7;
+    const mon = new Date(today);
+    mon.setDate(today.getDate() - diffToMon);
+    const sun = new Date(mon);
+    sun.setDate(mon.getDate() + 6);
+    return { start: toYMD(mon), end: toYMD(sun) };
+  }
+
+  if (period === "monthly") {
+    const start = new Date(today.getFullYear(), today.getMonth(), 1);
+    const end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+    return { start: toYMD(start), end: toYMD(end) };
+  }
+
+  // annually
+  const start = new Date(today.getFullYear(), 0, 1);
+  const end = new Date(today.getFullYear(), 11, 31);
+  return { start: toYMD(start), end: toYMD(end) };
+}
+
 export default function ReportsPage() {
   const [period, setPeriod] = useState<ReportPeriod>("monthly");
   const [search, setSearch] = useState("");
@@ -63,7 +91,9 @@ export default function ReportsPage() {
         setLoading(true);
         setError("");
 
-        const response = await fetch(`${API_BASE_URL}/reports/leave`);
+        const { start, end } = getPeriodDateRange(period);
+        const url = `${API_BASE_URL}/reports/leave?start_date=${start}&end_date=${end}`;
+        const response = await fetch(url);
 
         if (!response.ok) {
           throw new Error("Failed to fetch report data");
@@ -80,19 +110,15 @@ export default function ReportsPage() {
     };
 
     fetchReport();
-  }, []);
+  }, [period]);
 
   const summaryCards = useMemo(() => {
     if (!reportData) return [];
 
     return [
       {
-        label: "Total Requests",
+        label: "Total Leave Requests",
         value: reportData.summary.total_requests,
-      },
-      {
-        label: "Total Leave Days",
-        value: reportData.summary.total_leave_days,
       },
       {
         label: "Approved Requests",
@@ -107,8 +133,8 @@ export default function ReportsPage() {
         value: reportData.summary.rejected_requests,
       },
       {
-        label: "Request Info",
-        value: reportData.summary.req_info_requests,
+        label: "Total Leave Days Taken",
+        value: reportData.summary.total_leave_days,
       },
     ];
   }, [reportData]);
@@ -139,7 +165,7 @@ export default function ReportsPage() {
         grouped.set(key, {
           id: String(record.employee_id),
           name: record.employee_name || `Employee ${record.employee_id}`,
-          employeeCode: 
+          employeeCode:
             record.employee_code || `EMP-${String(record.employee_id).padStart(3, "0")}`,
           role: record.designation || "Staff",
           department: record.department || "N/A",
@@ -192,11 +218,19 @@ export default function ReportsPage() {
   }, [tableRows, search, department]);
 
   const handleDownloadCsv = () => {
-    window.open(`${API_BASE_URL}/reports/leave/export/csv`, "_blank");
+    const { start, end } = getPeriodDateRange(period);
+    window.open(
+      `${API_BASE_URL}/reports/leave/export/csv?start_date=${start}&end_date=${end}`,
+      "_blank"
+    );
   };
 
   const handleDownloadPdf = () => {
-    window.open("http://127.0.0.1:8000/reports/leave/pdf", "_blank");
+    const { start, end } = getPeriodDateRange(period);
+    window.open(
+      `${API_BASE_URL}/reports/leave/pdf?start_date=${start}&end_date=${end}`,
+      "_blank"
+    );
   };
 
   const departmentOptions = useMemo(() => {
@@ -211,20 +245,33 @@ export default function ReportsPage() {
     return ["All Departments", ...uniqueDepartments];
   }, [tableRows]);
 
+  const [role, setRole] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    const userRole = localStorage.getItem("role");
+    setRole(userRole);
+  }, []);
+
+  if (!mounted || role !== "hr") {
+    return <div>Access Denied</div>;
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Sidebar />
       <TopBar />
 
       <div className="ml-64 pt-16">
-        <main className="min-h-[calc(100vh-4rem)] overflow-auto px-10 py-8">
-          <LeaveTabs active="reports" />
+        <main className="min-h-[calc(100vh-4rem)] overflow-auto px-10 pt-4 pb-8">
+          <LeaveTabs />
 
           <section className="mt-6">
-            <h1 className="text-2xl font-semibold text-gray-900 md:text-[40px]">
+            <h1 className="text-2xl font-semibold text-gray-900 md:text-[24px]">
               Employee Leave Summary
             </h1>
-            <p className="mt-1 text-base text-gray-500 md:text-lg">
+            <p className="mt-1 md:text-[16px] text-base text-gray-500 md:text-lg">
               Comprehensive leave report for all employees
             </p>
           </section>

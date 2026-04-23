@@ -21,6 +21,7 @@ export interface ApprovalRequest {
   endDate: string;
   durationText: string;
   hasAttachment: boolean;
+  attachmentUrls: string[];
   appliedOn: string;
   reason: string;
   balances: {

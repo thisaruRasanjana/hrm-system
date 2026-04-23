@@ -6,6 +6,17 @@ from sqlalchemy import or_, cast, String
 from app.leave.models import LeaveRequest, LeaveType
 from app.leave.schemas import LeaveRequestCreate
 
+from fastapi import HTTPException
+
+TEAM_MEMBERS = {
+    2: [1, 3],
+    4: [1, 2, 3],
+}
+
+
+def get_team_members(manager_id: int) -> list[int]:
+    return TEAM_MEMBERS.get(manager_id, [])
+
 
 def calculate_total_days(start_date: date, end_date: date, half_day: bool) -> float:
     days = (end_date - start_date).days + 1
@@ -40,6 +51,87 @@ def has_overlapping_leave(db: Session, employee_id: int, start_date: date, end_d
     return overlap is not None
 
 
+def get_pending_requests(db: Session, user: dict):
+    role = user.get("role", "").lower()
+
+    query = (
+        db.query(LeaveRequest, LeaveType.name.label("leave_type_name"))
+        .join(LeaveType, LeaveRequest.leave_type_id == LeaveType.id)
+        .filter(LeaveRequest.status == "PENDING")
+    )
+
+    # HR → see all except their own
+    if role == "hr":
+        query = query.filter(LeaveRequest.employee_id != user["id"])
+    else:
+        return []
+
+    results = query.order_by(LeaveRequest.leave_request_id.desc()).all()
+
+    output = []
+    for leave, leave_type_name in results:
+        leave.leave_type_name = leave_type_name
+        output.append(leave)
+
+    return output
+def get_leave_history(
+    db: Session,
+    user: dict,
+    search: str | None = None,
+    leave_type_id: int | None = None,
+    status: str | None = None,
+    sort_by: str = "newest",
+):
+    query = db.query(LeaveRequest, LeaveType.name.label("leave_type_name")).join(
+        LeaveType, LeaveRequest.leave_type_id == LeaveType.id
+    )
+
+    if user["role"] == "employee":
+        query = query.filter(LeaveRequest.employee_id == user["id"])
+    elif user["role"] == "hr":
+        query = query.filter(LeaveRequest.employee_id == user["id"])
+    elif user["role"] == "manager":
+        team = get_team_members(user["id"])
+        query = query.filter(
+            or_(
+                LeaveRequest.employee_id == user["id"],
+                LeaveRequest.employee_id.in_(team),
+            )
+        )
+
+    if search:
+        search = search.strip()
+        if search:
+            query = query.filter(
+                or_(
+                    LeaveType.name.ilike(f"%{search}%"),
+                    LeaveRequest.reason.ilike(f"%{search}%"),
+                    LeaveRequest.status.ilike(f"%{search}%"),
+                    cast(LeaveRequest.leave_request_id, String).ilike(f"%{search}%")
+                )
+            )
+
+    if leave_type_id is not None:
+        query = query.filter(LeaveRequest.leave_type_id == leave_type_id)
+
+    if status:
+        query = query.filter(LeaveRequest.status == status)
+
+    if sort_by == "oldest":
+        query = query.order_by(LeaveRequest.start_date.asc())
+    else:
+        query = query.order_by(LeaveRequest.start_date.desc())
+
+    results = query.all()
+
+    output = []
+    for leave, leave_type_name in results:
+        leave.leave_type_name = leave_type_name
+        output.append(leave)
+
+    return output
+
+
 def create_leave(db: Session, employee_id: int, data: LeaveRequestCreate):
     if data.start_date > data.end_date:
         raise ValueError("start_date cannot be after end_date")
@@ -53,8 +145,8 @@ def create_leave(db: Session, employee_id: int, data: LeaveRequestCreate):
         raise ValueError("Medical leave requires at least one supporting document")
 
     if has_overlapping_leave(db, employee_id, data.start_date, data.end_date):
-        raise ValueError("You already have a leave request for these dates")
-
+        raise HTTPException(status_code=400,detail="You already have a leave request for these dates")
+    
     total_days = calculate_total_days(data.start_date, data.end_date, data.half_day)
 
     req = LeaveRequest(
@@ -98,11 +190,19 @@ def pending_requests(db: Session):
 
 
 def get_leave_request_by_id(db: Session, request_id: int):
-    return (
-        db.query(LeaveRequest)
+    result = (
+        db.query(LeaveRequest, LeaveType.name.label("leave_type_name"))
+        .join(LeaveType, LeaveRequest.leave_type_id == LeaveType.id)
         .filter(LeaveRequest.leave_request_id == request_id)
         .first()
     )
+
+    if not result:
+        return None
+
+    leave, leave_type_name = result
+    leave.leave_type_name = leave_type_name
+    return leave
 
 
 def approve_leave_request(
@@ -184,6 +284,40 @@ def request_info_leave_request(
     return req
 
 
+def resubmit_leave_request(
+    db: Session,
+    request_id: int,
+    employee_id: int,
+    attachment_urls: list[str] | None,
+    reason: str | None,
+):
+    req = db.query(LeaveRequest).filter(
+        LeaveRequest.leave_request_id == request_id,
+        LeaveRequest.employee_id == employee_id
+    ).first()
+
+    if not req:
+        raise ValueError("Leave request not found or not authorized")
+
+    if req.status != "REQ_INFO":
+        raise ValueError("Only requests needing info can be resubmitted")
+
+    # Append new attachments to existing ones
+    if attachment_urls:
+        existing_urls = req.attachment_urls if isinstance(req.attachment_urls, list) else []
+        req.attachment_urls = existing_urls + attachment_urls
+
+    if reason is not None and reason.strip():
+        req.reason = reason.strip()
+
+    req.status = "PENDING"
+    req.manager_comment = None  # Clear HR comment since they are replying
+
+    db.commit()
+    db.refresh(req)
+    return req
+
+
 def update_status(
     db: Session,
     request_id: int,
@@ -209,6 +343,64 @@ def update_status(
         req.approved_by = approved_by
         req.approved_date = date.today()
         req.rejection_reason = rejection_reason
+
+    db.commit()
+    db.refresh(req)
+    return req
+
+def delete_leave_request(db: Session, request_id: int, employee_id: int):
+    req = db.query(LeaveRequest).filter(
+        LeaveRequest.leave_request_id == request_id, 
+        LeaveRequest.employee_id == employee_id
+    ).first()
+    if not req:
+        raise ValueError("Leave request not found or not authorized")
+    if req.status != "PENDING":
+        raise ValueError("Only PENDING leave requests can be deleted")
+    db.delete(req)
+    db.commit()
+    return True
+
+
+def update_leave_request(db: Session, request_id: int, employee_id: int, payload: LeaveRequestCreate):
+    req = db.query(LeaveRequest).filter(
+        LeaveRequest.leave_request_id == request_id, 
+        LeaveRequest.employee_id == employee_id
+    ).first()
+    
+    if not req:
+        raise ValueError("Leave request not found or not authorized")
+    if req.status != "PENDING":
+        raise ValueError("Only PENDING leave requests can be updated")
+        
+    if not leave_type_exists(db, payload.leave_type_id):
+        raise ValueError("Invalid leave type")
+        
+    # Check for overlapping leave excluding this current request
+    overlap = (
+        db.query(LeaveRequest)
+        .filter(
+            LeaveRequest.employee_id == employee_id,
+            LeaveRequest.leave_request_id != request_id,
+            LeaveRequest.start_date <= payload.end_date,
+            LeaveRequest.end_date >= payload.start_date,
+            LeaveRequest.status.in_(["PENDING", "APPROVED"])
+        )
+        .first()
+    )
+    if overlap:
+        raise ValueError("You already have an overlapping leave request for these dates")
+
+    total_days = calculate_total_days(payload.start_date, payload.end_date, payload.half_day)
+
+    req.leave_type_id = payload.leave_type_id
+    req.start_date = payload.start_date
+    req.end_date = payload.end_date
+    req.half_day = payload.half_day
+    req.reason = payload.reason
+    if payload.attachment_urls is not None:
+        req.attachment_urls = payload.attachment_urls
+    req.total_days = total_days
 
     db.commit()
     db.refresh(req)

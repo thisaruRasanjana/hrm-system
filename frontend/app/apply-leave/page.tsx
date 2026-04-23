@@ -13,7 +13,7 @@ export default function ApplyLeavePage() {
   const [balances] = useState({
     Annual: 8,
     Casual: 2,
-    Sick: 5,
+    Medical: 5,
   });
 
   return (
@@ -23,8 +23,8 @@ export default function ApplyLeavePage() {
       <TopBar />
 
       <div className="ml-64 pt-16">
-        <main className="px-10 py-8 min-h-[calc(100vh-4rem)] overflow-auto">
-          <LeaveTabs active="request" />
+        <main className="px-10 pt-4 pb-8 min-h-[calc(100vh-4rem)] overflow-auto">
+          <LeaveTabs />
           <LeaveBalanceCards balances={balances} />
 
           <ApplyLeaveForm balances={balances} />

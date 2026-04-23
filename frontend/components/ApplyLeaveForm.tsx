@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { API_BASE_URL } from "../app/lib/api";
+import { API_BASE_URL, getAuthHeaders } from "../app/lib/api";
+import LeaveDatePicker from "./LeaveDatePicker";
 
 interface Props {
   balances: Record<string, number>;
@@ -17,9 +18,11 @@ const ApplyLeaveForm: React.FC<Props> = ({ balances }) => {
   const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
   const [leaveTypeId, setLeaveTypeId] = useState<string>("");
 
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
-  const [days, setDays] = useState(0);
+  const [dateSelection, setDateSelection] = useState({
+    startDate: "",
+    endDate: "",
+    halfDay: false,
+  });
   const [reason, setReason] = useState("");
   const [attachments, setAttachments] = useState<File[]>([]);
   const [errors, setErrors] = useState<string[]>([]);
@@ -28,7 +31,22 @@ const ApplyLeaveForm: React.FC<Props> = ({ balances }) => {
   const [submitting, setSubmitting] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
 
-  const todayStr = new Date().toISOString().split("T")[0];
+  // Derived values
+  const fromDate = dateSelection.startDate;
+  const toDate = dateSelection.endDate;
+  const halfDay = dateSelection.halfDay;
+  const days = (() => {
+    if (!fromDate || !toDate) return 0;
+    if (halfDay) return 0.5;
+    const diff =
+      Math.ceil(
+        (new Date(toDate).getTime() - new Date(fromDate).getTime()) /
+          (1000 * 60 * 60 * 24)
+      ) + 1;
+    return diff > 0 ? diff : 0;
+  })();
+
+
 
   const addFiles = (newFiles: FileList | File[]) => {
   const filesArray = Array.from(newFiles);
@@ -83,17 +101,7 @@ const ApplyLeaveForm: React.FC<Props> = ({ balances }) => {
     fetchLeaveTypes();
   }, []);
 
-  useEffect(() => {
-    if (fromDate && toDate) {
-      const from = new Date(fromDate);
-      const to = new Date(toDate);
-      const diff =
-        Math.ceil((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-      setDays(diff > 0 ? diff : 0);
-    } else {
-      setDays(0);
-    }
-  }, [fromDate, toDate]);
+
 
   const validate = () => {
   const errs: string[] = [];
@@ -121,9 +129,7 @@ const ApplyLeaveForm: React.FC<Props> = ({ balances }) => {
   return errs.length === 0;
   };
   const resetForm = () => {
-    setFromDate("");
-    setToDate("");
-    setDays(0);
+    setDateSelection({ startDate: "", endDate: "", halfDay: false });
     setReason("");
     setAttachments([]);
     setErrors([]);
@@ -151,8 +157,12 @@ const ApplyLeaveForm: React.FC<Props> = ({ balances }) => {
         const formData = new FormData();
         formData.append("file", file);
 
+        const headers = getAuthHeaders() as Record<string, string>;
+        delete headers['Content-Type'];
+
         const uploadRes = await fetch(`${API_BASE_URL}/leave/upload`, {
           method: "POST",
+          headers,
           body: formData,
         });
 
@@ -171,7 +181,7 @@ const ApplyLeaveForm: React.FC<Props> = ({ balances }) => {
       leave_type_id: Number(leaveTypeId),
       start_date: fromDate,
       end_date: toDate,
-      half_day: false,
+      half_day: halfDay,
       reason: reason,
       attachment_urls: uploadedFileUrls,
     };
@@ -179,6 +189,7 @@ const ApplyLeaveForm: React.FC<Props> = ({ balances }) => {
     const res = await fetch(`${API_BASE_URL}/leave/requests`, {
       method: "POST",
       headers: {
+        ...getAuthHeaders(),
         "Content-Type": "application/json",
       },
       body: JSON.stringify(payload),
@@ -237,28 +248,12 @@ const ApplyLeaveForm: React.FC<Props> = ({ balances }) => {
         </select>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-        <div>
-          <label className="block text-sm text-gray-600 mb-1">From</label>
-          <input
-            type="date"
-            value={fromDate}
-            min={todayStr}
-            onChange={(e) => setFromDate(e.target.value)}
-            className="w-full border rounded-lg px-3 py-2 bg-white text-[#6C6C70]"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm text-gray-600 mb-1">To</label>
-          <input
-            type="date"
-            value={toDate}
-            min={fromDate || todayStr}
-            onChange={(e) => setToDate(e.target.value)}
-            className="w-full border rounded-lg px-3 py-2 bg-white text-[#6C6C70]"
-          />
-        </div>
+      <div className="mb-4">
+        <label className="block text-sm text-gray-600 mb-1">Leave Duration</label>
+        <LeaveDatePicker
+          value={dateSelection}
+          onChange={(sel) => setDateSelection(sel)}
+        />
       </div>
 
       <div className="mb-4">
