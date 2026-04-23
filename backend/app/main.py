@@ -35,14 +35,20 @@ from app.departments.seed import seed_departments
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Run seed functions on startup."""
+    """Create all tables then run seed functions on startup."""
+    # Auto-create any tables that don't exist yet (safe — won't touch existing tables)
+    Base.metadata.create_all(bind=engine)
+
     db = SessionLocal()
     try:
         seed_departments(db)
         seed_roles(db)
-        # Seed calendar holidays (from Sanduni/authentication)
-        from app.calendar_holidays.router import seed_holidays
-        seed_holidays()
+        # Seed calendar holidays
+        try:
+            from app.calendar_holidays.router import seed_holidays
+            seed_holidays()
+        except Exception as e:
+            print(f"[WARNING] seed_holidays skipped: {e}")
     finally:
         db.close()
     yield
