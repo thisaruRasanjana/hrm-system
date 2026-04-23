@@ -23,7 +23,7 @@ class EmployeeDocument(Base):
     # Employee who uploaded the document
     employee_id = Column(Integer, nullable=False)
 
-    # Document type (NIC, Passport, Certificates, etc.)
+    # Document type reference
     document_type = Column(String, nullable=False)
 
     # Whether document is mandatory for employee profile

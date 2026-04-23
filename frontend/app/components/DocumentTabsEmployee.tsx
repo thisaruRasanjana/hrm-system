@@ -5,28 +5,24 @@ import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
 
 const tabs = [
-  {
-    name: "My Document",
-    path: "/documents",
-  },
-  {
-    name: "Request Document",
-    path: "/documents/request",
-  },
+  { name: "My Document", path: "/employee/documents" },
+  { name: "Request Document", path: "/employee/documents/request" },
 ];
 
 export default function DocumentTabsEmployee() {
   const pathname = usePathname();
 
   return (
-    <div className="inline-flex bg-white p-1 rounded-full shadow-md border relative">
+    <div className="inline-flex w-max bg-white p-1 rounded-full shadow-md border relative">
       {tabs.map((tab) => {
         let active = false;
 
-        if (tab.path === "/documents") {
+        if (tab.path === "/employee/documents") {
+          // Only exact match for the base documents page
           active = pathname === tab.path;
         } else {
-          active = pathname.startsWith(tab.path);
+          // Match exact path or sub-routes
+          active = pathname === tab.path || pathname.startsWith(`${tab.path}/`);
         }
 
         return (
@@ -39,7 +35,7 @@ export default function DocumentTabsEmployee() {
           >
             {active && (
               <motion.div
-                layoutId="active-emp-tab"
+                layoutId="active-employee-tab"
                 className="absolute inset-0 bg-[#F2924E] rounded-full -z-10"
                 transition={{ type: "spring", stiffness: 500, damping: 30, mass: 0.5 }}
               />

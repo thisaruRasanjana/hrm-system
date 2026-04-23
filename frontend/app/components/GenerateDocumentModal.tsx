@@ -226,7 +226,7 @@ export default function GenerateDocumentModal({ request, onClose, onSuccess }: P
               </div>
               <div className="flex-[1.5]">
                 <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">PURPOSE</p>
-                <p className="text-[14px] font-bold text-gray-900 leading-snug line-clamp-2">{request.purpose}</p>
+                <p className="text-[14px] font-bold text-gray-900 leading-snug line-clamp-2">{request.reason}</p>
               </div>
             </div>
 
@@ -372,7 +372,7 @@ export default function GenerateDocumentModal({ request, onClose, onSuccess }: P
             </div>
             <div className="flex-[1.5]">
               <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">PURPOSE</p>
-              <p className="text-[14px] font-bold text-gray-900 leading-snug line-clamp-2">{request.purpose}</p>
+              <p className="text-[14px] font-bold text-gray-900 leading-snug line-clamp-2">{request.reason}</p>
             </div>
           </div>
 

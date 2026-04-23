@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 
 interface Props {
   id?: string;
+  documentTypeId?: number;
   name: string;
   description: string;
   status: "APPROVED" | "PENDING_REVIEW" | "REJECTED" | "NOT_UPLOADED";
@@ -15,6 +16,7 @@ interface Props {
 
 export default function DocumentItem({
   id,
+  documentTypeId,
   name,
   description,
   status,
@@ -47,7 +49,7 @@ export default function DocumentItem({
   ) => {
 
     if (!e.target.files || e.target.files.length === 0) return;
-    if (!employeeId || !uploadEndpoint) {
+    if (!uploadEndpoint || !documentTypeId) {
       setError("Upload configuration missing");
       return;
     }
@@ -55,8 +57,8 @@ export default function DocumentItem({
     const file = e.target.files[0];
 
     const formData = new FormData();
-    formData.append("employee_id", employeeId);
-    formData.append("document_type", name);
+    formData.append("employee_id", "6"); // Hardcoded as requested
+    formData.append("document_type_id", String(documentTypeId));
     formData.append("is_mandatory", String(isMandatory));
     formData.append("file", file);
 

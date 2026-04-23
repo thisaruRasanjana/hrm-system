@@ -30,7 +30,7 @@ export default function ApprovalPage() {
       typeof window !== "undefined"
         ? (localStorage.getItem("employeeDbId") ?? "8")
         : "8";
-    const res = await fetch("http://127.0.0.1:8000/documents/review/pending", {
+    const res = await fetch("http://localhost:8000/documents/review/pending", {
       headers: { "X-Employee-ID": employeeDbId },
     });
     const data = await res.json();

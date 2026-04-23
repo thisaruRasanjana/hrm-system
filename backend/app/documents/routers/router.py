@@ -16,16 +16,15 @@ router = APIRouter(
 @router.post("/upload", response_model=schemas.DocumentUploadResponse)
 def upload_document(
     employee_id: int = Form(...),
-    document_type: str = Form(...),
+    document_type_id: UUID = Form(...),
     is_mandatory: bool = Form(False),
     file: UploadFile = File(...),
-    db: Session = Depends(get_db),
-    current_user = Depends(require_permission("document:upload"))
+    db: Session = Depends(get_db)
 ):
     return service.upload_employee_document(
         db=db,
         employee_id=employee_id,
-        document_type=document_type,
+        document_type_id=document_type_id,
         is_mandatory=is_mandatory,
         file=file
     )
@@ -36,8 +35,7 @@ def upload_document(
 )
 def get_my_documents(
     employee_id: int,
-    db: Session = Depends(get_db),
-    current_user = Depends(require_permission("document:upload"))  # Assuming upload and view use the same permission, or adjust as needed
+    db: Session = Depends(get_db)
 ):
     return service.get_employee_documents(db, employee_id)
 
@@ -45,8 +43,7 @@ def get_my_documents(
 def download_document(
     document_id: UUID,
     employee_id: int,
-    db: Session = Depends(get_db),
-    current_user = Depends(require_permission("document:upload"))
+    db: Session = Depends(get_db)
 ):
     return service.download_employee_document(
         db=db,

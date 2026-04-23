@@ -27,10 +27,12 @@ def save_file(file: UploadFile, employee_id: int) -> str:
 
     return file_path
 
+from app.documents.models.document_type_model import DocumentType
+
 def upload_employee_document(
     db: Session,
     employee_id: int,
-    document_type: str,
+    document_type_id: UUID,
     is_mandatory: bool,
     file: UploadFile
 ):
@@ -41,12 +43,19 @@ def upload_employee_document(
             detail="Only PDF, JPG, and PNG files are allowed"
         )
 
-    #  Check if document already exists
+    # Lookup document type name
+    doc_type_obj = db.query(DocumentType).filter(DocumentType.id == document_type_id).first()
+    if not doc_type_obj:
+        raise HTTPException(status_code=404, detail="Invalid document type")
+    
+    document_type_name = doc_type_obj.name
+
+    # Check if document already exists
     existing_document = (
         db.query(EmployeeDocument)
         .filter(
             EmployeeDocument.employee_id == employee_id,
-            EmployeeDocument.document_type == document_type
+            EmployeeDocument.document_type == document_type_name
         )
         .first()
     )
@@ -59,13 +68,13 @@ def upload_employee_document(
         db.delete(existing_document)
         db.commit()
 
-    #  Save new file
+    # Save new file
     file_path = save_file(file, employee_id)
 
     # 🆕 Create new record
     new_document = EmployeeDocument(
         employee_id=employee_id,
-        document_type=document_type,
+        document_type=document_type_name,
         is_mandatory=is_mandatory,
         file_name=file.filename,
         file_path=file_path,

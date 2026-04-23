@@ -25,7 +25,7 @@ class DocumentRequest(Base):
     requester_email = Column(String, nullable=True)         # Tracking the external sender's email
 
     document_type = Column(String, nullable=False)
-    purpose = Column(String, nullable=False)
+    reason = Column(String, nullable=False)
 
     status = Column(Enum(RequestStatus), default=RequestStatus.PENDING)
 

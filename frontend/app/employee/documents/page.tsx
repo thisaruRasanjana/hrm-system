@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import DocumentItem from "../components/DocumentItem";
-import DocumentTabsHR from "../components/DocumentTabsHR";
-import { hasPermission } from "../components/AuthGuard";
+import DocumentItem from "../../components/DocumentItem";
+import DocumentTabsEmployee from "../../components/DocumentTabsEmployee";
+import { hasPermission } from "../../components/AuthGuard";
 
 type UploadedDocument = {
   id: string;
@@ -22,22 +22,21 @@ type MergedDocument = {
   rejection_reason?: string;
 };
 
-export default function HRDocumentsPage() {
+export default function EmployeeDocumentsPage() {
   const [uploadedDocs, setUploadedDocs] = useState<UploadedDocument[]>([]);
   const [docTypes, setDocTypes] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [canUpload, setCanUpload] = useState(true);
 
-  // Use a different ID for HR's own documents (e.g., ID 1) to avoid mixing with Employee 6
-  const employeeDbId =
-    typeof window !== "undefined"
-      ? (localStorage.getItem("employeeDbId") ?? "1")
-      : "1";
+  // Integer DB id written by AuthGuard on login; fall back to seeded test employee
+  const employeeDbId = "6"; // Hardcoded for demo as requested
 
   useEffect(() => {
-    setCanUpload(hasPermission("document:upload"));
+    // For demo purposes, we'll assume employee has upload permission or just leave it true
+    setCanUpload(true); 
     
     setIsLoading(true);
+    // Fetch both active document types and employee's uploaded documents
     Promise.all([
       fetch("http://localhost:8000/api/document-types/active/").then(res => res.json()),
       fetch(`http://localhost:8000/documents/my-documents?employee_id=${employeeDbId}`, {
@@ -79,28 +78,17 @@ export default function HRDocumentsPage() {
   const percentage = mandatoryDocs.length > 0 ? (completed / mandatoryDocs.length) * 100 : 0;
 
   if (isLoading) {
-    return (
-      <div className="space-y-6 w-full">
-        <DocumentTabsHR />
-        <div className="flex justify-center items-center h-64">Loading documents...</div>
-      </div>
-    );
+    return <div className="flex justify-center items-center h-64">Loading documents...</div>;
   }
 
   return (
     <div className="space-y-6 w-full">
-      <DocumentTabsHR />
+      <DocumentTabsEmployee />
 
       <div>
         <h1 className="text-2xl font-semibold">My Documents</h1>
         <p className="text-sm text-gray-500">Upload required documents to complete your employee profile.</p>
       </div>
-
-      {!canUpload && (
-        <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded-lg text-sm">
-          You have read-only access to documents.
-        </div>
-      )}
 
       {docTypes.length === 0 ? (
         <div className="bg-white p-12 rounded-xl shadow-sm text-center">

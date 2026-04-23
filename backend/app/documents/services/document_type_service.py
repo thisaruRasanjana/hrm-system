@@ -33,7 +33,7 @@ def list_active_document_types(db: Session):
     return db.query(DocumentType).filter(DocumentType.is_active == True).order_by(DocumentType.created_at.desc()).all()
 
 
-def update_document_type(db: Session, type_id: UUID, data: DocumentTypeUpdate) -> DocumentType:
+def update_document_type(db: Session, type_id: int, data: DocumentTypeUpdate) -> DocumentType:
     doc_type = db.query(DocumentType).filter(DocumentType.id == type_id).first()
     if not doc_type:
         raise HTTPException(status_code=404, detail="Document type not found")
@@ -60,7 +60,7 @@ def update_document_type(db: Session, type_id: UUID, data: DocumentTypeUpdate) -
     return doc_type
 
 
-def delete_document_type(db: Session, type_id: UUID):
+def delete_document_type(db: Session, type_id: int):
     doc_type = db.query(DocumentType).filter(DocumentType.id == type_id).first()
     if not doc_type:
         raise HTTPException(status_code=404, detail="Document type not found")

@@ -15,6 +15,7 @@ class DocumentUploadResponse(BaseModel):
 
 class EmployeeDocumentResponse(BaseModel):
     id: UUID
+    employee_id: int
     document_type: str
     is_mandatory: bool
     status: str
