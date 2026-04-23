@@ -7,8 +7,8 @@ from app.roles import schemas, service
 
 router = APIRouter(prefix="/roles", tags=["roles"])
 
-
 from app.auth.dependencies import get_current_user, require_permission
+
 
 @router.get("/permissions", response_model=List[schemas.PermissionOut], summary="List all system permissions")
 def list_permissions(db: Session = Depends(get_db)):

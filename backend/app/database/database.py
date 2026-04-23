@@ -23,6 +23,9 @@ SessionLocal = sessionmaker(
     bind=engine
 )
 
+print("DATABASE URL USED BY FASTAPI:", DATABASE_URL)
+
+
 def get_db():
     db = SessionLocal()
     try:
