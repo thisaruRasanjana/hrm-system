@@ -1,0 +1,94 @@
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
+from typing import List
+from app.database.session import get_db, SessionLocal
+from app.core.deps import get_current_user
+from app.auth.models import User
+from app.calendar_holidays.models import Holiday
+from app.calendar_holidays.schemas import HolidayCreate, HolidayResponse
+from sqlalchemy import text
+
+router = APIRouter()
+
+HOLIDAYS_TO_SEED = [
+    # 2025
+    {"name": "Thai Pongal", "date": "2025-01-14"},
+    {"name": "National Day", "date": "2025-02-04"},
+    {"name": "Maha Sivarathri Day", "date": "2025-02-26"},
+    {"name": "Eid ul Fitr", "date": "2025-03-31"},
+    {"name": "Day prior to Sinhala & Tamil New Year", "date": "2025-04-13"},
+    {"name": "Sinhala & Tamil New Year", "date": "2025-04-14"},
+    {"name": "Good Friday", "date": "2025-04-18"},
+    {"name": "May Day", "date": "2025-05-01"},
+    {"name": "Vesak Full Moon Poya", "date": "2025-05-12"},
+    {"name": "Day following Vesak Full Moon Poya", "date": "2025-05-13"},
+    {"name": "Poson Full Moon Poya", "date": "2025-06-11"},
+    {"name": "Esala Full Moon Poya", "date": "2025-07-10"},
+    {"name": "Nikini Full Moon Poya", "date": "2025-08-09"},
+    {"name": "Milad un Nabi", "date": "2025-09-05"},
+    {"name": "Binara Full Moon Poya", "date": "2025-09-07"},
+    {"name": "Vap Full Moon Poya", "date": "2025-10-06"},
+    {"name": "Deepavali", "date": "2025-10-20"},
+    {"name": "Il Full Moon Poya", "date": "2025-11-05"},
+    {"name": "Unduvap Full Moon Poya", "date": "2025-12-04"},
+    {"name": "Christmas Day", "date": "2025-12-25"},
+    # 2026
+    {"name": "Thai Pongal", "date": "2026-01-14"},
+    {"name": "National Day", "date": "2026-02-04"},
+    {"name": "Maha Sivarathri Day", "date": "2026-02-15"},
+    {"name": "Eid ul Fitr", "date": "2026-03-20"},
+    {"name": "Good Friday", "date": "2026-04-03"},
+    {"name": "Day prior to Sinhala & Tamil New Year", "date": "2026-04-13"},
+    {"name": "Sinhala & Tamil New Year", "date": "2026-04-14"},
+    {"name": "May Day", "date": "2026-05-01"},
+    {"name": "Vesak Full Moon Poya", "date": "2026-05-01"},
+    {"name": "Day following Vesak Full Moon Poya", "date": "2026-05-02"},
+    {"name": "Poson Full Moon Poya", "date": "2026-05-31"},
+    {"name": "Esala Full Moon Poya", "date": "2026-06-30"},
+    {"name": "Nikini Full Moon Poya", "date": "2026-07-29"},
+    {"name": "Binara Full Moon Poya", "date": "2026-08-28"},
+    {"name": "Milad un Nabi", "date": "2026-08-27"},
+    {"name": "Vap Full Moon Poya", "date": "2026-09-26"},
+    {"name": "Deepavali", "date": "2026-11-08"},
+    {"name": "Il Full Moon Poya", "date": "2026-10-26"},
+    {"name": "Unduvap Full Moon Poya", "date": "2026-11-24"},
+    {"name": "Christmas Day", "date": "2026-12-25"},
+]
+
+def seed_holidays():
+    db = SessionLocal()
+    try:
+        if db.query(Holiday).count() == 0:
+            for h in HOLIDAYS_TO_SEED:
+                db.add(Holiday(name=h["name"], date=h["date"], is_mercantile=True))
+            db.commit()
+    finally:
+        db.close()
+
+def check_auth(user: User):
+    is_admin = user.role in ["super_admin", "hr", "Admin", "HR Manager"]
+    if not is_admin:
+        raise HTTPException(status_code=403, detail="Not authorized to manage calendar")
+
+@router.get("", response_model=List[HolidayResponse])
+def get_holidays(db: Session = Depends(get_db)):
+    return db.query(Holiday).all()
+
+@router.post("", response_model=HolidayResponse)
+def add_holiday(data: HolidayCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    check_auth(current_user)
+    holiday = Holiday(name=data.name, date=data.date, is_mercantile=data.is_mercantile, created_by=current_user.id)
+    db.add(holiday)
+    db.commit()
+    db.refresh(holiday)
+    return holiday
+
+@router.delete("/{holiday_id}")
+def delete_holiday(holiday_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    check_auth(current_user)
+    holiday = db.query(Holiday).filter(Holiday.id == holiday_id).first()
+    if not holiday:
+        raise HTTPException(status_code=404, detail="Holiday not found")
+    db.delete(holiday)
+    db.commit()
+    return {"message": "Deleted"}
