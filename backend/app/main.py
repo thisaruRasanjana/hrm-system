@@ -19,6 +19,7 @@ from app.employees.router import router as employee_router
 from app.auth.router import router as auth_router
 from app.documents.routers.router import router as documents_router
 from app.documents.routers import request_router
+from app.documents.routers.hr_request_router import router as hr_request_router
 from app.documents.routers.approval_router import router as approval_router
 from app.documents.routers.template_router import router as template_router
 from app.documents.routers.document_type_router import router as document_type_router
@@ -120,6 +121,7 @@ app.include_router(employee_router)
 app.include_router(auth_router)
 app.include_router(documents_router)
 app.include_router(request_router.router)
+app.include_router(hr_request_router)
 app.include_router(approval_router)
 app.include_router(template_router)
 app.include_router(document_type_router)

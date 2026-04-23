@@ -5,9 +5,9 @@ from datetime import datetime
 
 
 class CreateRequest(BaseModel):
-    employee_id: Optional[int] = None
+    employee_id: int
     document_type: str
-    purpose: str
+    reason: str
 
 
 from typing import Optional
@@ -17,8 +17,9 @@ from app.documents.models.request_model import RequestStatus
 class RequestResponse(BaseModel):
     id: UUID
     employee_id: Optional[int] = None
+    employee_name: Optional[str] = None
     document_type: str
-    purpose: str
+    reason: str
     status: RequestStatus
     source: str = "INTERNAL"
     requester_email: Optional[str] = None

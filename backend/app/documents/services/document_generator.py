@@ -22,7 +22,8 @@ def _build_context(employee: Employee, doc_request: DocumentRequest) -> dict:
         "designation": getattr(employee, "designation", "Employee"),
         "department": getattr(employee, "department", "Relevant Department"),
         "date": datetime.now().strftime("%B %d, %Y"),
-        "purpose": doc_request.purpose,
+        "reason": doc_request.reason,
+        "purpose": doc_request.reason,  # Keep purpose for backward compatibility with templates
         "document_type": doc_request.document_type,
     }
 
@@ -38,7 +39,8 @@ def _build_external_context(doc_request: DocumentRequest) -> dict:
         "designation": "N/A",
         "department": "N/A",
         "date": datetime.now().strftime("%B %d, %Y"),
-        "purpose": doc_request.purpose,
+        "reason": doc_request.reason,
+        "purpose": doc_request.reason,  # Keep purpose for backward compatibility
         "document_type": doc_request.document_type,
         "requester_email": email_addr,
     }

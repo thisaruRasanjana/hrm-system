@@ -15,15 +15,19 @@ router = APIRouter(
 @router.post("/", response_model=request_schema.RequestResponse)
 def create_request(
     data: request_schema.CreateRequest,
-    db: Session = Depends(get_db),
-    current_user = Depends(require_permission("document:request"))
+    db: Session = Depends(get_db)
 ):
     return request_service.create_document_request(db, data)
 
+@router.get("/", response_model=list[request_schema.RequestResponse])
+def get_all_requests(
+    db: Session = Depends(get_db)
+):
+    return request_service.get_all_requests(db)
+
 @router.get("/{employee_id}", response_model=list[request_schema.RequestResponse])
-def get_requests(
+def get_employee_requests(
     employee_id: int,
-    db: Session = Depends(get_db),
-    current_user = Depends(require_permission("document:request"))
+    db: Session = Depends(get_db)
 ):
     return request_service.get_employee_requests(db, employee_id)

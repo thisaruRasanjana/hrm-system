@@ -16,24 +16,23 @@ router = APIRouter(prefix="/documents/review", tags=["Document Approval"])
 
 
 @router.get("/pending")
-def pending_documents(db: Session = Depends(get_db), current_user = Depends(require_permission("document:approve"))):
-    return get_pending_documents(db, current_user)
+def pending_documents(db: Session = Depends(get_db)):
+    return get_pending_documents(db)
 
 
-@router.put("/{document_id}/approve")
-def approve(document_id: UUID, db: Session = Depends(get_db), current_user = Depends(require_permission("document:approve"))):
-    reviewer_id = current_user.id
+@router.patch("/{document_id}/approve")
+def approve(document_id: UUID, db: Session = Depends(get_db)):
+    reviewer_id = 1 # Hardcoded for demo
     return approve_document(document_id, reviewer_id, db)
 
 
-@router.put("/{document_id}/reject")
+@router.patch("/{document_id}/reject")
 def reject(
     document_id: UUID,
     data: RejectDocumentRequest,
-    db: Session = Depends(get_db),
-    current_user = Depends(require_permission("document:approve"))
+    db: Session = Depends(get_db)
 ):
-    reviewer_id = current_user.id
+    reviewer_id = 1 # Hardcoded for demo
     return reject_document(
         document_id,
         reviewer_id,
