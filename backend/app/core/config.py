@@ -5,7 +5,7 @@ All environment variable access should go through this module.
 import os
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(override=True)
 
 # ── Database ──────────────────────────────────────────────────────────────────
 DATABASE_URL: str = os.getenv(
@@ -21,7 +21,7 @@ AI_SERVICE_URL: str = os.getenv("AI_SERVICE_URL", "http://127.0.0.1:8001")
 # ── Email (SMTP) ──────────────────────────────────────────────────────────────
 MAIL_USERNAME: str = os.getenv("MAIL_USERNAME", "")
 MAIL_PASSWORD: str = os.getenv("MAIL_PASSWORD", "")
-MAIL_FROM: str = os.getenv("MAIL_FROM", "noreply@hrm.local")
+MAIL_FROM: str = os.getenv("MAIL_FROM", "noreply@hrm.com")
 MAIL_PORT: int = int(os.getenv("MAIL_PORT", "587"))
 MAIL_SERVER: str = os.getenv("MAIL_SERVER", "smtp.gmail.com")
 

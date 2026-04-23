@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Sidebar from "@/components/Sidebar";
 import TopBar from "@/components/Topbar";
@@ -29,6 +29,7 @@ type EvaluatedCandidate = {
   eval_count: number;
   avg_score: number;
   decision: string | null;
+  status: string;
 };
 
 function FilterSelect({
@@ -78,12 +79,13 @@ function DecisionBadge({ decision }: { decision: string | null }) {
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, string> = {
-    "Uploaded":       "bg-gray-100 text-gray-500",
-    "Called":         "bg-blue-100 text-blue-600",
-    "First Round":    "bg-orange-100 text-orange-600",
-    "Second Round":   "bg-purple-100 text-purple-600",
-    "Job Offered":    "bg-green-100 text-green-700",
-    "Rejected":       "bg-red-100 text-red-600",
+    "Uploaded": "bg-gray-100 text-gray-500",
+    "Called": "bg-blue-100 text-blue-600",
+    "Second Round Pending": "bg-yellow-100 text-yellow-600",
+    "First Round": "bg-orange-100 text-orange-600",
+    "Second Round": "bg-purple-100 text-purple-600",
+    "Job Offered": "bg-green-100 text-green-700",
+    "Rejected": "bg-red-100 text-red-600",
   };
   return (
     <span className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap ${map[status] ?? "bg-gray-100 text-gray-500"}`}>
@@ -110,7 +112,9 @@ export default function VacancyDetailPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All Status");
 
-  const [activeTab, setActiveTab] = useState<"all" | "evaluated">("all");
+  const searchParams = useSearchParams();
+  const initialTab = searchParams.get("tab") === "evaluated" ? "evaluated" : "all";
+  const [activeTab, setActiveTab] = useState<"all" | "evaluated">(initialTab);
   const [evaluatedCandidates, setEvaluatedCandidates] = useState<EvaluatedCandidate[]>([]);
   const [evaluatedLoading, setEvaluatedLoading] = useState(false);
 
@@ -153,8 +157,19 @@ export default function VacancyDetailPage() {
       });
   }, [activeTab, vacancyId]);
 
+  // Statuses that mean the candidate is in or past an interview round
+  const EVALUATED_STATUSES = new Set([
+    "First Round",
+    "Second Round Pending",
+    "Second Round",
+    "Job Offered",
+    "Rejected",
+  ]);
+
   const sorted = candidates
     .filter((c) => {
+      // Exclude candidates that have been moved to an interview round
+      if (EVALUATED_STATUSES.has(c.status)) return false;
       const matchesSearch =
         search === "" || c.full_name.toLowerCase().includes(search.toLowerCase());
       const matchesStatus =
@@ -209,11 +224,10 @@ export default function VacancyDetailPage() {
               {vacancy?.status === "Active" && (
                 <button
                   onClick={copyShareLink}
-                  className={`flex items-center gap-2 border px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                    linkCopied
+                  className={`flex items-center gap-2 border px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${linkCopied
                       ? "border-green-400 text-green-600 bg-green-50"
                       : "border-gray-200 text-gray-600 hover:border-orange-300 hover:text-orange-500 hover:bg-orange-50"
-                  }`}
+                    }`}
                 >
                   {linkCopied ? (
                     <>
@@ -258,11 +272,10 @@ export default function VacancyDetailPage() {
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className={`px-5 py-2 rounded-lg text-sm font-medium transition ${
-                  activeTab === tab
+                className={`px-5 py-2 rounded-lg text-sm font-medium transition ${activeTab === tab
                     ? "bg-white text-gray-800 shadow-sm"
                     : "text-gray-500 hover:text-gray-700"
-                }`}
+                  }`}
               >
                 {tab === "all" ? "All Candidates" : "Evaluated"}
               </button>
@@ -389,12 +402,22 @@ export default function VacancyDetailPage() {
                           <DecisionBadge decision={c.decision} />
                         </td>
                         <td className="px-6 py-4 text-sm text-center">
-                          <Link
-                            href={`/recruitment/${vacancyId}/candidates/${c.candidate_id}/final-decision`}
-                            className="text-orange-500 hover:text-orange-600 font-medium transition-colors"
-                          >
-                            Final Decision →
-                          </Link>
+                          <div className="flex items-center justify-center gap-4">
+                            {c.status === "Second Round" && (
+                              <Link
+                                href={`/recruitment/${vacancyId}/candidates/${c.candidate_id}/evaluate?role=head`}
+                                className="text-blue-500 hover:text-blue-600 font-medium transition-colors"
+                              >
+                                Evaluate
+                              </Link>
+                            )}
+                            <Link
+                              href={`/recruitment/${vacancyId}/candidates/${c.candidate_id}/final-decision?from=evaluated`}
+                              className="text-orange-500 hover:text-orange-600 font-medium transition-colors"
+                            >
+                              Final Decision
+                            </Link>
+                          </div>
                         </td>
                       </tr>
                     ))

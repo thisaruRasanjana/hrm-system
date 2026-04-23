@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Sidebar from "@/components/Sidebar";
 import TopBar from "@/components/Topbar";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 
 type Candidate = {
   id: number;
@@ -35,6 +36,7 @@ function ordinal(n: number) {
 export default function EvaluateInterviewPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const vacancyId = params.id as string;
   const candidateId = params.candidateId as string;
 
@@ -44,9 +46,7 @@ export default function EvaluateInterviewPage() {
   const [saving, setSaving] = useState(false);
   const [roundNumber, setRoundNumber] = useState(1);
 
-  // TODO: Replace with identity from Auth context once auth module is implemented
-  const [evaluatorName, setEvaluatorName] = useState("");
-
+  const { name: evaluatorName, setName: setEvaluatorName } = useCurrentUser();
   const [ratings, setRatings] = useState({
     technical_skills: 0,
     problem_solving: 0,
@@ -55,29 +55,39 @@ export default function EvaluateInterviewPage() {
     attitude: 0
   });
   const [comments, setComments] = useState("");
-  const [needsRound, setNeedsRound] = useState(false);
+
+  const isPanelHead = searchParams.get("role") === "head";
 
   useEffect(() => {
+    let resolvedCandidate: any = null;
+
     Promise.all([
       fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/recruitment/candidates/${candidateId}`).then(r => r.json()),
-      fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/recruitment/vacancies/${vacancyId}`).then(r => r.json())
+      fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/recruitment/vacancies/${vacancyId}`).then(r => r.json()),
     ])
     .then(([candData, vacData]) => {
+      resolvedCandidate = candData;
       setCandidate(candData);
       setVacancy(vacData);
       // Fetch existing evaluations to determine the round number
       return fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/recruitment/applications/${candData.application_id}/evaluations`);
     })
     .then(r => r.json())
-    .then((evals: any[]) => {
-      // Determine current round: all panel members for a given phase share the
-      // same round_number. Round increments only when the panel head decides
-      // "Proceed to Next Round" as a final decision.
-      const maxRound =
-        Array.isArray(evals) && evals.length > 0
+    .then(async (evals: any[]) => {
+      // Determine current round based definitively on the candidate's status.
+      // This prevents the round number from falsely incrementing.
+      let currentRound = 1;
+      if (resolvedCandidate?.status === "Second Round") {
+        currentRound = 2;
+      } else if (resolvedCandidate?.status === "Job Offered" || resolvedCandidate?.status === "Rejected") {
+        // If the process is already over, default to the max existing round
+        const maxRound = Array.isArray(evals) && evals.length > 0
           ? Math.max(...evals.map((e: any) => e.round_number))
-          : 0;
-      setRoundNumber(maxRound > 0 ? maxRound : 1);
+          : 1;
+        currentRound = maxRound > 0 ? maxRound : 1;
+      }
+      
+      setRoundNumber(currentRound);
       setLoading(false);
     })
     .catch(err => {
@@ -120,7 +130,7 @@ export default function EvaluateInterviewPage() {
           ...ratings,
           round_number: roundNumber,
           comments,
-          needs_another_round: needsRound,
+          needs_another_round: false,
           evaluator_name: evaluatorName.trim() || "Anonymous",
         })
       });
@@ -251,7 +261,7 @@ export default function EvaluateInterviewPage() {
               </div>
 
               <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
-                <h3 className="text-sm font-bold text-gray-800 mb-3">Evaluator Name</h3>
+                <h3 className="text-sm font-bold text-gray-800 mb-3">Your Name</h3>
                 <input
                   type="text"
                   value={evaluatorName}
@@ -259,25 +269,7 @@ export default function EvaluateInterviewPage() {
                   placeholder="Your full name"
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-300"
                 />
-                <p className="text-xs text-gray-400 mt-1">Required to prevent duplicate submissions</p>
-              </div>
-
-              <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6 flex items-center justify-between">
-                <span className="text-sm font-medium text-gray-800">Needs another round</span>
-                <button
-                  type="button"
-                  onClick={() => setNeedsRound(!needsRound)}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                    needsRound ? "bg-orange-400" : "bg-gray-200"
-                  }`}
-                >
-                  <span className="sr-only">Enable next round</span>
-                  <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
-                      needsRound ? "translate-x-6" : "translate-x-1"
-                    }`}
-                  />
-                </button>
+                <p className="text-xs text-gray-400 mt-1">Used to identify your evaluation in the panel summary.</p>
               </div>
 
               {/* Actions — anchored to the bottom of the right column */}

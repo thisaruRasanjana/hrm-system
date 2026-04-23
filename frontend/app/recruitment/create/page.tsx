@@ -252,8 +252,8 @@ export default function VacancyCreatePage() {
 
       const vacancy = await vacancyRes.json();
 
-      if (panel.panel_head_id && panel.interview_link) {
-        await fetch(
+      if (panel.panel_head_id) {
+        const panelRes = await fetch(
           `${process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000"}/recruitment/vacancies/${vacancy.id}/panel`,
           {
             method: "POST",
@@ -262,10 +262,15 @@ export default function VacancyCreatePage() {
               panel_head_id: Number(panel.panel_head_id),
               panel_member_1_id: panel.panel_member_1_id ? Number(panel.panel_member_1_id) : null,
               panel_member_2_id: panel.panel_member_2_id ? Number(panel.panel_member_2_id) : null,
-              interview_link: panel.interview_link,
+              interview_link: panel.interview_link || null,
             }),
           }
         );
+        if (!panelRes.ok) {
+          const err = await panelRes.json().catch(() => ({}));
+          setApiError(err.detail || "Vacancy created but panel could not be saved.");
+          return;
+        }
       }
 
       router.push("/recruitment");
