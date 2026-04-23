@@ -34,7 +34,7 @@ export default function ForgotPassword() {
         return;
       }
 
-      localStorage.setItem("reset_email", email);
+      sessionStorage.setItem("reset_email", email);
 
       alert("OTP sent successfully!");
       router.push("/verify-otp");

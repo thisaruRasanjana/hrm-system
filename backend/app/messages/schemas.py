@@ -1,25 +1,30 @@
 from pydantic import BaseModel
+from typing import Optional
 from datetime import datetime
 
+
 class MessageCreate(BaseModel):
-    sender_name: str
-    sender_role: str
+    """Client only sends target_group, subject, content. Sender info comes from JWT."""
     target_group: str
     subject: str
     content: str
+
 
 class MessageUpdate(BaseModel):
     subject: str
     content: str
 
+
 class MessageResponse(BaseModel):
     id: int
-    sender_name: str
-    sender_role: str
-    target_group: str
-    subject: str
+    sender_id: int
+    sender_name: Optional[str] = None
+    subject: Optional[str] = None
     content: str
-    is_deleted: int
+    target_group: Optional[str] = None
+    is_read: bool = False
+    is_deleted: bool = False
+    sender_deleted: bool = False
     created_at: datetime
 
     class Config:

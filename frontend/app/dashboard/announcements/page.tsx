@@ -1,136 +1,177 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, CalendarDays } from "lucide-react";
+import { ChevronRight, Bell, Plus, Pencil, Trash2, X, Check, Search } from "lucide-react";
+import { apiFetch } from "@/lib/api";
+import { useAuth } from "@/context/auth-context";
 
 interface Announcement {
+  id: number;
   title: string;
-  time: string;
-  by: string;
-  description: string;
-  tag: string;
-  tagColor: string;
-  priority: "high priority" | "medium priority" | "low priority";
+  content: string;
+  created_at: string;
 }
-
-const announcements: Announcement[] = [
-  {
-    title: "Company Holiday - February 14, 2026",
-    time: "2 days ago",
-    by: "HR Department",
-    description: "Please note that the office will be closed on February 14th in observance of Valentine's Day. Regular operations will resume on February 15th.",
-    tag: "Holiday",
-    tagColor: "bg-purple-100 text-purple-700",
-    priority: "high priority",
-  },
-  {
-    title: "New Health Benefits Package Announced",
-    time: "1 week ago",
-    by: "Benefits Team",
-    description: "We're excited to announce enhanced health benefits including dental and vision coverage. Enrollment begins March 1st. Visit the HR portal for details.",
-    tag: "Benefits",
-    tagColor: "bg-green-100 text-green-700",
-    priority: "medium priority",
-  },
-  {
-    title: "Q1 Performance Review Schedule",
-    time: "1 week ago",
-    by: "Management Team",
-    description: "Q1 performance reviews will be conducted throughout March. Your manager will reach out to schedule your review meeting.",
-    tag: "Review",
-    tagColor: "bg-blue-100 text-blue-700",
-    priority: "medium priority",
-  },
-  {
-    title: "Office Renovation Notice",
-    time: "2 weeks ago",
-    by: "Facilities Team",
-    description: "The 3rd floor office space will undergo renovation from Feb 20 - Mar 5. Affected teams will be temporarily relocated to Floor 2.",
-    tag: "Facilities",
-    tagColor: "bg-yellow-100 text-yellow-700",
-    priority: "low priority",
-  },
-  {
-    title: "New HR Policy Update",
-    time: "3 weeks ago",
-    by: "HR Department",
-    description: "Remote work policy has been updated. Maximum 3 remote days per week starting March 1st. Please review the updated policy document in the portal.",
-    tag: "Policy",
-    tagColor: "bg-orange-100 text-orange-700",
-    priority: "medium priority",
-  },
-];
-
-const priorityColor: Record<string, string> = {
-  "high priority":   "bg-red-100 text-red-600",
-  "medium priority": "bg-orange-100 text-orange-600",
-  "low priority":    "bg-gray-100 text-gray-500",
-};
 
 export default function AnnouncementsPage() {
   const router = useRouter();
+  const { user } = useAuth();
+  const canManage = user?.permissions?.includes("widget.announcements.manage") ?? false;
+
+  const [items, setItems] = useState<Announcement[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editItem, setEditItem] = useState<Announcement | null>(null);
+  const [formTitle, setFormTitle] = useState("");
+  const [formContent, setFormContent] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const res = await apiFetch("/announcements");
+      if (res.ok) setItems(await res.json());
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const filtered = items.filter((a) =>
+    a.title.toLowerCase().includes(search.toLowerCase()) ||
+    a.content.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const openCreate = () => { setEditItem(null); setFormTitle(""); setFormContent(""); setModalOpen(true); };
+  const openEdit = (a: Announcement) => { setEditItem(a); setFormTitle(a.title); setFormContent(a.content); setModalOpen(true); };
+  const handleDelete = async (id: number) => {
+    if (!confirm("Delete this announcement?")) return;
+    await apiFetch(`/announcements/${id}`, { method: "DELETE" });
+    load();
+  };
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      if (editItem) {
+        await apiFetch(`/announcements/${editItem.id}`, { method: "PUT", body: JSON.stringify({ title: formTitle, content: formContent }) });
+      } else {
+        await apiFetch("/announcements", { method: "POST", body: JSON.stringify({ title: formTitle, content: formContent }) });
+      }
+      setModalOpen(false);
+      load();
+    } finally { setSaving(false); }
+  };
+
+  const fmtDate = (d: string) =>
+    new Date(d).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 
   return (
     <div className="flex flex-col gap-6">
-
-      {/* Back */}
-      <button
-        onClick={() => router.push("/dashboard")}
-        className="flex items-center gap-1 text-sm text-[#F2924E] hover:underline w-fit"
-      >
-        <ChevronLeft size={16} /> Back to Dashboard
-      </button>
+      {/* Breadcrumb */}
+      <nav className="flex items-center gap-1.5 text-sm text-gray-500">
+        <button onClick={() => router.push("/dashboard")} className="hover:text-[#F2924E] transition">Dashboard</button>
+        <ChevronRight size={14} />
+        <span className="text-gray-800 font-medium">Announcements</span>
+      </nav>
 
       {/* Header */}
-      <div className="flex items-start justify-between">
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900">All Announcements</h1>
-          <p className="text-sm text-gray-500 mt-1">Stay updated with the latest company news and updates</p>
+          <h1 className="text-2xl font-semibold text-gray-900 flex items-center gap-2">
+            <Bell size={22} className="text-[#F2924E]" /> Announcements
+          </h1>
+          <p className="text-sm text-gray-500 mt-1">Company-wide announcements visible to all employees</p>
         </div>
-        <span className="border border-[#F2924E] text-[#F2924E] text-sm font-semibold px-3 py-1.5 rounded-lg">
-          {announcements.length} Total
-        </span>
+        {canManage && (
+          <button onClick={openCreate} className="flex items-center gap-2 bg-[#F2924E] hover:bg-orange-500 text-white text-sm font-medium px-5 py-2.5 rounded-xl transition shadow-sm">
+            <Plus size={16} /> New Announcement
+          </button>
+        )}
+      </div>
+
+      {/* Search */}
+      <div className="relative w-full max-w-sm">
+        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+        <input
+          value={search} onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search announcements…"
+          className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#F2924E]/30"
+        />
       </div>
 
       {/* List */}
-      <div className="flex flex-col gap-0">
-        {announcements.map((a, i) => (
-          <div
-            key={i}
-            className="bg-white border border-gray-200 rounded-2xl p-6 mb-3"
-          >
-            {/* Title + tags */}
-            <div className="flex items-start justify-between gap-4">
-              <h3 className="text-base font-semibold text-gray-900">{a.title}</h3>
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${a.tagColor}`}>
-                  {a.tag}
-                </span>
-                <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${priorityColor[a.priority]}`}>
-                  {a.priority}
-                </span>
+      <div className="space-y-4">
+        {loading ? (
+          Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="bg-white border border-gray-200 rounded-2xl p-6 animate-pulse h-24" />
+          ))
+        ) : filtered.length === 0 ? (
+          <div className="bg-white border border-gray-200 rounded-2xl p-12 text-center">
+            <Bell size={32} className="text-gray-200 mx-auto mb-3" />
+            <p className="text-gray-500 font-medium">No announcements found</p>
+            {canManage && <p className="text-sm text-gray-400 mt-1">Click &quot;New Announcement&quot; to create one</p>}
+          </div>
+        ) : (
+          filtered.map((a) => (
+            <div key={a.id} className="bg-white border border-gray-200 rounded-2xl p-6 hover:shadow-sm transition">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1">
+                  <h3 className="text-base font-semibold text-gray-900 mb-1">{a.title}</h3>
+                  <p className="text-sm text-gray-600 leading-relaxed">{a.content}</p>
+                  <p className="text-xs text-gray-400 mt-3">{fmtDate(a.created_at)}</p>
+                </div>
+                {canManage && (
+                  <div className="flex gap-2 flex-shrink-0">
+                    <button onClick={() => openEdit(a)} className="p-2 text-gray-400 hover:text-blue-500 border border-gray-200 rounded-lg transition">
+                      <Pencil size={14} />
+                    </button>
+                    <button onClick={() => handleDelete(a.id)} className="p-2 text-gray-400 hover:text-red-500 border border-gray-200 rounded-lg transition">
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
-
-            {/* Meta */}
-            <div className="flex items-center gap-2 mt-2 text-xs text-gray-400">
-              <CalendarDays size={12} />
-              <span>{a.time}</span>
-              <span>•</span>
-              <span>By {a.by}</span>
-            </div>
-
-            {/* Body */}
-            <p className="text-sm text-gray-600 mt-3 leading-relaxed">{a.description}</p>
-
-            {/* Read More */}
-            <button className="text-sm text-[#F2924E] font-medium mt-3 hover:underline">
-              Read More →
-            </button>
-          </div>
-        ))}
+          ))
+        )}
       </div>
 
+      {/* Modal */}
+      {modalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setModalOpen(false)}>
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-[560px] p-8 z-10" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-lg font-semibold text-gray-900">{editItem ? "Edit Announcement" : "New Announcement"}</h2>
+              <button onClick={() => setModalOpen(false)} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+                <input
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#F2924E]/30"
+                  value={formTitle} onChange={(e) => setFormTitle(e.target.value)} placeholder="Announcement title"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Content</label>
+                <textarea
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#F2924E]/30 resize-none"
+                  rows={5} value={formContent} onChange={(e) => setFormContent(e.target.value)} placeholder="Write your message…"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <button onClick={() => setModalOpen(false)} className="text-sm font-medium text-gray-600 px-4 py-2">Cancel</button>
+              <button onClick={handleSave} disabled={saving || !formTitle.trim()} className="flex items-center gap-1.5 bg-[#F2924E] hover:bg-orange-500 disabled:opacity-50 text-white text-sm font-medium px-6 py-2.5 rounded-xl transition">
+                <Check size={14} /> {saving ? "Saving…" : "Save"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,85 +1,261 @@
 "use client";
 
-import { CalendarDays } from "lucide-react";
-import { useState } from "react";
+import { CalendarDays, ChevronLeft, ChevronRight, Plus, Pencil, X, Check, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { apiFetch } from "@/lib/api";
 
-const MONTH = "February 2026";
+interface Holiday { id: number; name: string; date: string; is_mercantile: boolean }
+interface Event   { id: number; title: string; event_date: string }
+interface Props   { permissions: string[] }
+
 const DAYS_OF_WEEK = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+const MONTH_NAMES  = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
-// Feb 2026: starts Sunday (0), 28 days
-const START_DAY = 0;
-const TOTAL_DAYS = 28;
-const TODAY = 5;    // Feb 5 highlighted in solid orange
+export default function CalendarWidget({ permissions }: Props) {
+  const canEdit = permissions.includes("widget.calendar.edit");
 
-// Holidays — light orange background with tooltip
-const HOLIDAYS: Record<number, string> = {
-  9: "Poya day",
-  10: "Staff Wellbeing Day",
-  15: "Company Holiday",
-};
+  const now = new Date();
+  const [year,  setYear]  = useState(now.getFullYear());
+  const [month, setMonth] = useState(now.getMonth());
 
-function buildCalendar(): (number | null)[] {
-  const cells: (number | null)[] = [];
-  for (let i = 0; i < START_DAY; i++) cells.push(null);
-  for (let d = 1; d <= TOTAL_DAYS; d++) cells.push(d);
-  return cells;
-}
+  const [holidays, setHolidays] = useState<Holiday[]>([]);
+  const [events,   setEvents]   = useState<Event[]>([]);
+  const [tooltip,  setTooltip]  = useState<{ day: number; labels: string[] } | null>(null);
 
-export default function CalendarWidget() {
-  const [hoveredHoliday, setHoveredHoliday] = useState<number | null>(null);
-  const cells = buildCalendar();
+  // Add Holiday modal
+  const [modalOpen, setModalOpen] = useState(false);
+  const [hName, setHName] = useState(""); const [hDate, setHDate] = useState(""); const [hMerc, setHMerc] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  // Edit holiday modal
+  const [editHoliday, setEditHoliday] = useState<Holiday | null>(null);
+
+  const load = async () => {
+    try {
+      const [hr, er] = await Promise.all([apiFetch("/holidays"), apiFetch("/events/my-calendar")]);
+      if (hr.ok) setHolidays(await hr.json());
+      if (er.ok) setEvents(await er.json());
+    } catch (e) { console.error(e); }
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const prevMonth = () => { if (month === 0) { setMonth(11); setYear(y => y - 1); } else setMonth(m => m - 1); };
+  const nextMonth = () => { if (month === 11) { setMonth(0); setYear(y => y + 1); } else setMonth(m => m + 1); };
+  const goToday   = () => { setYear(now.getFullYear()); setMonth(now.getMonth()); };
+
+  const firstDay    = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const cells: (number | null)[] = [...Array(firstDay).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)];
+
+  const pad    = (n: number) => String(n).padStart(2, "0");
+  const prefix = `${year}-${pad(month + 1)}`;
+
+  const holidayMap = new Map<number, Holiday[]>();
+  holidays.forEach((h) => {
+    if (h.date.startsWith(prefix)) {
+      const d = parseInt(h.date.split("-")[2]);
+      holidayMap.set(d, [...(holidayMap.get(d) ?? []), h]);
+    }
+  });
+
+  const eventMap = new Map<number, string[]>();
+  events.forEach((ev) => {
+    const dt = new Date(ev.event_date + (ev.event_date.endsWith("Z") ? "" : "Z"));
+    if (dt.getFullYear() === year && dt.getMonth() === month) {
+      const d = dt.getDate();
+      eventMap.set(d, [...(eventMap.get(d) ?? []), ev.title]);
+    }
+  });
+
+  const today       = now.getDate();
+  const isThisMonth = now.getFullYear() === year && now.getMonth() === month;
+
+  const openAddHoliday = () => { setHName(""); setHDate(`${year}-${pad(month + 1)}-01`); setHMerc(true); setEditHoliday(null); setModalOpen(true); };
+
+  const handleSaveHoliday = async () => {
+    setSaving(true);
+    try {
+      if (editHoliday) {
+        // Delete and re-add (simple approach — no PUT in schema yet)
+        await apiFetch(`/holidays/${editHoliday.id}`, { method: "DELETE" });
+        const res = await apiFetch("/holidays", { method: "POST", body: JSON.stringify({ name: hName, date: hDate, is_mercantile: hMerc }) });
+        if (!res.ok) {
+          const err = await res.json();
+          alert(`Failed to save: ${err.detail || "Unknown error"}`);
+        }
+      } else {
+        const res = await apiFetch("/holidays", { method: "POST", body: JSON.stringify({ name: hName, date: hDate, is_mercantile: hMerc }) });
+        if (!res.ok) {
+          const err = await res.json();
+          alert(`Failed to save: ${err.detail || "Unknown error"}`);
+        }
+      }
+      setModalOpen(false); setEditHoliday(null);
+      load();
+    } finally { setSaving(false); }
+  };
+
+  const handleDeleteHoliday = async (id: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm("Remove this holiday?")) return;
+    await apiFetch(`/holidays/${id}`, { method: "DELETE" });
+    load();
+  };
 
   return (
-    <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm h-full w-full flex flex-col">
-      {/* Header */}
-      <div className="flex justify-between items-center mb-3">
-        <h3 className="text-base font-semibold text-gray-800">{MONTH}</h3>
-        <CalendarDays size={16} className="text-gray-400" />
-      </div>
-
-      {/* Day-of-week headers */}
-      <div className="grid grid-cols-7 mb-1">
-        {DAYS_OF_WEEK.map((d) => (
-          <div key={d} className="text-center text-[10px] font-medium text-gray-400 py-1">
-            {d}
+    <>
+      <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm h-full w-full flex flex-col">
+        {/* Header */}
+        <div className="flex justify-between items-center mb-3">
+          <div className="flex items-center gap-2">
+            <button onClick={prevMonth} className="text-gray-400 hover:text-gray-600 transition"><ChevronLeft size={14} /></button>
+            <button onClick={goToday} className="text-sm font-semibold text-gray-800 hover:text-[#F2924E] transition">
+              {MONTH_NAMES[month]} {year}
+            </button>
+            <button onClick={nextMonth} className="text-gray-400 hover:text-gray-600 transition"><ChevronRight size={14} /></button>
           </div>
-        ))}
-      </div>
+          <div className="flex items-center gap-2">
+            {canEdit && (
+              <button onClick={openAddHoliday} className="w-6 h-6 rounded-full bg-[#F2924E] text-white flex items-center justify-center hover:bg-orange-500 transition" title="Add holiday">
+                <Plus size={12} />
+              </button>
+            )}
+            <CalendarDays size={16} className="text-gray-400" />
+          </div>
+        </div>
 
-      {/* Calendar grid */}
-      <div className="grid grid-cols-7 gap-y-0.5 flex-1">
-        {cells.map((day, i) => {
-          const isToday = day === TODAY;
-          const isHoliday = day !== null && HOLIDAYS[day] !== undefined;
+        {/* Weekday headers */}
+        <div className="grid grid-cols-7 mb-1">
+          {DAYS_OF_WEEK.map((d) => (
+            <div key={d} className="text-center text-[10px] font-medium text-gray-400 py-1">{d}</div>
+          ))}
+        </div>
 
-          return (
-            <div key={i} className="relative flex items-center justify-center">
+        {/* Calendar grid */}
+        <div className="grid grid-cols-7 gap-y-0.5 flex-1">
+          {cells.map((day, i) => {
+            const isToday   = isThisMonth && day === today;
+            const isHoliday = day !== null && holidayMap.has(day);
+            const hasEvent  = day !== null && eventMap.has(day);
+            const holidays_ = day !== null ? (holidayMap.get(day) ?? []) : [];
+
+            return (
               <div
-                onMouseEnter={() => isHoliday && day !== null ? setHoveredHoliday(day) : undefined}
-                onMouseLeave={() => setHoveredHoliday(null)}
-                className={`
-                  w-7 h-7 flex items-center justify-center rounded-full text-xs font-medium transition-colors
-                  ${isToday ? "bg-[#F2924E] text-white" : ""}
-                  ${isHoliday && !isToday ? "bg-orange-100 text-orange-700 cursor-default" : ""}
-                  ${!isToday && !isHoliday && day ? "text-gray-700 hover:bg-gray-50 cursor-default" : ""}
-                `}
+                key={i}
+                className="relative flex flex-col items-center justify-center"
+                onMouseEnter={() => {
+                  if (!day) return;
+                  const labels = [...(holidayMap.get(day)?.map(h => `🏖 ${h.name}`) ?? []), ...(eventMap.get(day)?.map(e => `📅 ${e}`) ?? [])];
+                  if (labels.length) setTooltip({ day, labels });
+                }}
+                onMouseLeave={() => setTooltip(null)}
               >
-                {day ?? ""}
-              </div>
-
-              {/* Holiday tooltip */}
-              {isHoliday && hoveredHoliday === day && (
-                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-10 pointer-events-none">
-                  <div className="bg-gray-900 text-white text-[10px] px-2 py-1 rounded-lg whitespace-nowrap shadow-lg">
-                    {HOLIDAYS[day!]}
-                  </div>
-                  <div className="w-2 h-2 bg-gray-900 rotate-45 mx-auto -mt-1" />
+                <div className={`
+                  w-7 h-7 flex items-center justify-center rounded-full text-xs font-medium transition
+                  ${isToday ? "bg-[#F2924E] text-white" : ""}
+                  ${isHoliday && !isToday ? "bg-orange-100 text-orange-700" : ""}
+                  ${hasEvent && !isHoliday && !isToday ? "bg-blue-50 text-blue-700" : ""}
+                  ${!isToday && !isHoliday && !hasEvent && day ? "text-gray-700 hover:bg-gray-50" : ""}
+                `}>
+                  {day ?? ""}
                 </div>
-              )}
-            </div>
-          );
-        })}
+
+                {day !== null && (isHoliday || hasEvent) && (
+                  <div className="flex gap-0.5 mt-0.5">
+                    {isHoliday && <span className="w-1 h-1 rounded-full bg-orange-400" />}
+                    {hasEvent   && <span className="w-1 h-1 rounded-full bg-blue-400" />}
+                  </div>
+                )}
+
+                {/* Tooltip */}
+                {tooltip?.day === day && (
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-10 pointer-events-auto">
+                    <div className="bg-gray-900 text-white text-[10px] px-3 py-2 rounded-xl shadow-lg min-w-[120px] max-w-[200px] space-y-2">
+                      <div className="space-y-1">
+                        {tooltip.labels.map((l, j) => <div key={j}>{l}</div>)}
+                      </div>
+                      
+                      {canEdit && holidays_.length > 0 && (
+                        <div className="pt-2 border-t border-white/20 flex flex-col gap-1.5">
+                          {holidays_.map(h => (
+                            <div key={h.id} className="flex items-center justify-between gap-3 bg-white/10 p-1.5 rounded-lg group/h">
+                              <span className="truncate">{h.name}</span>
+                              <div className="flex items-center gap-1 opacity-60 group-hover/h:opacity-100 transition">
+                                <button 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setHName(h.name); setHDate(h.date); setHMerc(h.is_mercantile);
+                                    setEditHoliday(h); setModalOpen(true);
+                                  }}
+                                  className="p-1 hover:text-[#F2924E] transition"
+                                >
+                                  <Pencil size={10} />
+                                </button>
+                                <button 
+                                  onClick={(e) => handleDeleteHoliday(h.id, e)}
+                                  className="p-1 hover:text-red-400 transition"
+                                >
+                                  <Trash2 size={10} />
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div className="w-2 h-2 bg-gray-900 rotate-45 mx-auto -mt-1" />
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Legend */}
+        <div className="flex items-center gap-3 mt-2 pt-2 border-t border-gray-100">
+          <div className="flex items-center gap-1 text-[10px] text-gray-400">
+            <span className="w-2 h-2 rounded-full bg-orange-400 inline-block" /> Holiday
+          </div>
+          <div className="flex items-center gap-1 text-[10px] text-gray-400">
+            <span className="w-2 h-2 rounded-full bg-blue-400 inline-block" /> Event
+          </div>
+          {canEdit && <span className="text-[10px] text-[#F2924E] ml-auto">+ Add holiday</span>}
+        </div>
       </div>
-    </div>
+
+      {/* Add/Edit Holiday Modal */}
+      {modalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setModalOpen(false)}>
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-[420px] p-8 z-10" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-lg font-semibold text-gray-900">{editHoliday ? "Edit Holiday" : "Add Holiday"}</h2>
+              <button onClick={() => setModalOpen(false)} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Holiday Name</label>
+                <input className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#F2924E]/40" value={hName} onChange={(e) => setHName(e.target.value)} placeholder="e.g. Sinhala New Year" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                <input type="date" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#F2924E]/40" value={hDate} onChange={(e) => setHDate(e.target.value)} />
+              </div>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={hMerc} onChange={(e) => setHMerc(e.target.checked)} className="accent-[#F2924E]" />
+                <span className="text-sm text-gray-700">Mercantile holiday</span>
+              </label>
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <button onClick={() => setModalOpen(false)} className="text-sm font-medium text-gray-600 px-4 py-2">Cancel</button>
+              <button onClick={handleSaveHoliday} disabled={saving || !hName.trim() || !hDate} className="flex items-center gap-1.5 bg-[#F2924E] hover:bg-orange-500 disabled:opacity-50 text-white text-sm font-medium px-5 py-2 rounded-lg transition">
+                <Check size={14} /> {saving ? "Saving…" : "Save"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

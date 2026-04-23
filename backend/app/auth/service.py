@@ -1,12 +1,18 @@
 from sqlalchemy.orm import Session
-
 from app.auth.models import User
 from app.core.security import verify_password
 from app.core.jwt import create_access_token, create_refresh_token
 
 
-def authenticate_user(db: Session, email: str, password: str):
-    user = db.query(User).filter(User.email == email).first()
+def authenticate_user(db: Session, identifier: str, password: str):
+    """
+    Authenticate via email OR username.
+    'identifier' can be either the email address or the username.
+    """
+    # Try email first, then username
+    user = db.query(User).filter(User.email.ilike(identifier)).first()
+    if not user:
+        user = db.query(User).filter(User.username == identifier).first()
 
     if not user:
         return None

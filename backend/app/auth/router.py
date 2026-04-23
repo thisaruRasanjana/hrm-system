@@ -28,27 +28,35 @@ otp_storage = {}
 @router.post("/login")
 def login(data: LoginRequest, response: Response, db: Session = Depends(get_db)):
 
-    user = db.query(User).filter(User.email.ilike(data.email)).first()
-    token = authenticate_user(db, data.email, data.password)
+    # Accept email OR username in the identifier field
+    identifier = data.email or data.username
+    if not identifier:
+        raise HTTPException(status_code=400, detail="Email or username required")
 
-    if not token or not user:
+    token = authenticate_user(db, identifier, data.password)
+    if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid email or password"
+            detail="Invalid credentials"
         )
-        
-    if user.two_factor_enabled:
+
+    # Re-fetch user to check 2FA
+    user = (
+        db.query(User).filter(User.email.ilike(identifier)).first()
+        or db.query(User).filter(User.username == identifier).first()
+    )
+
+    if user and user.two_factor_enabled:
         temp_token = create_access_token({"sub": str(user.id), "type": "2fa"})
         return {"require_2fa": True, "temp_token": temp_token}
 
     refresh_token = token["refresh_token"]
 
-    # Store refresh token as HttpOnly cookie
     response.set_cookie(
         key="refresh_token",
         value=refresh_token,
         httponly=True,
-        secure=False,   # change to True in production (HTTPS)
+        secure=False,
         samesite="lax",
         max_age=60 * 60 * 24 * 7,
         path="/"
@@ -237,7 +245,23 @@ def get_current_user(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    return user
+    # Resolve permissions from role_id → Role.permissions
+    permissions = []
+    if user.role_id:
+        from app.roles.models import Role
+        role_obj = db.query(Role).filter(Role.id == user.role_id).first()
+        if role_obj:
+            permissions = role_obj.permissions or []
+
+    # Build response dict with permissions injected
+    user_dict = {
+        c.name: getattr(user, c.name)
+        for c in user.__table__.columns
+        if c.name != "hashed_password" and c.name != "refresh_token" and c.name != "totp_secret"
+    }
+    user_dict["permissions"] = permissions
+    return user_dict
+
 
 # ---------------- SETTINGS & PROFILE ----------------
 
@@ -259,10 +283,12 @@ def update_profile(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    # Update profile fields
+    # Update ONLY these fields: first_name, last_name, phone_number, address, date_of_birth, emergency_contact_number
+    # The schema already filters these, but we enforce it here by using data.model_dump
     update_data = data.model_dump(exclude_unset=True)
     for key, value in update_data.items():
-        setattr(user, key, value)
+        if key in ["first_name", "last_name", "phone_number", "address", "date_of_birth", "emergency_contact_number"]:
+            setattr(user, key, value)
     
     db.commit()
     db.refresh(user)
@@ -325,6 +351,9 @@ def change_password(
     from app.core.security import verify_password
     if not verify_password(data.current_password, user.hashed_password):
         raise HTTPException(status_code=400, detail="Incorrect current password")
+
+    if len(data.new_password) < 8:
+        raise HTTPException(status_code=400, detail="New password must be at least 8 characters")
 
     user.hashed_password = hash_password(data.new_password)
     db.commit()
