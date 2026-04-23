@@ -37,7 +37,7 @@ interface Employee {
   employee_id: string;
   first_name: string;
   last_name: string;
-  department: string;
+  department_rel?: { id: number; name: string };
   designation: string;
   status: string;
 }
@@ -69,7 +69,7 @@ export default function EmployeeManagementPage() {
       searchQuery === "" ||
       fullName.includes(searchQuery.toLowerCase()) ||
       emp.employee_id.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesDept = department === "all" || emp.department === department;
+    const matchesDept = department === "all" || emp.department_rel?.name === department;
     const matchesRole = role === "all" || emp.designation === role;
     return matchesSearch && matchesDept && matchesRole;
   });
@@ -139,12 +139,12 @@ export default function EmployeeManagementPage() {
                   <tr key={emp.id} className="hover:bg-gray-50/50 transition-colors">
                     <td className="px-6 py-5 text-sm font-bold text-[#212B36]">{emp.employee_id}</td>
                     <td className="px-6 py-5 text-sm text-gray-600">{emp.first_name} {emp.last_name}</td>
-                    <td className="px-6 py-5 text-sm text-gray-500">{emp.department}</td>
+                    <td className="px-6 py-5 text-sm text-gray-500">{emp.department_rel?.name || "N/A"}</td>
                     <td className="px-6 py-5 text-sm text-gray-500">{emp.designation}</td>
                     <td className="px-6 py-5">
                       <span className={`inline-block px-4 py-1 rounded-full text-[11px] font-bold tracking-wider ${emp.status === "active"
-                          ? "bg-[#F9A15D] text-white"
-                          : "bg-[#919EAB] text-white"
+                        ? "bg-[#F9A15D] text-white"
+                        : "bg-[#919EAB] text-white"
                         }`}>
                         {emp.status}
                       </span>

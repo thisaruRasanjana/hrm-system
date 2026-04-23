@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.orm import Session
 from typing import List
 from app.database.database import SessionLocal
@@ -27,8 +27,12 @@ def read_employee(employee_id: int, db: Session = Depends(get_db)):
     return db_employee
 
 @router.post("/", response_model=schemas.EmployeeOut, status_code=status.HTTP_201_CREATED)
-def create_employee(employee: schemas.EmployeeCreate, db: Session = Depends(get_db)):
-    return service.create_employee(db=db, employee=employee)
+def create_employee(
+    employee: schemas.EmployeeCreate, 
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db)
+):
+    return service.create_employee(db, employee, background_tasks)
 
 @router.put("/{employee_id}", response_model=schemas.EmployeeOut)
 def update_employee(employee_id: int, employee_update: schemas.EmployeeUpdate, db: Session = Depends(get_db)):

@@ -3,9 +3,11 @@ from datetime import date
 from typing import Optional
 from enum import Enum
 
+
 class EmployeeStatus(str, Enum):
     active = "active"
     inactive = "inactive"
+
 
 class EmployeeBase(BaseModel):
     employee_id: str
@@ -14,7 +16,7 @@ class EmployeeBase(BaseModel):
     email: EmailStr
     phone: str
     address: Optional[str] = None
-    department: str
+    department_id: Optional[int] = None   # Optional in base for out/legacy
     designation: str
     joined_date: Optional[date] = None
     status: EmployeeStatus = EmployeeStatus.active
@@ -31,8 +33,11 @@ class EmployeeBase(BaseModel):
     bank_account_no: Optional[str] = None
     bank_branch: Optional[str] = None
 
+
 class EmployeeCreate(EmployeeBase):
-    pass
+    department_id: int  # Required for creation
+    role_id: int  # Required for unified creation
+
 
 class EmployeeUpdate(BaseModel):
     employee_id: Optional[str] = None
@@ -41,7 +46,7 @@ class EmployeeUpdate(BaseModel):
     email: Optional[EmailStr] = None
     phone: Optional[str] = None
     address: Optional[str] = None
-    department: Optional[str] = None
+    department_id: Optional[int] = None
     designation: Optional[str] = None
     joined_date: Optional[date] = None
     status: Optional[EmployeeStatus] = None
@@ -58,15 +63,23 @@ class EmployeeUpdate(BaseModel):
     bank_account_no: Optional[str] = None
     bank_branch: Optional[str] = None
 
+
 class RoleInfo(BaseModel):
     id: int
+    role_name: str
+    model_config = {"from_attributes": True}
+
+
+class DepartmentInfo(BaseModel):
+    id: int
     name: str
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
+
 
 class EmployeeOut(EmployeeBase):
     id: int
+    user_id: Optional[int] = None
     role: Optional[RoleInfo] = None
+    department_rel: Optional[DepartmentInfo] = None
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
