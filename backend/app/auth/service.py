@@ -1,43 +1,39 @@
+"""
+auth/service.py — Authentication logic only.
+Role/Permission management has moved to roles/service.py.
+"""
+from typing import Optional, List
 from sqlalchemy.orm import Session
-from app.auth import models, schemas
-from app.employees.models import Employee
+from app.auth.models import User
 
-def get_roles(db: Session):
-    return db.query(models.Role).all()
 
-def get_permissions(db: Session):
-    return db.query(models.Permission).all()
+def get_user_by_username(db: Session, username: str) -> Optional[User]:
+    return db.query(User).filter(User.username == username).first()
 
-def create_role(db: Session, role_in: schemas.RoleCreate):
-    permissions = db.query(models.Permission).filter(models.Permission.name.in_(role_in.permissions)).all()
-    db_role = models.Role(
-        name=role_in.name,
-        description=role_in.description,
-        is_system=role_in.is_system,
-        permissions=permissions
-    )
-    db.add(db_role)
-    db.commit()
-    db.refresh(db_role)
-    return db_role
 
-def assign_role(db: Session, assignment: schemas.RoleAssignment):
-    employee = db.query(Employee).filter(Employee.id == assignment.employee_id).first()
-    if not employee:
-        return None
-    employee.role_id = assignment.role_id
-    db.commit()
-    db.refresh(employee)
-    return employee
+def get_user_by_id(db: Session, user_id: int) -> Optional[User]:
+    return db.query(User).filter(User.id == user_id).first()
 
-def update_role(db: Session, role_id: int, role_update: schemas.RoleUpdate):
-    db_role = db.query(models.Role).filter(models.Role.id == role_id).first()
-    if not db_role:
+
+def authenticate_user(db: Session, username: str, password: str) -> Optional[User]:
+    user = get_user_by_username(db, username)
+    if not user:
         return None
     
-    # Resolve permission names to permission objects
-    permissions = db.query(models.Permission).filter(models.Permission.name.in_(role_update.permissions)).all()
-    db_role.permissions = permissions
-    db.commit()
-    db.refresh(db_role)
-    return db_role
+    from app.auth.utils import verify_password
+    if not verify_password(password, user.hashed_password):
+        return None
+    
+    return user
+
+
+def get_user_permissions(db: Session, user_id: int) -> List[str]:
+    """Return a flat list of permission_name strings for a user (across all roles)."""
+    user = get_user_by_id(db, user_id)
+    if not user:
+        return []
+    perms: set[str] = set()
+    for role in user.roles:
+        for perm in role.permissions:
+            perms.add(perm.permission_name)
+    return list(perms)

@@ -33,7 +33,8 @@ interface Employee {
   email: string;
   phone: string;
   address: string;
-  department: string;
+  department_id?: number;
+  department_rel?: { id: number; name: string };
   designation: string;
   joined_date: string;
   status: string;
@@ -41,7 +42,7 @@ interface Employee {
   gender?: string;
   marital_status?: string;
   nationality?: string;
-  role?: { id: number; name: string };
+  role?: { id: number; role_name: string };
   // New Fields
   emergency_contact_name?: string;
   emergency_contact_phone?: string;
@@ -53,7 +54,7 @@ interface Employee {
   bank_branch?: string;
 }
 
-export default function EmployeeViewPage() {
+function EmployeeViewContent() {
   const searchParams = useSearchParams();
   const id = searchParams.get("id");
   const [employee, setEmployee] = useState<Employee | null>(null);
@@ -82,7 +83,7 @@ export default function EmployeeViewPage() {
     name: `${employee.first_name} ${employee.last_name}`,
     email: employee.email,
     phone: employee.phone,
-    department: employee.department,
+    department: employee.department_rel?.name || "No Department",
     designation: employee.designation,
     status: employee.status.toUpperCase(),
     personal: {
@@ -103,7 +104,7 @@ export default function EmployeeViewPage() {
       branch: employee.bank_branch || "Not Provided",
     },
     work: {
-      department: employee.department,
+      department: employee.department_rel?.name || "No Department",
       designation: employee.designation,
       joinedDate: employee.joined_date || "Not Provided",
       employmentType: "Full-Time",
@@ -115,7 +116,7 @@ export default function EmployeeViewPage() {
       skills: employee.skills ? employee.skills.split(",").map(s => s.trim()) : []
     },
     role: {
-      systemRole: employee.role?.name || "No Role Assigned",
+      systemRole: employee.role?.role_name || "No Role Assigned",
       permissions: [],
       lastLogin: "Never",
     },
@@ -320,5 +321,13 @@ export default function EmployeeViewPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function EmployeeViewPage() {
+  return (
+    <React.Suspense fallback={<div className="p-10 text-center text-gray-400">Loading details...</div>}>
+      <EmployeeViewContent />
+    </React.Suspense>
   );
 }

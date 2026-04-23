@@ -3,9 +3,11 @@ from sqlalchemy.orm import relationship
 from app.database.base import Base
 import enum
 
+
 class EmployeeStatus(enum.Enum):
     active = "active"
     inactive = "inactive"
+
 
 class Employee(Base):
     __tablename__ = "employees"
@@ -17,7 +19,11 @@ class Employee(Base):
     email = Column(String(255), unique=True, index=True, nullable=False)
     phone = Column(String(20), nullable=False)
     address = Column(Text, nullable=True)
-    department = Column(String(100), nullable=False)
+
+    # Department is now a FK to departments table
+    department_id = Column(Integer, ForeignKey("departments.id"), nullable=False)
+    department_rel = relationship("Department", back_populates="employees")
+
     designation = Column(String(100), nullable=False)
     joined_date = Column(Date, nullable=True)
     status = Column(Enum(EmployeeStatus), default=EmployeeStatus.active)
@@ -42,5 +48,6 @@ class Employee(Base):
     bank_account_no = Column(String(50), nullable=True)
     bank_branch = Column(String(100), nullable=True)
 
-    role_id = Column(Integer, ForeignKey("roles.id"), nullable=True)
-    role = relationship("Role", back_populates="employees")
+    # User FK — roles live on User, not Employee
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, unique=True)
+    user = relationship("User", back_populates="employee")

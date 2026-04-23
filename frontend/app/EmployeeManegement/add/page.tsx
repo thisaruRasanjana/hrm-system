@@ -6,7 +6,10 @@ import { useRouter } from "next/navigation";
 import { IconArrowLeft } from "@/components/icons";
 import { api } from "@/lib/api";
 
-const DEPARTMENTS = ["Human Resources", "Engineering", "Design", "Marketing", "Sales", "Finance", "Operations"];
+interface Department {
+  id: number;
+  name: string;
+}
 
 export default function EmployeeAddPage() {
   const router = useRouter();
@@ -34,22 +37,50 @@ export default function EmployeeAddPage() {
     bankAccountNo: "",
     bankBranch: "",
     work: {
-      department: "Human Resources",
+      departmentId: null as number | null,
+      roleId: null as number | null,
       designation: "",
       joinedDate: "",
       status: "active",
     },
   });
 
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [roles, setRoles] = useState<{ id: number; role_name: string }[]>([]);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Initialize with a random ID
   useEffect(() => {
-    setFormData(prev => ({
-      ...prev,
-      employeeId: `EMP-${Math.floor(1000 + Math.random() * 9000)}`
-    }));
+    const init = async () => {
+      setFormData(prev => ({
+        ...prev,
+        employeeId: `EMP-${Math.floor(1000 + Math.random() * 9000)}`
+      }));
+
+      try {
+        const [deps, roleData] = await Promise.all([
+          api.get<Department[]>("/departments/"),
+          api.get<{ id: number; role_name: string }[]>("/roles/")
+        ]);
+
+        setDepartments(deps);
+        setRoles(roleData);
+
+        setFormData(prev => ({
+          ...prev,
+          work: {
+            ...prev.work,
+            departmentId: deps.length > 0 ? deps[0].id : null,
+            roleId: roleData.length > 0 ? roleData[0].id : null
+          }
+        }));
+      } catch (err) {
+        console.error("Failed to fetch initial data", err);
+      }
+    };
+    init();
   }, []);
 
   const inputClass = "w-full px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-[14px] text-gray-900 placeholder-gray-400 outline-none focus:ring-2 focus:ring-[#EE7F22]/20 focus:border-[#EE7F22] transition-colors duration-200 mt-1.5";
@@ -58,8 +89,8 @@ export default function EmployeeAddPage() {
   const selectClass = `${inputClass} appearance-none cursor-pointer`;
 
   const handleSave = async (redirectToRole: boolean = false) => {
-    if (!formData.employeeId || !formData.firstName || !formData.lastName || !formData.email || !formData.phone || !formData.work.designation) {
-      setError("Please fill in all required fields (marked with *).");
+    if (!formData.employeeId || !formData.firstName || !formData.lastName || !formData.email || !formData.phone || !formData.work.designation || !formData.work.departmentId || !formData.work.roleId) {
+      setError("Please fill in all required fields (marked with *), including Department and Role.");
       return;
     }
     setError(null);
@@ -72,7 +103,8 @@ export default function EmployeeAddPage() {
         email: formData.email,
         phone: formData.phone,
         address: formData.address || null,
-        department: formData.work.department,
+        department_id: formData.work.departmentId,
+        role_id: formData.work.roleId,
         designation: formData.work.designation,
         joined_date: formData.work.joinedDate || null,
         status: formData.work.status,
@@ -131,12 +163,12 @@ export default function EmployeeAddPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
             <div>
               <label className={labelClass}>EMPLOYEE ID {requiredAsterisk}</label>
-              <input 
-                type="text" 
-                placeholder="EMP-0001" 
-                value={formData.employeeId} 
-                onChange={(e) => setFormData({...formData, employeeId: e.target.value})} 
-                className={inputClass} 
+              <input
+                type="text"
+                placeholder="EMP-0001"
+                value={formData.employeeId}
+                onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
+                className={inputClass}
               />
             </div>
             <div className="hidden md:block"></div>
@@ -145,28 +177,28 @@ export default function EmployeeAddPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
             <div>
               <label className={labelClass}>FIRST NAME {requiredAsterisk}</label>
-              <input type="text" placeholder="Enter first name" value={formData.firstName} onChange={(e) => setFormData({...formData, firstName: e.target.value})} className={inputClass} />
+              <input type="text" placeholder="Enter first name" value={formData.firstName} onChange={(e) => setFormData({ ...formData, firstName: e.target.value })} className={inputClass} />
             </div>
             <div>
               <label className={labelClass}>LAST NAME {requiredAsterisk}</label>
-              <input type="text" placeholder="Enter last name" value={formData.lastName} onChange={(e) => setFormData({...formData, lastName: e.target.value})} className={inputClass} />
+              <input type="text" placeholder="Enter last name" value={formData.lastName} onChange={(e) => setFormData({ ...formData, lastName: e.target.value })} className={inputClass} />
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
             <div>
               <label className={labelClass}>EMAIL {requiredAsterisk}</label>
-              <input type="email" placeholder="example@company.com" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} className={inputClass} />
+              <input type="email" placeholder="example@company.com" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} className={inputClass} />
             </div>
             <div>
               <label className={labelClass}>PHONE {requiredAsterisk}</label>
-              <input type="tel" placeholder="+94 77 000 0000" value={formData.phone} onChange={(e) => setFormData({...formData, phone: e.target.value})} className={inputClass} />
+              <input type="tel" placeholder="+94 77 000 0000" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} className={inputClass} />
             </div>
           </div>
 
           <div>
             <label className={labelClass}>ADDRESS</label>
-            <input type="text" placeholder="Enter full address" value={formData.address} onChange={(e) => setFormData({...formData, address: e.target.value})} className={inputClass} />
+            <input type="text" placeholder="Enter full address" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} className={inputClass} />
           </div>
         </div>
 
@@ -177,11 +209,11 @@ export default function EmployeeAddPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
             <div>
               <label className={labelClass}>DATE OF BIRTH</label>
-              <input type="date" value={formData.dateOfBirth} onChange={(e) => setFormData({...formData, dateOfBirth: e.target.value})} className={`${inputClass} [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-60`} />
+              <input type="date" value={formData.dateOfBirth} onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })} className={`${inputClass} [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-60`} />
             </div>
             <div>
               <label className={labelClass}>GENDER</label>
-              <select value={formData.gender} onChange={(e) => setFormData({...formData, gender: e.target.value})} className={selectClass}>
+              <select value={formData.gender} onChange={(e) => setFormData({ ...formData, gender: e.target.value })} className={selectClass}>
                 <option value="">Select gender</option>
                 <option value="Male">Male</option>
                 <option value="Female">Female</option>
@@ -194,7 +226,7 @@ export default function EmployeeAddPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
             <div>
               <label className={labelClass}>MARITAL STATUS</label>
-              <select value={formData.maritalStatus} onChange={(e) => setFormData({...formData, maritalStatus: e.target.value})} className={selectClass}>
+              <select value={formData.maritalStatus} onChange={(e) => setFormData({ ...formData, maritalStatus: e.target.value })} className={selectClass}>
                 <option value="">Select status</option>
                 <option value="Single">Single</option>
                 <option value="Married">Married</option>
@@ -204,7 +236,7 @@ export default function EmployeeAddPage() {
             </div>
             <div>
               <label className={labelClass}>NATIONALITY</label>
-              <input type="text" placeholder="e.g., Sri Lankan" value={formData.nationality} onChange={(e) => setFormData({...formData, nationality: e.target.value})} className={inputClass} />
+              <input type="text" placeholder="e.g., Sri Lankan" value={formData.nationality} onChange={(e) => setFormData({ ...formData, nationality: e.target.value })} className={inputClass} />
             </div>
           </div>
         </div>
@@ -215,16 +247,16 @@ export default function EmployeeAddPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
             <div>
               <label className={labelClass}>CONTACT NAME</label>
-              <input type="text" placeholder="Enter contact name" value={formData.emergencyContactName} onChange={(e) => setFormData({...formData, emergencyContactName: e.target.value})} className={inputClass} />
+              <input type="text" placeholder="Enter contact name" value={formData.emergencyContactName} onChange={(e) => setFormData({ ...formData, emergencyContactName: e.target.value })} className={inputClass} />
             </div>
             <div>
               <label className={labelClass}>RELATIONSHIP</label>
-              <input type="text" placeholder="e.g., Spouse, Parent" value={formData.emergencyContactRelation} onChange={(e) => setFormData({...formData, emergencyContactRelation: e.target.value})} className={inputClass} />
+              <input type="text" placeholder="e.g., Spouse, Parent" value={formData.emergencyContactRelation} onChange={(e) => setFormData({ ...formData, emergencyContactRelation: e.target.value })} className={inputClass} />
             </div>
           </div>
           <div>
             <label className={labelClass}>PHONE NUMBER</label>
-            <input type="tel" placeholder="+94 77 000 0000" value={formData.emergencyContactPhone} onChange={(e) => setFormData({...formData, emergencyContactPhone: e.target.value})} className={inputClass} />
+            <input type="tel" placeholder="+94 77 000 0000" value={formData.emergencyContactPhone} onChange={(e) => setFormData({ ...formData, emergencyContactPhone: e.target.value })} className={inputClass} />
           </div>
         </div>
 
@@ -234,19 +266,19 @@ export default function EmployeeAddPage() {
           <div className="space-y-6">
             <div>
               <label className={labelClass}>SKILLS</label>
-              <textarea 
-                placeholder="List skills separated by commas (e.g., JavaScript, React, SQL)" 
-                value={formData.skills} 
-                onChange={(e) => setFormData({...formData, skills: e.target.value})} 
+              <textarea
+                placeholder="List skills separated by commas (e.g., JavaScript, React, SQL)"
+                value={formData.skills}
+                onChange={(e) => setFormData({ ...formData, skills: e.target.value })}
                 className={`${inputClass} min-h-[100px] py-3 resize-none`}
               />
             </div>
             <div>
               <label className={labelClass}>QUALIFICATIONS</label>
-              <textarea 
-                placeholder="Enter educational qualifications and certifications" 
-                value={formData.qualifications} 
-                onChange={(e) => setFormData({...formData, qualifications: e.target.value})} 
+              <textarea
+                placeholder="Enter educational qualifications and certifications"
+                value={formData.qualifications}
+                onChange={(e) => setFormData({ ...formData, qualifications: e.target.value })}
                 className={`${inputClass} min-h-[100px] py-3 resize-none`}
               />
             </div>
@@ -259,16 +291,16 @@ export default function EmployeeAddPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
             <div>
               <label className={labelClass}>BANK NAME</label>
-              <input type="text" placeholder="Enter bank name" value={formData.bankName} onChange={(e) => setFormData({...formData, bankName: e.target.value})} className={inputClass} />
+              <input type="text" placeholder="Enter bank name" value={formData.bankName} onChange={(e) => setFormData({ ...formData, bankName: e.target.value })} className={inputClass} />
             </div>
             <div>
               <label className={labelClass}>ACCOUNT NUMBER</label>
-              <input type="text" placeholder="Enter account number" value={formData.bankAccountNo} onChange={(e) => setFormData({...formData, bankAccountNo: e.target.value})} className={inputClass} />
+              <input type="text" placeholder="Enter account number" value={formData.bankAccountNo} onChange={(e) => setFormData({ ...formData, bankAccountNo: e.target.value })} className={inputClass} />
             </div>
           </div>
           <div>
             <label className={labelClass}>BRANCH NAME</label>
-            <input type="text" placeholder="Enter branch name" value={formData.bankBranch} onChange={(e) => setFormData({...formData, bankBranch: e.target.value})} className={inputClass} />
+            <input type="text" placeholder="Enter branch name" value={formData.bankBranch} onChange={(e) => setFormData({ ...formData, bankBranch: e.target.value })} className={inputClass} />
           </div>
         </div>
 
@@ -279,26 +311,38 @@ export default function EmployeeAddPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
             <div>
               <label className={labelClass}>DEPARTMENT {requiredAsterisk}</label>
-              <select value={formData.work.department} onChange={(e) => setFormData({...formData, work: {...formData.work, department: e.target.value}})} className={selectClass}>
-                {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+              <select value={formData.work.departmentId || ""} onChange={(e) => setFormData({ ...formData, work: { ...formData.work, departmentId: parseInt(e.target.value) } })} className={selectClass}>
+                <option value="" disabled>Select Department</option>
+                {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
               </select>
             </div>
             <div>
-              <label className={labelClass}>DESIGNATION {requiredAsterisk}</label>
-              <input type="text" placeholder="e.g., Senior Software Engineer" value={formData.work.designation} onChange={(e) => setFormData({...formData, work: {...formData.work, designation: e.target.value}})} className={inputClass} />
+              <label className={labelClass}>INITIAL ROLE {requiredAsterisk}</label>
+              <select value={formData.work.roleId || ""} onChange={(e) => setFormData({ ...formData, work: { ...formData.work, roleId: parseInt(e.target.value) } })} className={selectClass}>
+                <option value="" disabled>Select Role</option>
+                {roles.map(r => <option key={r.id} value={r.id}>{r.role_name}</option>)}
+              </select>
             </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div>
+              <label className={labelClass}>DESIGNATION {requiredAsterisk}</label>
+              <input type="text" placeholder="e.g., Senior Software Engineer" value={formData.work.designation} onChange={(e) => setFormData({ ...formData, work: { ...formData.work, designation: e.target.value } })} className={inputClass} />
+            </div>
+            <div className="hidden md:block"></div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className={labelClass}>JOINED DATE</label>
-              <input type="date" value={formData.work.joinedDate} onChange={(e) => setFormData({...formData, work: {...formData.work, joinedDate: e.target.value}})} className={`${inputClass} [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-60`} />
+              <input type="date" value={formData.work.joinedDate} onChange={(e) => setFormData({ ...formData, work: { ...formData.work, joinedDate: e.target.value } })} className={`${inputClass} [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-60`} />
             </div>
             <div>
               <label className={labelClass}>EMPLOYMENT STATUS</label>
               <div className="flex bg-gray-100 p-1.5 rounded-lg w-fit mt-1.5">
-                <button type="button" onClick={() => setFormData({...formData, work: {...formData.work, status: "active"}})} className={`px-8 py-2 rounded-md text-[14px] font-medium transition-all duration-200 ${formData.work.status === "active" ? "bg-[#EE7F22] text-white shadow-sm" : "text-gray-500 hover:text-gray-700 hover:bg-gray-200/50"}`}>Active</button>
-                <button type="button" onClick={() => setFormData({...formData, work: {...formData.work, status: "inactive"}})} className={`px-8 py-2 rounded-md text-[14px] font-medium transition-all duration-200 ${formData.work.status === "inactive" ? "bg-white text-gray-800 shadow-sm" : "text-gray-500 hover:text-gray-700 hover:bg-gray-200/50"}`}>Inactive</button>
+                <button type="button" onClick={() => setFormData({ ...formData, work: { ...formData.work, status: "active" } })} className={`px-8 py-2 rounded-md text-[14px] font-medium transition-all duration-200 ${formData.work.status === "active" ? "bg-[#EE7F22] text-white shadow-sm" : "text-gray-500 hover:text-gray-700 hover:bg-gray-200/50"}`}>Active</button>
+                <button type="button" onClick={() => setFormData({ ...formData, work: { ...formData.work, status: "inactive" } })} className={`px-8 py-2 rounded-md text-[14px] font-medium transition-all duration-200 ${formData.work.status === "inactive" ? "bg-white text-gray-800 shadow-sm" : "text-gray-500 hover:text-gray-700 hover:bg-gray-200/50"}`}>Inactive</button>
               </div>
             </div>
           </div>

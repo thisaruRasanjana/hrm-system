@@ -1,34 +1,36 @@
-from pydantic import BaseModel
-from typing import List, Optional
+from pydantic import BaseModel, EmailStr
+from typing import Optional, List
 
-class PermissionBase(BaseModel):
-    name: str
-    description: Optional[str] = None
 
-class PermissionRead(PermissionBase):
+class UserMe(BaseModel):
     id: int
+    username: str
+    email: str
+    roles: List[str]
+    permissions: List[str]
+    features: dict = {}  # For future feature flags
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
-class RoleBase(BaseModel):
-    name: str
-    description: Optional[str] = None
-    is_system: int = 0
 
-class RoleRead(RoleBase):
+class UserOut(BaseModel):
     id: int
-    permissions: List[PermissionRead] = []
+    username: str
+    email: str
+    is_active: bool
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
-class RoleCreate(RoleBase):
-    permissions: List[str] # List of permission names
 
-class RoleUpdate(BaseModel):
-    permissions: List[str] # List of permission names
+class Token(BaseModel):
+    access_token: str
+    token_type: str
 
-class RoleAssignment(BaseModel):
-    employee_id: int
-    role_id: int
+
+class TokenData(BaseModel):
+    user_id: Optional[int] = None
+
+
+class UserPermissionsOut(BaseModel):
+    user_id: int
+    permissions: List[str]

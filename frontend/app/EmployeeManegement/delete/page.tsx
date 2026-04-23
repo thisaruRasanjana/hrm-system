@@ -15,7 +15,7 @@ interface Employee {
   designation: string;
 }
 
-export default function DeleteEmployeePage() {
+function DeleteEmployeeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const id = searchParams.get("id");
@@ -123,5 +123,13 @@ export default function DeleteEmployeePage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function DeleteEmployeePage() {
+  return (
+    <React.Suspense fallback={<div className="p-10 text-center text-gray-400">Loading delete details...</div>}>
+      <DeleteEmployeeContent />
+    </React.Suspense>
   );
 }
