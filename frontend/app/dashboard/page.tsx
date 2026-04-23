@@ -1,13 +1,21 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Pencil } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
 import DashboardGrid from "@/components/dashboard/DashboardGrid";
 
 export default function DashboardPage() {
+  const router = useRouter();
   const { user, loading } = useAuth();
   const [editMode, setEditMode] = useState(false);
+
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push("/login");
+    }
+  }, [user, loading, router]);
 
   if (loading) {
     return (

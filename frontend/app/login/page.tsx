@@ -3,10 +3,11 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import AuthLayout from "@/components/auth/AuthLayout";
-import { setToken } from "@/lib/api";
+import { useAuth } from "@/context/auth-context";
 
 export default function LoginPage() {
   const router = useRouter();
+  const { login } = useAuth();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -53,8 +54,8 @@ export default function LoginPage() {
         return;
       }
 
-      // Store in sessionStorage (per-tab isolated — different tabs = different users)
-      setToken(data.access_token);
+      // Use AuthContext login to set token and fetch user data immediately
+      await login(data.access_token);
 
       router.push("/dashboard");
 
@@ -86,8 +87,8 @@ export default function LoginPage() {
         return;
       }
 
-      // Store in sessionStorage (per-tab isolated)
-      setToken(data.access_token);
+      // Use AuthContext login for 2FA as well
+      await login(data.access_token);
 
       router.push("/dashboard");
     } catch (error) {

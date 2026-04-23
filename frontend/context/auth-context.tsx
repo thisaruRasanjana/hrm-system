@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
-import { apiFetch, getToken, removeToken } from "@/lib/api";
+import { apiFetch, getToken, removeToken, setToken } from "@/lib/api";
 
 export interface User {
   id: number;
@@ -23,6 +23,7 @@ export interface User {
 interface AuthContextType {
   user: User | null;
   loading: boolean;
+  login: (token: string) => Promise<void>;
   logout: () => void;
   refreshUser: () => Promise<void>;
   hasPermission: (perm: string) => boolean;
@@ -47,7 +48,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!res.ok) throw new Error("Unauthorized");
       const data = await res.json();
       setUser({ ...data, permissions: data.permissions ?? [] });
-    } catch {
+    } catch (e) {
+      console.error("Auth error:", e);
       removeToken();   // per-tab only — does NOT affect other tabs
       setUser(null);
     } finally {
@@ -57,12 +59,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => { fetchUser(); }, [fetchUser]);
 
+  const login = async (token: string) => {
+    setLoading(true);
+    setUser(null);
+    setToken(token);
+    await fetchUser();
+  };
+
   const logout = () => {
     removeToken();   // removes only this tab's token
     window.location.href = "/login";
   };
 
-  const refreshUser = async () => { await fetchUser(); };
+  const refreshUser = async () => { 
+    setLoading(true);
+    await fetchUser(); 
+  };
 
   const hasPermission = (perm: string): boolean =>
     user?.permissions?.includes(perm) ?? false;
@@ -71,7 +83,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     perms.some((p) => user?.permissions?.includes(p));
 
   return (
-    <AuthContext.Provider value={{ user, loading, logout, refreshUser, hasPermission, hasAnyPermission }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, refreshUser, hasPermission, hasAnyPermission }}>
       {children}
     </AuthContext.Provider>
   );
