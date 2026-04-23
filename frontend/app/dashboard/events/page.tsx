@@ -1,179 +1,262 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, CalendarDays, Clock, MapPin, Users } from "lucide-react";
+import { ChevronRight, CalendarDays, Plus, Pencil, Trash2, X, Check, Search, CalendarPlus, MapPin, Clock } from "lucide-react";
+import { apiFetch } from "@/lib/api";
+import { useAuth } from "@/context/auth-context";
 
 interface Event {
+  id: number;
   title: string;
-  type: string;
-  typeColor: string;
-  description: string;
-  date: string;
-  time: string;
-  location: string;
-  attendees: number;
+  description?: string;
+  event_date: string;
+  location?: string;
+  created_by: number;
+  is_saved?: boolean;
 }
 
-const events: Event[] = [
-  {
-    title: "Team Meeting",
-    type: "Meeting",
-    typeColor: "bg-blue-100 text-blue-700",
-    description: "Weekly team sync to discuss project progress and upcoming milestones.",
-    date: "February 15, 2026",
-    time: "10:00 AM - 11:00 AM",
-    location: "Conference Room A",
-    attendees: 8,
-  },
-  {
-    title: "Project Deadline",
-    type: "Deadline",
-    typeColor: "bg-red-100 text-red-600",
-    description: "Final submission deadline for Q1 project deliverables.",
-    date: "February 20, 2026",
-    time: "5:00 PM",
-    location: "Remote",
-    attendees: 12,
-  },
-  {
-    title: "Training Session",
-    type: "Training",
-    typeColor: "bg-green-100 text-green-700",
-    description: "New employee orientation and company culture introduction training.",
-    date: "February 25, 2026",
-    time: "2:00 PM - 4:00 PM",
-    location: "Training Room B",
-    attendees: 20,
-  },
-  {
-    title: "Q1 Review Presentation",
-    type: "Meeting",
-    typeColor: "bg-blue-100 text-blue-700",
-    description: "Quarterly business review and performance metrics presentation to leadership.",
-    date: "March 1, 2026",
-    time: "9:00 AM - 11:00 AM",
-    location: "Board Room",
-    attendees: 15,
-  },
-  {
-    title: "Benefits Enrollment Deadline",
-    type: "Deadline",
-    typeColor: "bg-red-100 text-red-600",
-    description: "Last day to enroll or make changes to your health and benefits package.",
-    date: "March 5, 2026",
-    time: "5:00 PM",
-    location: "HR Portal (Online)",
-    attendees: 0,
-  },
-  {
-    title: "Company Town Hall",
-    type: "Event",
-    typeColor: "bg-purple-100 text-purple-700",
-    description: "Monthly all-hands meeting with leadership updates and Q&A session.",
-    date: "March 10, 2026",
-    time: "3:00 PM - 4:30 PM",
-    location: "Main Auditorium",
-    attendees: 150,
-  },
-  {
-    title: "Team Building Day",
-    type: "Event",
-    typeColor: "bg-purple-100 text-purple-700",
-    description: "Annual team outing and activities to strengthen team bonds.",
-    date: "March 15, 2026",
-    time: "10:00 AM - 5:00 PM",
-    location: "City Park",
-    attendees: 45,
-  },
-  {
-    title: "Performance Review Due",
-    type: "Deadline",
-    typeColor: "bg-red-100 text-red-600",
-    description: "All self-assessment forms must be submitted to HR by end of day.",
-    date: "March 20, 2026",
-    time: "6:00 PM",
-    location: "HR Portal (Online)",
-    attendees: 0,
-  },
-];
+type Filter = "upcoming" | "all";
 
-export default function UpcomingEventsPage() {
+export default function EventsPage() {
   const router = useRouter();
+  const { user } = useAuth();
+  const canManage = user?.permissions?.includes("widget.upcoming_events.manage") ?? false;
+
+  const [events, setEvents] = useState<Event[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState<Filter>("upcoming");
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editItem, setEditItem] = useState<Event | null>(null);
+  const [formTitle, setFormTitle] = useState("");
+  const [formDesc, setFormDesc] = useState("");
+  const [formDate, setFormDate] = useState("");
+  const [formLocation, setFormLocation] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const endpoint = filter === "upcoming" ? "/events" : "/events/all";
+      const res = await apiFetch(endpoint);
+      if (res.ok) setEvents(await res.json());
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => { load(); }, [filter]);
+
+  const filtered = events.filter((e) =>
+    e.title.toLowerCase().includes(search.toLowerCase()) ||
+    (e.location ?? "").toLowerCase().includes(search.toLowerCase())
+  );
+
+  const openCreate = () => { setEditItem(null); setFormTitle(""); setFormDesc(""); setFormDate(""); setFormLocation(""); setModalOpen(true); };
+  const openEdit = (ev: Event) => { setEditItem(ev); setFormTitle(ev.title); setFormDesc(ev.description || ""); setFormDate(ev.event_date.slice(0, 16)); setFormLocation(ev.location || ""); setModalOpen(true); };
+  const handleDelete = async (id: number) => {
+    if (!confirm("Delete this event?")) return;
+    await apiFetch(`/events/${id}`, { method: "DELETE" });
+    load();
+  };
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const body = { title: formTitle, description: formDesc, event_date: new Date(formDate).toISOString(), location: formLocation };
+      if (editItem) {
+        await apiFetch(`/events/${editItem.id}`, { method: "PUT", body: JSON.stringify(body) });
+      } else {
+        await apiFetch("/events", { method: "POST", body: JSON.stringify(body) });
+      }
+      setModalOpen(false); load();
+    } finally { setSaving(false); }
+  };
+
+  const toggleCalendar = async (ev: Event) => {
+    try {
+      const method = ev.is_saved ? "DELETE" : "POST";
+      const res = await apiFetch(`/events/${ev.id}/save`, { method });
+      if (res.ok) {
+        setEvents(prev => prev.map(e => e.id === ev.id ? { ...e, is_saved: !ev.is_saved } : e));
+      }
+    } catch (e) { console.error(e); }
+  };
+
+  const fmtDate = (d: string) => new Date(d + (d.endsWith("Z") ? "" : "Z"))
+    .toLocaleDateString("en-US", { weekday: "short", year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+
+  const daysUntil = (d: string) => {
+    const eventDate = new Date(d + (d.endsWith("Z") ? "" : "Z"));
+    const today = new Date();
+    
+    const eDate = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate());
+    const tDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    
+    const diffTime = eDate.getTime() - tDate.getTime();
+    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays <= 0) return "Today";
+    if (diffDays === 1) return "Tomorrow";
+    return `In ${diffDays} days`;
+  };
 
   return (
     <div className="flex flex-col gap-6">
-
-      {/* Back */}
-      <button
-        onClick={() => router.push("/dashboard")}
-        className="flex items-center gap-1 text-sm text-[#F2924E] hover:underline w-fit"
-      >
-        <ChevronLeft size={16} /> Back to Dashboard
-      </button>
+      {/* Breadcrumb */}
+      <nav className="flex items-center gap-1.5 text-sm text-gray-500">
+        <button onClick={() => router.push("/dashboard")} className="hover:text-[#F2924E] transition">Dashboard</button>
+        <ChevronRight size={14} />
+        <span className="text-gray-800 font-medium">Events</span>
+      </nav>
 
       {/* Header */}
-      <div className="flex items-start justify-between">
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Upcoming Events</h1>
-          <p className="text-sm text-gray-500 mt-1">Your schedule and important dates at a glance</p>
+          <h1 className="text-2xl font-semibold text-gray-900 flex items-center gap-2">
+            <CalendarDays size={22} className="text-[#F2924E]" /> Upcoming Events
+          </h1>
+          <p className="text-sm text-gray-500 mt-1">Company events, trainings, and important dates</p>
         </div>
-        <span className="border border-[#F2924E] text-[#F2924E] text-sm font-semibold px-3 py-1.5 rounded-lg">
-          {events.length} Events
-        </span>
+        {canManage && (
+          <button onClick={openCreate} className="flex items-center gap-2 bg-[#F2924E] hover:bg-orange-500 text-white text-sm font-medium px-5 py-2.5 rounded-xl transition shadow-sm">
+            <Plus size={16} /> New Event
+          </button>
+        )}
+      </div>
+
+      {/* Toolbar */}
+      <div className="flex items-center gap-3">
+        <div className="relative flex-1 max-w-sm">
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search events…"
+            className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#F2924E]/30" />
+        </div>
+        <div className="flex border border-gray-200 rounded-xl overflow-hidden">
+          {(["upcoming", "all"] as Filter[]).map((f) => (
+            <button key={f} onClick={() => setFilter(f)}
+              className={`px-4 py-2.5 text-sm font-medium transition ${filter === f ? "bg-[#F2924E] text-white" : "text-gray-600 hover:bg-gray-50"}`}>
+              {f === "upcoming" ? "Upcoming" : "All Events"}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Events list */}
-      <div className="flex flex-col gap-3">
-        {events.map((e, i) => (
-          <div key={i} className="bg-white border border-gray-200 rounded-2xl p-6">
-
-            {/* Title + type */}
-            <div className="flex items-center gap-3 mb-2">
-              <h3 className="text-base font-semibold text-gray-900">{e.title}</h3>
-              <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${e.typeColor}`}>
-                {e.type}
-              </span>
-            </div>
-
-            {/* Description */}
-            <p className="text-sm text-gray-500 mb-4 leading-relaxed">{e.description}</p>
-
-            {/* Meta grid */}
-            <div className="grid grid-cols-2 gap-y-2 text-xs text-gray-500">
-              <div className="flex items-center gap-2">
-                <CalendarDays size={13} className="text-gray-400" />
-                <span>{e.date}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Clock size={13} className="text-gray-400" />
-                <span>{e.time}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <MapPin size={13} className="text-gray-400" />
-                <span>{e.location}</span>
-              </div>
-              {e.attendees > 0 && (
-                <div className="flex items-center gap-2">
-                  <Users size={13} className="text-gray-400" />
-                  <span>{e.attendees} attendees</span>
-                </div>
-              )}
-            </div>
-
-            {/* Footer actions */}
-            <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
-              <button className="text-sm text-[#F2924E] font-medium hover:underline">
-                View Details →
-              </button>
-              <button className="text-sm border border-gray-200 text-gray-700 hover:bg-gray-50 px-4 py-1.5 rounded-lg transition font-medium">
-                Add to Calendar
-              </button>
-            </div>
-
+      <div className="space-y-4">
+        {loading ? (
+          Array.from({ length: 3 }).map((_, i) => <div key={i} className="bg-white border border-gray-200 rounded-2xl p-6 animate-pulse h-28" />)
+        ) : filtered.length === 0 ? (
+          <div className="bg-white border border-gray-200 rounded-2xl p-12 text-center">
+            <CalendarDays size={32} className="text-gray-200 mx-auto mb-3" />
+            <p className="text-gray-500 font-medium">No events found</p>
+            {canManage && <p className="text-sm text-gray-400 mt-1">Click &quot;New Event&quot; to create one</p>}
           </div>
-        ))}
+        ) : (
+          filtered.map((ev) => {
+            const isPast = new Date(ev.event_date + (ev.event_date.endsWith("Z") ? "" : "Z")) < new Date();
+            return (
+              <div key={ev.id} className={`bg-white border rounded-2xl p-6 hover:shadow-sm transition ${isPast ? "border-gray-100 opacity-70" : "border-gray-200"}`}>
+                <div className="flex items-start gap-4">
+                  {/* Date badge */}
+                  <div className={`flex-shrink-0 w-14 h-14 rounded-2xl flex flex-col items-center justify-center ${isPast ? "bg-gray-100" : "bg-orange-50"}`}>
+                    <span className={`text-[10px] font-bold uppercase ${isPast ? "text-gray-400" : "text-[#F2924E]"}`}>
+                      {new Date(ev.event_date + (ev.event_date.endsWith("Z") ? "" : "Z")).toLocaleDateString("en", { month: "short" })}
+                    </span>
+                    <span className={`text-xl font-bold leading-none ${isPast ? "text-gray-500" : "text-gray-900"}`}>
+                      {new Date(ev.event_date + (ev.event_date.endsWith("Z") ? "" : "Z")).getDate()}
+                    </span>
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2">
+                      <h3 className="text-base font-semibold text-gray-900">{ev.title}</h3>
+                      <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full flex-shrink-0 ${
+                        isPast ? "bg-gray-100 text-gray-500" : "bg-orange-50 text-[#F2924E]"
+                      }`}>
+                        {daysUntil(ev.event_date)}
+                      </span>
+                    </div>
+                    {ev.description && <p className="text-sm text-gray-600 mt-1">{ev.description}</p>}
+                    <div className="flex items-center gap-4 mt-2">
+                      <span className="flex items-center gap-1 text-xs text-gray-400">
+                        <Clock size={12} /> {fmtDate(ev.event_date)}
+                      </span>
+                      {ev.location && (
+                        <span className="flex items-center gap-1 text-xs text-gray-400">
+                          <MapPin size={12} /> {ev.location}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button 
+                      onClick={() => toggleCalendar(ev)} 
+                      title={ev.is_saved ? "Remove from my Calendar" : "Add to my Dashboard Calendar"}
+                      className={`p-2 border rounded-lg transition ${
+                        ev.is_saved 
+                          ? "bg-orange-50 border-orange-200 text-[#F2924E]" 
+                          : "text-gray-400 hover:text-[#F2924E] border-gray-200"
+                      }`}
+                    >
+                      <CalendarPlus size={14} className={ev.is_saved ? "fill-current" : ""} />
+                    </button>
+                    {canManage && !isPast && (
+                      <>
+                        <button onClick={() => openEdit(ev)} className="p-2 text-gray-400 hover:text-blue-500 border border-gray-200 rounded-lg transition">
+                          <Pencil size={14} />
+                        </button>
+                        <button onClick={() => handleDelete(ev.id)} className="p-2 text-gray-400 hover:text-red-500 border border-gray-200 rounded-lg transition">
+                          <Trash2 size={14} />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        )}
       </div>
 
+      {/* Modal */}
+      {modalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setModalOpen(false)}>
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-[560px] p-8 z-10" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-lg font-semibold text-gray-900">{editItem ? "Edit Event" : "New Event"}</h2>
+              <button onClick={() => setModalOpen(false)} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+                <input className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#F2924E]/30" value={formTitle} onChange={(e) => setFormTitle(e.target.value)} placeholder="Event title" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Date & Time</label>
+                <input type="datetime-local" className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#F2924E]/30" value={formDate} onChange={(e) => setFormDate(e.target.value)} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Location (optional)</label>
+                <input className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#F2924E]/30" value={formLocation} onChange={(e) => setFormLocation(e.target.value)} placeholder="e.g. Main Conference Hall" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Description (optional)</label>
+                <textarea className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#F2924E]/30 resize-none" rows={4} value={formDesc} onChange={(e) => setFormDesc(e.target.value)} placeholder="Event details…" />
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <button onClick={() => setModalOpen(false)} className="text-sm font-medium text-gray-600 px-4 py-2">Cancel</button>
+              <button onClick={handleSave} disabled={saving || !formTitle.trim() || !formDate}
+                className="flex items-center gap-1.5 bg-[#F2924E] hover:bg-orange-500 disabled:opacity-50 text-white text-sm font-medium px-6 py-2.5 rounded-xl transition">
+                <Check size={14} /> {saving ? "Saving…" : "Save"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

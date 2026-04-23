@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import AuthLayout from "@/components/auth/AuthLayout";
+import { setToken } from "@/lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -52,9 +53,8 @@ export default function LoginPage() {
         return;
       }
 
-      // Save access token
-      localStorage.setItem("access_token", data.access_token);
-      document.cookie = `access_token=${data.access_token}; path=/`;
+      // Store in sessionStorage (per-tab isolated — different tabs = different users)
+      setToken(data.access_token);
 
       router.push("/dashboard");
 
@@ -86,9 +86,8 @@ export default function LoginPage() {
         return;
       }
 
-      // Save access token
-      localStorage.setItem("access_token", data.access_token);
-      document.cookie = `access_token=${data.access_token}; path=/`;
+      // Store in sessionStorage (per-tab isolated)
+      setToken(data.access_token);
 
       router.push("/dashboard");
     } catch (error) {
@@ -112,12 +111,12 @@ export default function LoginPage() {
           )}
 
           <label className="block text-[16px] font-medium text-[#364153] mb-2">
-            Email
+            Email or Username
           </label>
 
           <input
-            type="email"
-            placeholder="Enter your email"
+            type="text"
+            placeholder="Enter your email or username"
             className="w-full mb-6 px-4 py-3 border border-gray-300 rounded-lg
             text-[#1E293B] placeholder-[#D1D5DC]
             focus:outline-none focus:ring-2 focus:ring-[#F2924E]"

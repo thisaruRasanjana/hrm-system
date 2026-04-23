@@ -23,7 +23,7 @@ export default function ResetPassword() {
       return;
     }
 
-    const email = localStorage.getItem("reset_email");
+    const email = sessionStorage.getItem("reset_email");
 
     setLoading(true);
 

@@ -1,11 +1,16 @@
 from pydantic import BaseModel, EmailStr
-from typing import Optional
+from typing import Optional, List
 
 
 class UserResponse(BaseModel):
     id: int
     email: str
+    username: Optional[str] = None
     is_active: bool
+    role: str = 'employee'
+    role_id: Optional[int] = None
+    position: Optional[str] = None
+    permissions: List[str] = []        # ← resolved from role_id → Role.permissions
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     employee_id: Optional[str] = None
@@ -27,13 +32,10 @@ class UserResponse(BaseModel):
 class UserProfileUpdate(BaseModel):
     first_name: Optional[str] = None
     last_name: Optional[str] = None
-    employee_id: Optional[str] = None
-    department: Optional[str] = None
     phone_number: Optional[str] = None
     address: Optional[str] = None
     date_of_birth: Optional[str] = None
     emergency_contact_number: Optional[str] = None
-    profile_image_url: Optional[str] = None
 
 
 class UserPasswordUpdate(BaseModel):
@@ -47,9 +49,10 @@ class UserNotificationUpdate(BaseModel):
     quiet_hours_end: str
 
 
-
 class LoginRequest(BaseModel):
-    email: EmailStr
+    """Accepts either email or username in the `email` field, or the dedicated `username` field."""
+    email: Optional[str] = None        # can be email or username
+    username: Optional[str] = None
     password: str
 
 

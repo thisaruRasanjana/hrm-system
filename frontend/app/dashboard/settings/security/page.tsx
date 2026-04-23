@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Lock, Smartphone, Globe } from "lucide-react";
+import { apiFetch } from "@/lib/api";
 
 export default function SecuritySettingsPage() {
   const [passwords, setPasswords] = useState({
@@ -21,10 +22,7 @@ export default function SecuritySettingsPage() {
   useEffect(() => {
     const fetchUser = async () => {
       try {
-        const token = localStorage.getItem("access_token");
-        const res = await fetch("http://127.0.0.1:8000/auth/me", {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        const res = await apiFetch("/auth/me");
         if (res.ok) {
           const data = await res.json();
           setTwoFactorEnabled(data.two_factor_enabled);
@@ -44,13 +42,8 @@ export default function SecuritySettingsPage() {
     setPassMsg("");
 
     try {
-      const token = localStorage.getItem("access_token");
-      const res = await fetch("http://127.0.0.1:8000/auth/security/password", {
+      const res = await apiFetch("/auth/security/password", {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`
-        },
         body: JSON.stringify({
           current_password: passwords.current,
           new_password: passwords.new
@@ -76,10 +69,7 @@ export default function SecuritySettingsPage() {
   const handleEnableClick = async () => {
     try {
       setTfaMsg("");
-      const token = localStorage.getItem("access_token");
-      const res = await fetch("http://127.0.0.1:8000/auth/security/2fa/setup", {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await apiFetch("/auth/security/2fa/setup");
       if (res.ok) {
         const data = await res.json();
         setSetupData(data);
@@ -95,13 +85,8 @@ export default function SecuritySettingsPage() {
   const verifyAndEnable = async () => {
     try {
       setTfaMsg("");
-      const token = localStorage.getItem("access_token");
-      const res = await fetch("http://127.0.0.1:8000/auth/security/2fa/verify", {
+      const res = await apiFetch("/auth/security/2fa/verify", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`
-        },
         body: JSON.stringify({ code: verifyCode })
       });
       if (res.ok) {
@@ -120,11 +105,7 @@ export default function SecuritySettingsPage() {
 
   const handleDisableClick = async () => {
     try {
-      const token = localStorage.getItem("access_token");
-      const res = await fetch("http://127.0.0.1:8000/auth/security/2fa", {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await apiFetch("/auth/security/2fa", { method: "DELETE" });
       if (res.ok) {
         setTwoFactorEnabled(false);
       }

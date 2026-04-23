@@ -10,7 +10,8 @@ const people = [
   { name: "Emily D.", initials: "ED", status: "on_leave"  },
 ];
 
-export default function TeamAvailabilityWidget() {
+interface Props { canManageContent?: boolean; canManageHolidays?: boolean; }
+export default function TeamAvailabilityWidget(_: Props) {
   const router = useRouter();
 
   const available = people.filter((p) => p.status === "available");

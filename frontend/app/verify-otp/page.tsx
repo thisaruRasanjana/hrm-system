@@ -13,7 +13,7 @@ export default function VerifyOTP() {
   const handleSubmit = async (e: any) => {
     e.preventDefault();
 
-    const email = localStorage.getItem("reset_email");
+    const email = sessionStorage.getItem("reset_email");
 
     if (!email) {
       alert("Email missing. Please restart password reset.");
