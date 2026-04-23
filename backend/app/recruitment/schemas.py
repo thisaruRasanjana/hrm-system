@@ -98,9 +98,10 @@ class UploadSummary(BaseModel):
 
 
 class VacancyUpdate(BaseModel):
-    description:  Optional[str] = None
-    requirements: Optional[str] = None
-    status:       Optional[str] = None
+    description:      Optional[str] = None
+    requirements:     Optional[str] = None
+    required_skills:  Optional[str] = None
+    status:           Optional[str] = None
 
 
 class ApplicationUpdate(BaseModel):

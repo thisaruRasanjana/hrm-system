@@ -3,7 +3,7 @@ from sqlalchemy import func
 from . import models, schemas
 from fastapi import UploadFile, HTTPException, BackgroundTasks
 from app.core.storage import save_file_locally
-from app.core.email import send_scheduling_email
+from app.core.email import send_scheduling_email, send_job_offer_email, send_rejection_email
 from app.core.ai_client import screen_candidate as ai_screen
 from app.database.database import SessionLocal
 from datetime import datetime
@@ -14,6 +14,7 @@ from datetime import datetime
 STATUS_UPLOADED = "Uploaded"
 STATUS_CALLED = "Called"
 STATUS_FIRST_ROUND = "First Round"
+STATUS_SECOND_ROUND_PENDING = "Second Round Pending"
 STATUS_SECOND_ROUND = "Second Round"
 STATUS_JOB_OFFERED = "Job Offered"
 STATUS_REJECTED = "Rejected"
@@ -82,6 +83,8 @@ def update_vacancy(db: Session, vacancy_id: int, data: schemas.VacancyUpdate):
         vacancy.description = data.description
     if data.requirements is not None:
         vacancy.requirements = data.requirements
+    if data.required_skills is not None:
+        vacancy.required_skills = data.required_skills
     if data.status is not None:
         vacancy.status = data.status
     db.commit()
@@ -299,6 +302,13 @@ def upsert_interview_panel(db: Session, vacancy_id: int, data: schemas.Interview
     if not vacancy:
         raise HTTPException(status_code=404, detail="Vacancy not found")
 
+    # panel_head_id is required — interview link can be added later via edit
+    if not data.panel_head_id:
+        raise HTTPException(
+            status_code=422,
+            detail="Panel Head is required. Please select a Panel Head before saving.",
+        )
+
     panel = (
         db.query(models.InterviewPanel)
         .filter(models.InterviewPanel.vacancy_id == vacancy_id)
@@ -390,6 +400,13 @@ async def send_scheduling_link(db: Session, application_id: int):
     except Exception as e:
         print("EMAIL ERROR:", e)
         raise HTTPException(status_code=500, detail="Failed to send scheduling email.")
+
+    # Update status to unlock evaluations for the respective round
+    if application.status == STATUS_CALLED:
+        application.status = STATUS_FIRST_ROUND
+    elif application.status == STATUS_SECOND_ROUND_PENDING:
+        application.status = STATUS_SECOND_ROUND
+    db.commit()
 
     return {"message": "Scheduling link sent successfully"}
 
@@ -554,8 +571,8 @@ def get_final_decision_view(db: Session, application_id: int):
     }
 
 
-def submit_final_decision(db: Session, application_id: int, data: schemas.FinalDecisionCreate):
-    """Record the panel head's final decision and update the application status."""
+async def submit_final_decision(db: Session, application_id: int, data: schemas.FinalDecisionCreate):
+    """Record the panel head's final decision, update status, and email the candidate."""
     allowed = {DECISION_NEXT_ROUND, DECISION_JOB_OFFERED, DECISION_REJECTED}
     if data.decision not in allowed:
         raise HTTPException(
@@ -594,7 +611,63 @@ def submit_final_decision(db: Session, application_id: int, data: schemas.FinalD
 
     db.commit()
     db.refresh(existing)
+
+    # ── Send outcome email to the candidate ───────────────────────────────────
+    try:
+        candidate = db.query(models.Candidate).filter(models.Candidate.id == application.candidate_id).first()
+        vacancy = db.query(models.Vacancy).filter(models.Vacancy.id == application.vacancy_id).first()
+        panel = db.query(models.InterviewPanel).filter(models.InterviewPanel.vacancy_id == application.vacancy_id).first()
+
+        if candidate and vacancy and _has_valid_email(candidate.email):
+            if data.decision == DECISION_JOB_OFFERED:
+                await send_job_offer_email(
+                    to=candidate.email,
+                    candidate_name=candidate.full_name,
+                    job_title=vacancy.title,
+                )
+            elif data.decision == DECISION_REJECTED:
+                await send_rejection_email(
+                    to=candidate.email,
+                    candidate_name=candidate.full_name,
+                    job_title=vacancy.title,
+                )
+            elif data.decision == DECISION_NEXT_ROUND and panel and panel.interview_link:
+                # Automatically send the next-round scheduling email
+                await send_scheduling_email(
+                    to=candidate.email,
+                    candidate_name=candidate.full_name,
+                    job_title=vacancy.title,
+                    interview_link=panel.interview_link,
+                )
+    except Exception as e:
+        print(f"OUTCOME EMAIL ERROR: {e}")
+        # Don't block the decision save — email failure is non-fatal
+
     return existing
+
+
+def trigger_next_round(db: Session, application_id: int):
+    """
+    Called when panel head selects 'Proceed to Next Round'.
+    Updates the application status to Second Round.
+    The next evaluation submission will use round_number = current_max + 1.
+    The evaluate page already computes round_number from max(existing evaluations) + 1,
+    so no DB field needs to change — the round auto-increments on next evaluation save.
+    """
+    application = (
+        db.query(models.Application)
+        .filter(models.Application.id == application_id)
+        .first()
+    )
+    if not application:
+        raise HTTPException(status_code=404, detail="Application not found")
+    application.status = STATUS_SECOND_ROUND
+    
+    # Delete the final decision record since it was only meant for the previous round
+    db.query(models.FinalDecision).filter(models.FinalDecision.application_id == application_id).delete()
+    
+    db.commit()
+    return {"message": "Application advanced to next round"}
 
 
 # ── Evaluated Candidates Summary ──────────────────────────────────────────────
@@ -637,6 +710,7 @@ def get_evaluated_candidates(db: Session, vacancy_id: int):
             "eval_count": len(evals),
             "avg_score": avg_score,
             "decision": final_dec.decision if final_dec else None,
+            "status": app.status,
         })
 
     return sorted(results, key=lambda r: r["avg_score"], reverse=True)

@@ -240,25 +240,27 @@ export default function EditVacancyPage() {
         return;
       }
 
-      // Upsert the interview panel if the panel head + link are provided
-      if (panel.panel_head_id && panel.interview_link) {
-        await fetch(
+      // Save the panel whenever a panel head has been selected
+      if (panel.panel_head_id) {
+        const panelRes = await fetch(
           `${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/recruitment/vacancies/${vacancyId}/panel`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               panel_head_id: Number(panel.panel_head_id),
-              panel_member_1_id: panel.panel_member_1_id
-                ? Number(panel.panel_member_1_id)
-                : null,
-              panel_member_2_id: panel.panel_member_2_id
-                ? Number(panel.panel_member_2_id)
-                : null,
-              interview_link: panel.interview_link,
+              panel_member_1_id: panel.panel_member_1_id ? Number(panel.panel_member_1_id) : null,
+              panel_member_2_id: panel.panel_member_2_id ? Number(panel.panel_member_2_id) : null,
+              interview_link: panel.interview_link || null,
             }),
           }
         );
+        if (!panelRes.ok) {
+          const panelErr = await panelRes.json().catch(() => null);
+          setError(panelErr?.detail ?? "Panel saved failed.");
+          setSaving(false);
+          return;
+        }
       }
 
       router.push("/recruitment");

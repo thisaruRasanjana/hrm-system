@@ -80,29 +80,35 @@ def update_candidate_email(
 
 # ── File Serving (replaces public static mount) ───────────────────────────────
 
-@router.get("/files/{file_path:path}")
-def serve_file(file_path: str):
+@router.get("/files/{filename}")
+def serve_file(filename: str):
     """
-    Serve uploaded CV files through the API layer.
-    Handles both:
-      - Absolute paths (new uploads after the path fix)
-      - Legacy relative paths already stored in the DB
+    Serve an uploaded CV file by its UUID filename.
+    Returns with Content-Disposition: inline so PDFs embed in <iframe>.
     """
-    # Sanitise to prevent directory traversal
-    norm = os.path.normpath(file_path)
-    if ".." in norm.split(os.sep):
-        raise HTTPException(status_code=400, detail="Invalid file path")
+    import mimetypes
+    from app.core.config import UPLOAD_DIR
 
-    # If absolute and exists — serve directly
-    if os.path.isabs(norm) and os.path.exists(norm):
-        return FileResponse(norm)
+    safe_name = os.path.basename(filename)
 
-    # Legacy: resolve relative path against the backend working directory
-    resolved = os.path.abspath(norm)
-    if os.path.exists(resolved):
-        return FileResponse(resolved)
+    if not safe_name or "/" in safe_name or ".." in safe_name:
+        raise HTTPException(status_code=400, detail="Invalid filename.")
 
-    raise HTTPException(status_code=404, detail="File not found")
+    file_path = os.path.abspath(os.path.join(UPLOAD_DIR, safe_name))
+    upload_abs = os.path.abspath(UPLOAD_DIR)
+
+    if not file_path.startswith(upload_abs + os.sep):
+        raise HTTPException(status_code=400, detail="Access denied.")
+
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="File not found.")
+
+    mime, _ = mimetypes.guess_type(file_path)
+    return FileResponse(
+        file_path,
+        media_type=mime or "application/octet-stream",
+        headers={"Content-Disposition": "inline"},
+    )
 
 
 # ── Application Endpoints ─────────────────────────────────────────────────────
@@ -180,12 +186,18 @@ def get_final_decision_view(application_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/applications/{application_id}/final-decision", response_model=schemas.FinalDecisionResponse)
-def submit_final_decision(
+async def submit_final_decision(
     application_id: int,
     data: schemas.FinalDecisionCreate,
     db: Session = Depends(get_db),
 ):
-    return service.submit_final_decision(db, application_id, data)
+    return await service.submit_final_decision(db, application_id, data)
+
+
+@router.post("/applications/{application_id}/next-round")
+def trigger_next_round(application_id: int, db: Session = Depends(get_db)):
+    """Panel head triggers another interview round. Increments round_number for future evaluations."""
+    return service.trigger_next_round(db, application_id)
 
 
 @router.get("/vacancies/{vacancy_id}/evaluated-candidates")

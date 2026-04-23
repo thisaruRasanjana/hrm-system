@@ -106,6 +106,7 @@ export default function CandidateProfilePage() {
     }
 
     setHasNotes(true);
+    setCandidate((prev) => prev ? { ...prev, status: "Called" } : prev);
 
     // Show the transient success toast, then auto-dismiss after 3 s
     setJustSaved(true);
@@ -208,22 +209,45 @@ export default function CandidateProfilePage() {
               </h3>
 
               {candidate.cv_file_path ? (
-                <>
-                  <div className="flex justify-between items-center mb-3">
-                    <p className="text-sm text-gray-500">CV Preview</p>
-                    <a
-                      href={`${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/recruitment/files/${candidate.cv_file_path}`}
-                      download
-                      className="text-xs text-orange-500 hover:text-orange-600 font-medium border border-orange-300 px-3 py-1 rounded-lg transition"
-                    >
-                      ↓ Download CV
-                    </a>
-                  </div>
-                  <iframe
-                    src={`${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/recruitment/files/${candidate.cv_file_path}`}
-                    className="w-full h-[620px] border border-gray-200 rounded-lg"
-                  />
-                </>
+                (() => {
+                  const cvFilename = candidate.cv_file_path!.split('/').pop() || candidate.cv_file_path!;
+                  const cvUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/recruitment/files/${cvFilename}`;
+                  const isDocx = cvFilename.toLowerCase().endsWith('.docx');
+                  return (
+                    <>
+                      <div className="flex justify-between items-center mb-3">
+                        <p className="text-sm text-gray-500">CV Preview</p>
+                        <a
+                          href={cvUrl}
+                          download
+                          className="text-xs text-orange-500 hover:text-orange-600 font-medium border border-orange-300 px-3 py-1 rounded-lg transition"
+                        >
+                          ↓ Download CV
+                        </a>
+                      </div>
+                      {isDocx ? (
+                        <div className="w-full h-[620px] border border-gray-200 rounded-lg flex flex-col items-center justify-center gap-4 bg-gray-50">
+                          <svg className="w-16 h-16 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          <p className="text-sm text-gray-500">DOCX files cannot be previewed in the browser.</p>
+                          <a
+                            href={cvUrl}
+                            download
+                            className="bg-orange-400 hover:bg-orange-500 text-white px-5 py-2.5 rounded-xl text-sm font-medium transition"
+                          >
+                            Download to View
+                          </a>
+                        </div>
+                      ) : (
+                        <iframe
+                          src={cvUrl}
+                          className="w-full h-[620px] border border-gray-200 rounded-lg"
+                        />
+                      )}
+                    </>
+                  );
+                })()
               ) : (
 
                 <div className="h-[650px] flex items-center justify-center text-gray-400 text-sm">
@@ -333,82 +357,105 @@ export default function CandidateProfilePage() {
                     Interview Scheduling
                   </h3>
 
-                  {(!panel || !panel.interview_link) ? (
+                  {(!panel || !panel.panel_head_id || !panel.interview_link) ? (
                     <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-xl p-4 text-sm">
                       <p className="font-medium mb-1">Missing Interview Panel</p>
-                      <p>To send an interview link, please set up an interview panel with a Cita link for this vacancy.</p>
+                      <p>To send an interview link, please set up an interview panel with a Panel Head and a scheduling link for this vacancy.</p>
                       <Link href={`/recruitment/${vacancyId}/edit`} className="text-orange-500 hover:underline mt-2 inline-block font-medium">
                         Add interview Panel
                       </Link>
                     </div>
-                  ) : linkSent ? (
-                    <div className="flex flex-col">
-                      <div className="flex items-center gap-2 text-gray-800 font-medium mb-1">
-                        <svg className="w-5 h-5 text-gray-800" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
-                        Scheduling link sent !
-                      </div>
-                      <p className="text-xs text-gray-500 mb-6">
-                        Email sent to {candidate?.email || "placeholder@email.com"}
-                      </p>
-
-                      <Link
-                        href={`/recruitment/${vacancyId}/candidates/${candidateId}/evaluate`}
-                        className="w-full bg-orange-400 hover:bg-orange-500 text-white flex items-center justify-center py-2.5 rounded-xl text-sm font-medium transition"
-                      >
-                        Evaluate the interview
-                      </Link>
-                    </div>
                   ) : (
-                    <div>
-                      {!hasValidEmail(candidate?.email) ? (
-                        // ── No email on file — show inline entry form ──
+                    <div className="flex flex-col gap-4">
+                      {/* Send email section — only for the first round invitation */}
+                      {!linkSent && candidate?.status === "Called" && (
                         <div>
-                          <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4">
-                            <svg className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-                            </svg>
+                          {!hasValidEmail(candidate?.email) ? (
                             <div>
-                              <p className="text-sm font-medium text-amber-800">No email address on file</p>
-                              <p className="text-xs text-amber-700 mt-0.5">
-                                {candidate?.email === "Processing..."
-                                  ? "AI is still processing this CV. You can add the email manually below."
-                                  : "AI could not extract an email from this CV. Enter the candidate\u2019s email to send the interview link."}
-                              </p>
+                              <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4">
+                                <svg className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                                </svg>
+                                <div>
+                                  <p className="text-sm font-medium text-amber-800">No email address on file</p>
+                                  <p className="text-xs text-amber-700 mt-0.5">
+                                    {candidate?.email === "Processing..."
+                                      ? "AI is still processing this CV. You can add the email manually below."
+                                      : "AI could not extract an email from this CV. Enter the candidate\u2019s email to send the interview link."}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="flex gap-2">
+                                <input
+                                  type="email"
+                                  value={manualEmail}
+                                  onChange={(e) => setManualEmail(e.target.value)}
+                                  placeholder="candidate@email.com"
+                                  className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-300"
+                                />
+                                <button
+                                  onClick={saveEmail}
+                                  disabled={savingEmail}
+                                  className="px-4 py-2.5 bg-orange-400 hover:bg-orange-500 disabled:opacity-60 text-white rounded-xl text-sm font-medium transition"
+                                >
+                                  {savingEmail ? "Saving..." : "Save"}
+                                </button>
+                              </div>
                             </div>
-                          </div>
-                          <div className="flex gap-2">
-                            <input
-                              type="email"
-                              value={manualEmail}
-                              onChange={(e) => setManualEmail(e.target.value)}
-                              placeholder="candidate@email.com"
-                              className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-300"
-                            />
-                            <button
-                              onClick={saveEmail}
-                              disabled={savingEmail}
-                              className="px-4 py-2.5 bg-orange-400 hover:bg-orange-500 disabled:opacity-60 text-white rounded-xl text-sm font-medium transition"
-                            >
-                              {savingEmail ? "Saving..." : "Save"}
-                            </button>
-                          </div>
+                          ) : (
+                            <div>
+                              <p className="text-sm text-gray-500 mb-4">
+                                Scheduling link will be sent to <span className="font-medium text-gray-700">{candidate?.email}</span>
+                              </p>
+                              <button
+                                onClick={sendLink}
+                                disabled={sendingEmail}
+                                className="w-full bg-orange-400 hover:bg-orange-500 disabled:opacity-60 text-white flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                  <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+                                </svg>
+                                {sendingEmail ? "Sending..." : "Send Interview Scheduling Link"}
+                              </button>
+                            </div>
+                          )}
                         </div>
-                      ) : (
-                        // ── Email exists — show send button ──
-                        <div>
-                          <p className="text-sm text-gray-500 mb-4">
-                            Scheduling link will be sent to <span className="font-medium text-gray-700">{candidate?.email}</span>
+                      )}
+
+                      {/* Confirmation after email sent in this session */}
+                      {linkSent && (
+                        <div className="flex items-center gap-2 text-green-700 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
+                          <span className="text-sm font-medium">Scheduling link sent to {candidate?.email}</span>
+                        </div>
+                      )}
+
+                      {/* Evaluate buttons — visible when in an active interview round */}
+                      {(linkSent || candidate?.status === "First Round" || candidate?.status === "Second Round") && (
+                        <div className="flex flex-col gap-2 pt-2">
+                          <p className="text-xs text-gray-400 text-center mb-1">
+                            Testing mode — choose your role:
                           </p>
-                          <button
-                            onClick={sendLink}
-                            disabled={sendingEmail}
-                            className="w-full bg-orange-400 hover:bg-orange-500 disabled:opacity-60 text-white flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition"
+                          <Link
+                            href={`/recruitment/${vacancyId}/candidates/${candidateId}/evaluate?role=head`}
+                            className="w-full bg-orange-400 hover:bg-orange-500 text-white flex items-center justify-center py-2.5 rounded-xl text-sm font-medium transition"
                           >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                              <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
-                            </svg>
-                            {sendingEmail ? "Sending..." : "Send Interview Scheduling Link"}
-                          </button>
+                            Evaluate as Panel Head
+                          </Link>
+                          <Link
+                            href={`/recruitment/${vacancyId}/candidates/${candidateId}/evaluate?role=member`}
+                            className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 flex items-center justify-center py-2.5 rounded-xl text-sm font-medium transition"
+                          >
+                            Evaluate as Panel Member
+                          </Link>
+                          {panel?.panel_head_id && (
+                            <Link
+                              href={`/recruitment/${vacancyId}/candidates/${candidateId}/final-decision?role=head`}
+                              className="w-full bg-white border border-orange-400 text-orange-500 hover:bg-orange-50 flex items-center justify-center py-2.5 rounded-xl text-sm font-medium transition mt-2"
+                            >
+                              → View All Evaluations &amp; Decide
+                            </Link>
+                          )}
                         </div>
                       )}
                     </div>
