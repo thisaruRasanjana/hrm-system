@@ -5,7 +5,7 @@ from app.database.database import get_db
 from app.departments.models import Department
 from app.departments.schemas import DepartmentOut
 
-router = APIRouter(prefix="/departments", tags=["departments"])
+router = APIRouter()
 
 @router.get("/", response_model=List[DepartmentOut])
 def get_departments(db: Session = Depends(get_db)):

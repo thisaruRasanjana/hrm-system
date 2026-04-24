@@ -4,10 +4,9 @@ from typing import List
 
 from app.database.database import get_db
 from app.roles import schemas, service
+from app.core.deps import get_current_user, require_permission
 
-router = APIRouter(prefix="/roles", tags=["roles"])
-
-from app.auth.dependencies import get_current_user, require_permission
+router = APIRouter()
 
 
 @router.get("/permissions", response_model=List[schemas.PermissionOut], summary="List all system permissions")

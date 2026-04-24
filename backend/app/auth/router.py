@@ -12,8 +12,8 @@ from app.auth.schemas import (
 )
 from app.auth.service import authenticate_user
 from app.auth.models import User
-from app.core.email import send_otp_email
 from app.core.security import SECRET_KEY, ALGORITHM, create_access_token, hash_password, verify_password
+from app.core.deps import get_current_user, get_user_permissions
 
 router = APIRouter()
 security = HTTPBearer()
@@ -194,32 +194,16 @@ def reset_password(data: dict, db: Session = Depends(get_db)):
 # ---------------- CURRENT USER ----------------
 
 @router.get("/me", response_model=UserResponse)
-def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+def get_me(
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    token = credentials.credentials
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        if payload.get("type") == "2fa":
-            raise HTTPException(status_code=401, detail="Temporary 2FA token cannot access this endpoint")
-        user_id = payload.get("sub")
-    except JWTError:
-        raise HTTPException(status_code=401, detail="Invalid token")
-
-    user = db.query(User).filter(User.id == int(user_id)).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    # Resolve permissions from RBAC join table (dev's role system)
-    permissions = []
-    for role in user.roles:
-        for perm in role.permissions:
-            permissions.append(perm.permission_name)
+    # Resolve permissions using shared utility
+    permissions = get_user_permissions(current_user, db)
 
     user_dict = {
-        c.name: getattr(user, c.name)
-        for c in user.__table__.columns
+        c.name: getattr(current_user, c.name)
+        for c in current_user.__table__.columns
         if c.name not in ("password_hash", "refresh_token", "totp_secret")
     }
     user_dict["permissions"] = permissions
@@ -231,21 +215,10 @@ def get_current_user(
 @router.put("/profile", response_model=UserResponse)
 def update_profile(
     data: UserProfileUpdate,
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    token = credentials.credentials
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        if payload.get("type") == "2fa":
-            raise HTTPException(status_code=401, detail="Unauthorized token")
-        user_id = payload.get("sub")
-    except JWTError:
-        raise HTTPException(status_code=401, detail="Invalid token")
-
-    user = db.query(User).filter(User.id == int(user_id)).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    user = current_user
 
     update_data = data.model_dump(exclude_unset=True)
     for key, value in update_data.items():
@@ -260,21 +233,10 @@ def update_profile(
 @router.post("/profile/image")
 def upload_profile_image(
     file: UploadFile = File(...),
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    token = credentials.credentials
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        if payload.get("type") == "2fa":
-            raise HTTPException(status_code=401, detail="Unauthorized token")
-        user_id = payload.get("sub")
-    except JWTError:
-        raise HTTPException(status_code=401, detail="Invalid token")
-
-    user = db.query(User).filter(User.id == int(user_id)).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    user = current_user
 
     import os
     import shutil
@@ -298,21 +260,10 @@ def upload_profile_image(
 @router.put("/security/password")
 def change_password(
     data: UserPasswordUpdate,
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    token = credentials.credentials
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        if payload.get("type") == "2fa":
-            raise HTTPException(status_code=401, detail="Unauthorized token")
-        user_id = payload.get("sub")
-    except JWTError:
-        raise HTTPException(status_code=401, detail="Invalid token")
-
-    user = db.query(User).filter(User.id == int(user_id)).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    user = current_user
 
     if not verify_password(data.current_password, user.password_hash):
         raise HTTPException(status_code=400, detail="Incorrect current password")
@@ -326,21 +277,10 @@ def change_password(
 
 @router.get("/security/2fa/setup")
 def setup_two_factor(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    token = credentials.credentials
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        if payload.get("type") == "2fa":
-            raise HTTPException(status_code=401, detail="Unauthorized token")
-        user_id = payload.get("sub")
-    except JWTError:
-        raise HTTPException(status_code=401, detail="Invalid token")
-
-    user = db.query(User).filter(User.id == int(user_id)).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    user = current_user
 
     import pyotp
     import urllib.parse
@@ -360,21 +300,10 @@ def setup_two_factor(
 @router.post("/security/2fa/verify", response_model=UserResponse)
 def verify_and_enable_two_factor(
     data: dict,
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    token = credentials.credentials
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        if payload.get("type") == "2fa":
-            raise HTTPException(status_code=401, detail="Unauthorized token")
-        user_id = payload.get("sub")
-    except JWTError:
-        raise HTTPException(status_code=401, detail="Invalid token")
-
-    user = db.query(User).filter(User.id == int(user_id)).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    user = current_user
 
     code = data.get("code")
     import pyotp
@@ -389,21 +318,10 @@ def verify_and_enable_two_factor(
 
 @router.delete("/security/2fa", response_model=UserResponse)
 def disable_two_factor(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    token = credentials.credentials
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        if payload.get("type") == "2fa":
-            raise HTTPException(status_code=401, detail="Unauthorized token")
-        user_id = payload.get("sub")
-    except JWTError:
-        raise HTTPException(status_code=401, detail="Invalid token")
-
-    user = db.query(User).filter(User.id == int(user_id)).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    user = current_user
 
     user.two_factor_enabled = False
     user.totp_secret = None
@@ -415,21 +333,10 @@ def disable_two_factor(
 @router.put("/notifications", response_model=UserResponse)
 def update_notifications(
     data: UserNotificationUpdate,
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    token = credentials.credentials
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        if payload.get("type") == "2fa":
-            raise HTTPException(status_code=401, detail="Unauthorized token")
-        user_id = payload.get("sub")
-    except JWTError:
-        raise HTTPException(status_code=401, detail="Invalid token")
-
-    user = db.query(User).filter(User.id == int(user_id)).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    user = current_user
 
     user.notification_preferences = data.notification_preferences
     user.quiet_hours_start = data.quiet_hours_start

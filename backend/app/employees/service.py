@@ -38,8 +38,8 @@ def create_employee(db: Session, employee: EmployeeCreate, background_tasks: Bac
         db_user = User(
             username=employee.email,
             email=employee.email,
-            hashed_password=hashed,
-            is_active=1
+            password_hash=hashed,
+            is_active=True
         )
         db.add(db_user)
         db.flush()  # Get db_user.id
@@ -87,7 +87,7 @@ def create_employee(db: Session, employee: EmployeeCreate, background_tasks: Bac
 def update_employee(db: Session, employee_id: int, employee_update: EmployeeUpdate):
     db_employee = db.query(Employee).filter(Employee.id == employee_id).first()
     if db_employee:
-        update_data = employee_update.dict(exclude_unset=True)
+        update_data = employee_update.model_dump(exclude_unset=True)
         for key, value in update_data.items():
             setattr(db_employee, key, value)
         db.commit()

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any
 
-from app.database.session import get_db
+from app.database.database import get_db
 from app.core.deps import get_current_user
 from app.auth.models import User
 from app.dashboard.schemas import DashboardLayoutResponse, DashboardLayoutUpdate

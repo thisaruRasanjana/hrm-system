@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime, timezone
 
-from app.database.session import get_db
+from app.database.database import get_db
 from app.core.deps import get_current_user
 from app.auth.models import User
 from app.messages import models, schemas

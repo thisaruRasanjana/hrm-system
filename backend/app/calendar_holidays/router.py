@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
-from app.database.session import get_db, SessionLocal
+from app.database.database import get_db, SessionLocal
 from app.core.deps import get_current_user
 from app.auth.models import User
 from app.calendar_holidays.models import Holiday
