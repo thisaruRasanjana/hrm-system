@@ -24,16 +24,9 @@ export default function RootLayout({
       <body className={arimo.className}>
         <AuthProvider>
           <div className="flex h-screen bg-[#F8F9FA] overflow-hidden font-sans">
-            {/* Sidebar — shared across all pages */}
-            <Sidebar />
-
-            {/* Main container: TopBar + page content */}
-            <div className="flex-1 flex flex-col min-w-0">
-              <TopBar />
-              <main className="flex-1 overflow-y-auto p-10">
-                {children}
-              </main>
-            </div>
+            <main className="flex-1 flex flex-col min-w-0 h-full w-full">
+              {children}
+            </main>
           </div>
         </AuthProvider>
       </body>

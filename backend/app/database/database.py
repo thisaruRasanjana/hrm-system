@@ -13,13 +13,16 @@ DB_NAME = os.getenv("DB_NAME")
 DB_USER = os.getenv("DB_USER")
 DB_PASSWORD = os.getenv("DB_PASSWORD", "")
 
-# Escape password to handle special characters like '@'
-ESCAPED_PASSWORD = urllib.parse.quote_plus(DB_PASSWORD)
+# Prioritize full DATABASE_URL if it exists (for backward compatibility and simpler env)
+DATABASE_URL = os.getenv("DATABASE_URL")
 
-DATABASE_URL = (
-    f"postgresql://{DB_USER}:{ESCAPED_PASSWORD}"
-    f"@{DB_HOST}:{DB_PORT}/{DB_NAME}"
-)
+if not DATABASE_URL:
+    # Escape password to handle special characters like '@'
+    ESCAPED_PASSWORD = urllib.parse.quote_plus(DB_PASSWORD)
+    DATABASE_URL = (
+        f"postgresql://{DB_USER}:{ESCAPED_PASSWORD}"
+        f"@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+    )
 
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(

@@ -43,20 +43,22 @@ SYSTEM_PERMISSIONS = [
     ("recruitment:interview_panel", "recruitment", "interview_panel", "Access as interview panel member"),
 
     # Dashboard
-    ("dashboard:view_time_tracking", "dashboard", "view", "View time tracking"),
-    ("dashboard:view_leave_balance", "dashboard", "view", "View leave balance"),
-    ("dashboard:view_notifications", "dashboard", "view", "View notifications"),
-    ("dashboard:view_weekly_hours", "dashboard", "view", "View weekly hours"),
-    ("dashboard:view_calendar", "dashboard", "view", "View calendar"),
-    ("dashboard:edit_calendar", "dashboard", "edit", "Edit calendar"),
-    ("dashboard:view_approvals", "dashboard", "view", "View approvals"),
-    ("dashboard:view_requests", "dashboard", "view", "View requests"),
-    ("dashboard:view_announcements", "dashboard", "view", "View announcements"),
-    ("dashboard:manage_announcements", "dashboard", "manage", "Manage announcements"),
-    ("dashboard:view_events", "dashboard", "view", "View events"),
-    ("dashboard:manage_events", "dashboard", "manage", "Manage events"),
-    ("dashboard:send_messages", "dashboard", "send", "Send messages"),
-    ("dashboard:receive_messages", "dashboard", "receive", "Receive messages"),
+    # Dashboard
+    ("widget.time_tracking.view", "dashboard", "view", "View time tracking"),
+    ("widget.leave_balance.view", "dashboard", "view", "View leave balance"),
+    ("widget.notifications.view", "dashboard", "view", "View notifications"),
+    ("widget.weekly_hours.view", "dashboard", "view", "View weekly hours"),
+    ("widget.calendar.view", "dashboard", "view", "View calendar"),
+    ("widget.calendar.edit", "dashboard", "edit", "Edit calendar"),
+    ("widget.approval_summary.view_approvals", "dashboard", "view", "View approvals"),
+    ("widget.approval_summary.view_requests", "dashboard", "view", "View requests"),
+    ("widget.announcements.view", "dashboard", "view", "View announcements"),
+    ("widget.announcements.manage", "dashboard", "manage", "Manage announcements"),
+    ("widget.upcoming_events.view", "dashboard", "view", "View events"),
+    ("widget.upcoming_events.manage", "dashboard", "manage", "Manage events"),
+    ("widget.availability.view", "dashboard", "view", "View availability"),
+    ("messaging.send", "messaging", "send", "Send messages"),
+    ("messaging.receive", "messaging", "receive", "Receive messages"),
 ]
 
 # ---------------------------------------------------------------------------
@@ -73,26 +75,27 @@ HR_PERMISSIONS = {
     "leave:request", "leave:edit_pending", "leave:view_history", "leave:approve", "leave:reject", "leave:report",
     "recruitment:manage", "recruitment:view"
 }
-# Add all dashboard permissions to HR (except interview_panel which is never default)
+# Add all widget permissions to HR (except interview_panel which is never default)
 for p in SYSTEM_PERMISSIONS:
-    if p[0].startswith("dashboard:"):
+    if p[0].startswith("widget.") or p[0].startswith("dashboard:"):
         HR_PERMISSIONS.add(p[0])
 
 MANAGER_PERMISSIONS = {
     "employee:view_own", "document:upload_own", "document:request_own", "document:approve",
     "leave:request", "leave:edit_pending", "leave:view_history", "leave:approve", "leave:reject",
-    "dashboard:view_time_tracking", "dashboard:view_leave_balance", "dashboard:view_notifications",
-    "dashboard:view_weekly_hours", "dashboard:view_calendar", "dashboard:view_approvals",
-    "dashboard:view_requests", "dashboard:view_announcements", "dashboard:view_events",
-    "dashboard:send_messages", "dashboard:receive_messages"
+    "widget.time_tracking.view", "widget.leave_balance.view", "widget.notifications.view",
+    "widget.weekly_hours.view", "widget.calendar.view", "widget.approval_summary.view_approvals",
+    "widget.approval_summary.view_requests", "widget.announcements.view", "widget.upcoming_events.view",
+    "widget.availability.view", "messaging.send", "messaging.receive"
 }
 
 EMPLOYEE_PERMISSIONS = {
     "employee:view_own", "document:upload_own", "document:request_own",
     "leave:request", "leave:edit_pending", "leave:view_history",
-    "dashboard:view_time_tracking", "dashboard:view_leave_balance", "dashboard:view_notifications",
-    "dashboard:view_weekly_hours", "dashboard:view_calendar", "dashboard:view_requests",
-    "dashboard:view_announcements", "dashboard:view_events", "dashboard:receive_messages"
+    "widget.time_tracking.view", "widget.leave_balance.view", "widget.notifications.view",
+    "widget.weekly_hours.view", "widget.calendar.view", "widget.approval_summary.view_requests",
+    "widget.announcements.view", "widget.upcoming_events.view", "widget.availability.view",
+    "messaging.receive"
 }
 
 

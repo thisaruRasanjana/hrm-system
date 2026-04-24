@@ -5,7 +5,8 @@ import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from app.database.database import SessionLocal
-from app.auth import models
+from app.auth import models as auth_models
+from app.roles import models as roles_models
 from app.employees.models import Employee # Explicitly import to register with Base
 
 def seed_rbac():
@@ -30,9 +31,9 @@ def seed_rbac():
         all_perms = []
         for category, perms in permissions_data.items():
             for perm_name in perms:
-                existing = db.query(models.Permission).filter(models.Permission.name == perm_name).first()
+                existing = db.query(roles_models.Permission).filter(roles_models.Permission.permission_name == perm_name).first()
                 if not existing:
-                    p = models.Permission(name=perm_name, description=f"{category} Permission")
+                    p = roles_models.Permission(permission_name=perm_name, description=f"{category} Permission")
                     db.add(p)
                     all_perms.append(p)
                 else:
@@ -66,14 +67,13 @@ def seed_rbac():
         ]
 
         for role_info in roles_data:
-            existing_role = db.query(models.Role).filter(models.Role.name == role_info["name"]).first()
+            existing_role = db.query(roles_models.Role).filter(roles_models.Role.role_name == role_info["name"]).first()
             if not existing_role:
                 # Fetch permission objects
-                role_perms = db.query(models.Permission).filter(models.Permission.name.in_(role_info["permissions"])).all()
-                r = models.Role(
-                    name=role_info["name"],
+                role_perms = db.query(roles_models.Permission).filter(roles_models.Permission.permission_name.in_(role_info["permissions"])).all()
+                r = roles_models.Role(
+                    role_name=role_info["name"],
                     description=role_info["description"],
-                    is_system=1,
                     permissions=role_perms
                 )
                 db.add(r)

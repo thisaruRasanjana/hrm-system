@@ -17,7 +17,8 @@ export default function Sidebar() {
 
   const menu = [
     { name: "Dashboard", path: "/dashboard", icon: LayoutGrid },
-    { name: "Employee Management", path: "/dashboard/employees", icon: Shield },
+    { name: "Employee Management", path: "/dashboard/employees", icon: Users },
+    { name: "Role Management", path: "/dashboard/EmployeeManagement/assign-role", icon: Shield },
     { name: "Recruitment", path: "/dashboard/recruitment", icon: Users },
     { name: "Leave", path: "/dashboard/leave", icon: Calendar },
     { name: "Document", path: "/dashboard/documents", icon: FileText },

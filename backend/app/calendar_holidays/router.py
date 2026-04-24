@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
 from app.database.database import get_db, SessionLocal
-from app.core.deps import get_current_user
+from app.core.deps import get_current_user, require_permission
 from app.auth.models import User
 from app.calendar_holidays.models import Holiday
 from app.calendar_holidays.schemas import HolidayCreate, HolidayResponse
@@ -65,18 +65,12 @@ def seed_holidays():
     finally:
         db.close()
 
-def check_auth(user: User):
-    is_admin = user.role in ["super_admin", "hr", "Admin", "HR Manager"]
-    if not is_admin:
-        raise HTTPException(status_code=403, detail="Not authorized to manage calendar")
-
 @router.get("", response_model=List[HolidayResponse])
 def get_holidays(db: Session = Depends(get_db)):
     return db.query(Holiday).all()
 
 @router.post("", response_model=HolidayResponse)
-def add_holiday(data: HolidayCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    check_auth(current_user)
+def add_holiday(data: HolidayCreate, db: Session = Depends(get_db), current_user: User = Depends(require_permission("widget.calendar.edit"))):
     holiday = Holiday(name=data.name, date=data.date, is_mercantile=data.is_mercantile, created_by=current_user.id)
     db.add(holiday)
     db.commit()
@@ -84,8 +78,7 @@ def add_holiday(data: HolidayCreate, db: Session = Depends(get_db), current_user
     return holiday
 
 @router.delete("/{holiday_id}")
-def delete_holiday(holiday_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    check_auth(current_user)
+def delete_holiday(holiday_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_permission("widget.calendar.edit"))):
     holiday = db.query(Holiday).filter(Holiday.id == holiday_id).first()
     if not holiday:
         raise HTTPException(status_code=404, detail="Holiday not found")
