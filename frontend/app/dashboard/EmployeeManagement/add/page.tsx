@@ -126,9 +126,9 @@ export default function EmployeeAddPage() {
       const created = await api.post<{ id: number }>("/employees/", payload);
 
       if (redirectToRole && created?.id) {
-        router.push(`/EmployeeManegement/assign-role?id=${created.id}`);
+        router.push(`/dashboard/EmployeeManagement/assign-role?id=${created.id}`);
       } else {
-        router.push("/");
+        router.push("/dashboard/employees");
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to add employee.";
@@ -141,7 +141,7 @@ export default function EmployeeAddPage() {
   return (
     <div className="max-w-[1000px] mx-auto pb-20 pt-2">
       <div className="mb-8">
-        <Link href="/" className="inline-flex items-center gap-2 text-[14px] text-gray-500 hover:text-gray-800 transition-colors mb-4 font-medium">
+        <Link href="/dashboard/employees" className="inline-flex items-center gap-2 text-[14px] text-gray-500 hover:text-gray-800 transition-colors mb-4 font-medium">
           <IconArrowLeft />
           Back
         </Link>

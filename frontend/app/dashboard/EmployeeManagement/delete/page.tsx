@@ -44,7 +44,7 @@ function DeleteEmployeeContent() {
     setIsDeleting(true);
     try {
       await api.delete(`/employees/${id}`);
-      router.push("/");
+      router.push("/dashboard/employees");
     } catch (error) {
       console.error("Failed to delete employee:", error);
       alert("Failed to delete employee.");
@@ -61,7 +61,7 @@ function DeleteEmployeeContent() {
       {/* Header / Back Navigation */}
       <div className="mb-8">
         <Link 
-          href="/" 
+          href="/dashboard/employees" 
           className="inline-flex items-center gap-2 text-[14px] text-gray-500 hover:text-gray-800 transition-colors mb-4 font-medium"
         >
           <IconArrowLeft />
@@ -107,7 +107,7 @@ function DeleteEmployeeContent() {
 
         <div className="flex justify-end gap-3">
           <Link 
-            href="/"
+            href="/dashboard/employees"
             className="px-6 py-2.5 rounded-xl border border-gray-200 text-gray-700 font-medium text-[14px] hover:bg-gray-50 transition-colors"
           >
             Cancel

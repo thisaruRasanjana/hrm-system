@@ -202,9 +202,9 @@ def get_me(
     permissions = get_user_permissions(current_user, db)
 
     user_dict = {
-        c.name: getattr(current_user, c.name)
+        c.name: getattr(current_user, c.name, getattr(current_user, "password_hash", None) if c.name == "hashed_password" else None)
         for c in current_user.__table__.columns
-        if c.name not in ("password_hash", "refresh_token", "totp_secret")
+        if c.name not in ("hashed_password", "password_hash", "refresh_token", "totp_secret")
     }
     user_dict["permissions"] = permissions
     return user_dict

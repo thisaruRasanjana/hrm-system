@@ -11,11 +11,11 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-SMTP_HOST = os.getenv("SMTP_SERVER", os.getenv("SMTP_HOST"))
+SMTP_HOST = os.getenv("SMTP_SERVER")
 SMTP_PORT = int(os.getenv("SMTP_PORT", 587))
-SMTP_USER = os.getenv("SMTP_EMAIL", os.getenv("SMTP_USER"))
+SMTP_USER = os.getenv("SMTP_EMAIL")
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
-SMTP_FROM = os.getenv("SMTP_EMAIL", os.getenv("SMTP_FROM"))
+SMTP_FROM = os.getenv("SMTP_EMAIL")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
 

@@ -39,6 +39,34 @@ super_admin_role = get_role("Super Admin")
 hr_role          = get_role("HR")
 emp_role         = get_role("Employee")
 
+print("\n-- Fixing Dashboard Widget Permissions --")
+from app.roles.models import Permission
+dashboard_perms = [
+    "widget.announcements.view", "widget.announcements.manage",
+    "widget.upcoming_events.view", "widget.upcoming_events.manage",
+    "widget.calendar.view", "widget.calendar.edit",
+    "widget.time_tracking.view", "widget.leave_balance.view",
+    "widget.approval_summary.view_approvals", "widget.approval_summary.view_requests",
+    "widget.notifications.view", "widget.weekly_hours.view", "widget.availability.view"
+]
+
+for p_name in dashboard_perms:
+    p = db.query(Permission).filter(Permission.permission_name == p_name).first()
+    if not p:
+        p = Permission(permission_name=p_name, description="Dashboard Widget Access")
+        db.add(p)
+        db.commit()
+        db.refresh(p)
+    
+    if p not in super_admin_role.permissions:
+        super_admin_role.permissions.append(p)
+    if p not in hr_role.permissions:
+        hr_role.permissions.append(p)
+    if p_name.endswith(".view") and p not in emp_role.permissions:
+        emp_role.permissions.append(p)
+
+db.commit()
+
 dummy_users = [
     {
         "email": "admin@hrm.lk",

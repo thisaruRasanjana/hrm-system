@@ -48,20 +48,23 @@ function AssignRoleContent() {
   const [selectedPermissionIds, setSelectedPermissionIds] = useState<number[]>([]);
 
   useEffect(() => {
-    if (!id) return;
     const fetchData = async () => {
       try {
-        const [rolesData, permsData, empData] = await Promise.all([
+        const [rolesData, permsData] = await Promise.all([
           api.get<Role[]>("/roles/"),
           api.get<Permission[]>("/roles/permissions"),
-          api.get<Employee>(`/employees/${id}`),
         ]);
         setRoles(rolesData);
         setAllPermissions(permsData);
-        setEmployee(empData);
 
-        if (empData.role) {
-          setSelectedRoleId(empData.role.id);
+        if (id) {
+          const empData = await api.get<Employee>(`/employees/${id}`);
+          setEmployee(empData);
+          if (empData.role) {
+            setSelectedRoleId(empData.role.id);
+          } else if (rolesData.length > 0) {
+            setSelectedRoleId(rolesData[0].id);
+          }
         } else if (rolesData.length > 0) {
           setSelectedRoleId(rolesData[0].id);
         }
@@ -135,30 +138,38 @@ function AssignRoleContent() {
         roleIdToAssign = newRole.id;
       }
 
-      // Final step: Assign the role (new or updated) to the employee
-      if (!employee?.user_id) {
-        setErrorMsg("Cannot assign role: This employee is not linked to a system user account. Please create a user account for them first.");
-        setIsSubmitting(false);
-        return;
-      }
-
-      if (!roleIdToAssign) {
-        setErrorMsg("Please select a role to assign.");
-        setIsSubmitting(false);
-        return;
-      }
-
-      await api.post("/roles/assign", {
-        user_id: employee.user_id,
-        role_ids: [roleIdToAssign],
-      });
-
       const roleName = assignmentOption === "custom"
         ? customRoleName
         : roles.find(r => r.id === roleIdToAssign)?.role_name || "Role";
 
-      setSuccessMsg(`✓ "${roleName}" permissions updated and assigned to ${employee?.first_name ?? "the employee"}.`);
-      setTimeout(() => router.push("/"), 2000);
+      if (id) {
+        // Final step: Assign the role (new or updated) to the employee
+        if (!employee?.user_id) {
+          setErrorMsg("Cannot assign role: This employee is not linked to a system user account. Please create a user account for them first.");
+          setIsSubmitting(false);
+          return;
+        }
+
+        if (!roleIdToAssign) {
+          setErrorMsg("Please select a role to assign.");
+          setIsSubmitting(false);
+          return;
+        }
+
+        await api.post("/roles/assign", {
+          user_id: employee.user_id,
+          role_ids: [roleIdToAssign],
+        });
+
+        setSuccessMsg(`✓ "${roleName}" permissions updated and assigned to ${employee?.first_name ?? "the employee"}.`);
+        setTimeout(() => router.push("/dashboard/employees"), 2000);
+      } else {
+        setSuccessMsg(`✓ Role "${roleName}" successfully saved.`);
+        setIsEditingExistingRole(false);
+        if (assignmentOption === "custom") {
+          setTimeout(() => window.location.reload(), 1500);
+        }
+      }
     } catch (error: unknown) {
       let msg = "Failed to save role assignment.";
       if (error instanceof Error) {
@@ -208,14 +219,14 @@ function AssignRoleContent() {
     <div className="max-w-[1000px] mx-auto pb-20 pt-2">
       <div className="mb-8">
         <Link
-          href={`/EmployeeManegement/edit?id=${encodeURIComponent(id || "")}`}
+          href={id ? `/dashboard/EmployeeManagement/edit?id=${encodeURIComponent(id)}` : "/dashboard"}
           className="inline-flex items-center gap-2 text-[14px] text-gray-500 hover:text-gray-800 transition-colors mb-4 font-medium"
         >
           <IconArrowLeft /> Back
         </Link>
-        <h1 className="text-[28px] font-bold text-[#212B36]">Assign Role & Permissions</h1>
+        <h1 className="text-[28px] font-bold text-[#212B36]">{id ? "Assign Role & Permissions" : "Role Management"}</h1>
         <p className="text-[14px] text-gray-400 mt-1">
-          {employee ? `Defining access for ${employee.first_name} ${employee.last_name}` : "Define system access for the employee"}
+          {employee ? `Defining access for ${employee.first_name} ${employee.last_name}` : "Create and manage system roles and permissions"}
         </p>
         {employee?.role && (
           <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-orange-50 border border-orange-200 rounded-full text-[13px] text-orange-700 font-medium">
@@ -225,17 +236,19 @@ function AssignRoleContent() {
         )}
       </div>
 
-      <div className="flex items-center gap-4 mb-10 px-4">
-        <div className="flex items-center gap-3">
-          <StepCircle num={1} completed />
-          <span className="text-[14px] font-medium text-gray-500">Employee Details</span>
+      {id && (
+        <div className="flex items-center gap-4 mb-10 px-4">
+          <div className="flex items-center gap-3">
+            <StepCircle num={1} completed />
+            <span className="text-[14px] font-medium text-gray-500">Employee Details</span>
+          </div>
+          <div className="w-16 h-[2px] bg-[#EE7F22]"></div>
+          <div className="flex items-center gap-3">
+            <StepCircle num={2} active />
+            <span className="text-[14px] font-bold text-[#212B36]">Assign Role & Permissions</span>
+          </div>
         </div>
-        <div className="w-16 h-[2px] bg-[#EE7F22]"></div>
-        <div className="flex items-center gap-3">
-          <StepCircle num={2} active />
-          <span className="text-[14px] font-bold text-[#212B36]">Assign Role & Permissions</span>
-        </div>
-      </div>
+      )}
 
       {successMsg && (
         <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-xl text-green-700 text-[14px] font-medium flex items-center gap-3">
@@ -403,8 +416,12 @@ function AssignRoleContent() {
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                   <polyline points="20 6 9 17 4 12"></polyline>
                 </svg>
-                {assignmentOption === "custom" ? "Create & Assign Role" :
-                  isEditingExistingRole ? "Apply Changes & Assign" : "Confirm Assignment"}
+                {id ? (
+                  assignmentOption === "custom" ? "Create & Assign Role" :
+                  isEditingExistingRole ? "Apply Changes & Assign" : "Confirm Assignment"
+                ) : (
+                  assignmentOption === "custom" ? "Create Role" : "Save Changes"
+                )}
               </>
             )}
           </button>
