@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from jose import jwt, JWTError
 from typing import List
 
-from app.database.session import get_db
+from app.database.database import get_db
 from app.auth.models import User
 from app.core.jwt import SECRET_KEY, ALGORITHM
 
@@ -25,6 +25,13 @@ def get_current_user(
         user_id = payload.get("sub")
         if user_id is None:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+        
+        # Block temporary 2FA tokens from accessing regular endpoints
+        if payload.get("type") == "2fa":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, 
+                detail="Temporary 2FA token cannot access this endpoint"
+            )
     except JWTError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
 
@@ -35,12 +42,24 @@ def get_current_user(
 
 
 def get_user_permissions(user: User, db: Session) -> List[str]:
-    """Resolves permissions from the user's role_id → Role.permissions list."""
-    if not user.role_id:
-        return []
-    from app.roles.models import Role
-    role = db.query(Role).filter(Role.id == user.role_id).first()
-    return role.permissions if role else []
+    """Resolves permissions from the user's roles (many-to-many) or single role_id."""
+    permissions = set()
+    
+    # 1. From many-to-many roles
+    if user.roles:
+        for role in user.roles:
+            for perm in role.permissions:
+                permissions.add(perm.permission_name)
+    
+    # 2. Fallback to single role_id if many-to-many is empty
+    elif user.role_id:
+        from app.roles.models import Role
+        role = db.query(Role).filter(Role.id == user.role_id).first()
+        if role:
+            for perm in role.permissions:
+                permissions.add(perm.permission_name)
+                
+    return list(permissions)
 
 
 def require_permission(permission: str):

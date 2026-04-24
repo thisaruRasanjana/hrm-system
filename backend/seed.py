@@ -1,10 +1,8 @@
 """
-seed.py -- Creates 3 roles and 3 dummy users for testing.
-Run AFTER migrate.py (which creates the roles table).
+seed.py -- Creates 3 dummy users for testing.
+Assumes roles are already seeded by app startup.
 
 Usage:  python seed.py
-
-Idempotent -- skips existing records.
 """
 # -*- coding: utf-8 -*-
 
@@ -17,32 +15,29 @@ load_dotenv()
 
 from app.database.database import SessionLocal
 from app.core.security import hash_password
-from app.core.permissions import ALL_PERMISSIONS, HR_PERMISSIONS, EMPLOYEE_PERMISSIONS
 from app.roles.models import Role
 from app.auth.models import User
+from app.employees.models import Employee # noqa: F401
+from app.departments.models import Department # noqa: F401
+from app.announcements.models import Announcement # noqa: F401
+from app.events.models import Event # noqa: F401
+from app.time_tracking.models import TimeEntry # noqa: F401
+from app.messages.models import Message # noqa: F401
+from app.notifications.models import Notification # noqa: F401
 
 db = SessionLocal()
 
-
-def get_or_create_role(name: str, permissions: list) -> Role:
-    existing = db.query(Role).filter(Role.name == name).first()
-    if existing:
-        print(f"  Role '{name}' already exists -- updating permissions.")
-        existing.permissions = permissions
-        db.commit()
-        return existing
-    role = Role(name=name, permissions=permissions)
-    db.add(role)
-    db.commit()
-    db.refresh(role)
-    print(f"  [OK] Created role '{name}' with {len(permissions)} permissions.")
+def get_role(name: str) -> Role:
+    role = db.query(Role).filter(Role.role_name == name).first()
+    if not role:
+        print(f"  [ERROR] Role '{name}' not found. Make sure backend has run once to seed roles.")
+        sys.exit(1)
     return role
 
-
-print("\n-- Creating roles --")
-admin_role = get_or_create_role("Admin", ALL_PERMISSIONS)
-hr_role    = get_or_create_role("HR Manager", HR_PERMISSIONS)
-emp_role   = get_or_create_role("Employee", EMPLOYEE_PERMISSIONS)
+print("\n-- Fetching roles --")
+super_admin_role = get_role("Super Admin")
+hr_role          = get_role("HR")
+emp_role         = get_role("Employee")
 
 dummy_users = [
     {
@@ -51,11 +46,11 @@ dummy_users = [
         "password": "Admin@123",
         "first_name": "Admin",
         "last_name": "User",
-        "role": "Admin",
+        "role": "Super Admin",
         "position": "System Administrator",
         "department": "Management",
         "employee_id": "EMP-ADMIN",
-        "role_id": admin_role.id,
+        "role_id": super_admin_role.id,
     },
     {
         "email": "hr@hrm.lk",
@@ -63,7 +58,7 @@ dummy_users = [
         "password": "HR@123",
         "first_name": "HR",
         "last_name": "Manager",
-        "role": "HR Manager",
+        "role": "HR",
         "position": "HR Manager",
         "department": "Human Resources",
         "employee_id": "EMP-001",
@@ -90,18 +85,18 @@ for u in dummy_users:
         or db.query(User).filter(User.username == u["username"]).first()
     )
     if existing:
-        print(f"  User '{u['username']}' already exists -- updating role_id and password.")
+        print(f"  User '{u['username']}' already exists -- updating role and password.")
         existing.role_id = u["role_id"]
         existing.role = u["role"]
         existing.username = u["username"]
-        existing.hashed_password = hash_password(u["password"])
+        existing.password_hash = hash_password(u["password"])
         db.commit()
         continue
 
     user = User(
         email=u["email"],
         username=u["username"],
-        hashed_password=hash_password(u["password"]),
+        password_hash=hash_password(u["password"]),
         first_name=u["first_name"],
         last_name=u["last_name"],
         role=u["role"],
@@ -118,7 +113,3 @@ for u in dummy_users:
 
 db.close()
 print("\nSeed complete.\n")
-print("  Login credentials:")
-print("  Username: admin      | Password: Admin@123  | Role: Admin")
-print("  Username: hrmanager  | Password: HR@123     | Role: HR Manager")
-print("  Username: employee1  | Password: Emp@123    | Role: Employee")

@@ -9,10 +9,17 @@ from app.database.database import engine, SessionLocal
 from app.database.base import Base
 
 # ── Import all models so SQLAlchemy metadata is populated (order matters for FKs) ──
-import app.roles.models        # noqa: F401  — roles (no FKs)
-import app.auth.models         # noqa: F401  — users (FK → roles)
+import app.roles.models        # noqa: F401
+import app.auth.models         # noqa: F401
 import app.departments.models  # noqa: F401
 import app.employees.models    # noqa: F401
+import app.time_tracking.models # noqa: F401
+import app.messages.models      # noqa: F401
+import app.announcements.models # noqa: F401
+import app.events.models        # noqa: F401
+import app.notifications.models # noqa: F401
+import app.calendar_holidays.models # noqa: F401
+import app.dashboard.models    # noqa: F401
 
 # ── Routers ────────────────────────────────────────────────────────────────────
 from app.auth.router        import router as auth_router
@@ -77,7 +84,7 @@ app.add_middleware(
 # ── Register API routers (auth, roles, employees, leave, then others) ──────────
 app.include_router(auth_router,          prefix="/auth",          tags=["Authentication"])
 app.include_router(roles_router,         prefix="/roles",         tags=["Roles & Permissions"])
-app.include_router(employee_router,                               tags=["Employees"])
+app.include_router(employee_router,      prefix="/employees",     tags=["Employees"])
 app.include_router(leave_router,         prefix="/leave",         tags=["Leave"])
 app.include_router(departments_router,   prefix="/departments",   tags=["Departments"])
 app.include_router(dashboard_router,     prefix="/dashboard",     tags=["Dashboard"])

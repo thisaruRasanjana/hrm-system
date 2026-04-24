@@ -1,18 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.orm import Session
 from typing import List
-from app.database.database import SessionLocal
+from app.database.database import get_db
 from app.employees import service, schemas
+from app.core.deps import get_current_user, require_permission
 
-router = APIRouter(prefix="/employees", tags=["employees"])
-
-# Dependency
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+router = APIRouter(dependencies=[Depends(get_current_user)])
 
 @router.get("/", response_model=List[schemas.EmployeeOut])
 def read_employees(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):

@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 import os
 
-from app.database.session import get_db
+from app.database.database import get_db
 from app.core.deps import get_current_user
 from app.auth.models import User
 from app.notifications.models import Notification

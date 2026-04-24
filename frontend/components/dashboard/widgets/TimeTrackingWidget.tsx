@@ -75,6 +75,7 @@ export default function TimeTrackingWidget(_: Props) {
     try {
       const res = await apiFetch("/time-tracking/start", { method: "POST" });
       if (res.ok) {
+        const data = await res.json();
         const dateStr = data.clock_in;
         const clockIn = new Date(dateStr.endsWith("Z") ? dateStr : dateStr + "Z");
         setClockInTime(clockIn);
