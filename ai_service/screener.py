@@ -1,18 +1,21 @@
 """
 CV Screener — Core logic for the AI Screening Service.
 
-Combines:
-  - Text extraction  (PDF via PyPDF2, DOCX via python-docx)
-  - Fallback parsing (regex name / email / phone — runs even without Gemini)
-  - Gemini scoring   (extracts structured JSON via gemini-2.5-flash)
+Uses the google-genai SDK (v1.x) which targets the v1beta API.
+Compatible models (confirmed via ListModels): gemini-2.0-flash-lite, gemini-2.5-flash-lite, etc.
+NOTE: gemini-1.5-* models are NOT available in this SDK/API version.
+
+Model configuration is read from ai_service/.env:
+  GEMINI_MODEL          — primary model (default: gemini-2.0-flash-lite)
+  GEMINI_MODEL_FALLBACK — fallback model (default: gemini-2.5-flash-lite)
 
 Deliberately has ZERO imports from the main backend (app.*).
-All config is loaded from the local .env via python-dotenv.
 """
 
 import os
 import re
 import json
+import time
 from typing import Optional
 from pathlib import Path
 from dotenv import load_dotenv
@@ -22,22 +25,19 @@ from google import genai
 from google.genai import types
 
 # Load .env from the same directory as this file — safe regardless of CWD.
-# override=True ensures the .env value replaces any stale empty variable
-# that may have been set during a previous server run.
 load_dotenv(Path(__file__).parent / ".env", override=True)
-
-import time
 
 GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
 if not GEMINI_API_KEY:
     print("[ai_service] WARNING: GEMINI_API_KEY not found in ai_service/.env")
 
-# Primary model — configurable via env; lite is smaller/faster and has separate quota
-GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite")
-# Fallback tried if primary returns 503/429
-GEMINI_MODEL_FALLBACK: str = "gemini-2.5-flash"
+# Both models must be from the gemini-2.x family for this SDK version.
+# They are configurable via ai_service/.env so no code change is needed
+# when switching models in production.
+GEMINI_MODEL: str          = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-lite")
+GEMINI_MODEL_FALLBACK: str = os.getenv("GEMINI_MODEL_FALLBACK", "gemini-2.5-flash-lite")
 
-# ── Regex helpers (fallback when Gemini unavailable) ──────────────────────────
+# ── Regex helpers ─────────────────────────────────────────────────────────────
 _EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
 _PHONE_RE = re.compile(
     r"(?:\+?\d{1,3}[.\-\s]?)?(?:\(?\d{2,4}\)?[.\-\s]?)?\d{3,4}[.\-\s]?\d{3,4}"
@@ -82,16 +82,16 @@ def _extract_text(file_path: str) -> str:
     return ""
 
 
-# ── Regex-based fallback parser ───────────────────────────────────────────────
+# ── Regex-based contact parser ────────────────────────────────────────────────
 
-def _parse_name(text: str, fallback: str) -> str:
+def _parse_name(text: str) -> str:
     for line in text.split("\n"):
         line = line.strip()
         if not line or "@" in line or "http" in line.lower():
             continue
         if _NAME_RE.match(line):
             return line
-    return fallback
+    return ""
 
 
 def _parse_email(text: str) -> Optional[str]:
@@ -109,11 +109,9 @@ def _parse_phone(text: str) -> Optional[str]:
 
 
 def _fallback_result(file_path: str, text: str, reason: str) -> ScreenResult:
-    """Build a best-effort result from regex parsing when Gemini is unavailable.
-    full_name is intentionally empty so the backend keeps the original uploaded filename.
-    """
+    """Return contact info extracted via regex + score=0 when Gemini is unavailable."""
     return ScreenResult(
-        full_name="",
+        full_name=_parse_name(text) if text else "",
         email=_parse_email(text) if text else None,
         phone=_parse_phone(text) if text else None,
         ai_score=0.0,
@@ -132,13 +130,9 @@ def screen_cv(
 ) -> ScreenResult:
     """
     Parse a CV and score it against a vacancy using Google Gemini.
-
-    Falls back gracefully to regex-parsed data with score=0 if:
-      - The file cannot be read
-      - GEMINI_API_KEY is not set
-      - The Gemini API call fails
+    Falls back to score=0 with regex-extracted contact info if Gemini fails.
     """
-    # ── Step 1: Extract text ─────────────────────────────────────────────────
+    # ── Step 1: Extract text ──────────────────────────────────────────────────
     if not os.path.exists(cv_file_path):
         return _fallback_result(cv_file_path, "", "CV file not found on disk.")
 
@@ -150,16 +144,15 @@ def screen_cv(
             "Could not extract readable text from this document. It may be image-based or corrupted.",
         )
 
-    # ── Step 2: Guard — API key required ─────────────────────────────────────
+    # ── Step 2: API key guard ─────────────────────────────────────────────────
     if not GEMINI_API_KEY:
-        print("[ai_service] WARNING: GEMINI_API_KEY not set. Falling back to regex parsing.")
         return _fallback_result(
             cv_file_path, cv_text,
-            "AI scoring unavailable: GEMINI_API_KEY not configured. Candidate info extracted via fallback parser.",
+            "AI scoring unavailable: GEMINI_API_KEY not configured in ai_service/.env.",
         )
 
-    # ── Step 3: Call Gemini with retry + model fallback ──────────────────────
-    prompt = f"""You are an expert HR Recruitment AI. Your task is to evaluate a candidate's CV against a specific job vacancy.
+    # ── Step 3: Build prompt ──────────────────────────────────────────────────
+    prompt = f"""You are an expert HR Recruitment AI. Evaluate the candidate's CV against the job vacancy below.
 
 Vacancy Details:
   Job Title:        {title            or 'N/A'}
@@ -172,24 +165,34 @@ Candidate CV:
 {cv_text[:8000]}
 ---
 
-Your evaluation must:
-1. Extract the candidate's full name, email address, and phone number from the CV.
-2. Assign an `ai_score` from 0.0 to 100.0 reflecting how well the candidate matches the vacancy.
-   - Consider: relevant experience, skills match, qualifications, and seniority fit for a {experience_level or 'specified'}-level role.
-   - A candidate overqualified or underqualified for the experience level should score lower.
-3. Write a concise 2-to-3 sentence `ai_reasoning` in professional HR language that justifies the score.
+Return a JSON object with exactly these fields:
+{{
+  "full_name":    "<candidate full name from CV>",
+  "email":        "<email address or null>",
+  "phone":        "<phone number or null>",
+  "ai_score":     <float 0.0-100.0>,
+  "ai_reasoning": "<2-3 sentence professional HR justification>"
+}}
 
-Return ONLY valid JSON matching the required schema. Do not include markdown or explanation.
+Scoring guide:
+- 85-100: Excellent match — skills, experience level, and qualifications align very well
+- 65-84:  Good match — meets most requirements with minor gaps
+- 45-64:  Partial match — some relevant skills but significant gaps
+- 20-44:  Weak match — limited relevant experience or skills
+- 0-19:   Poor match — does not meet core requirements
+
+A candidate overqualified or underqualified for the seniority level should score lower.
+Return ONLY the JSON object. No markdown, no code blocks, no explanation.
 """
 
+    # ── Step 4: Call Gemini ───────────────────────────────────────────────────
     client = genai.Client(api_key=GEMINI_API_KEY)
     models_to_try = [GEMINI_MODEL, GEMINI_MODEL_FALLBACK]
-    retry_delays = [5, 15, 30]  # seconds between retries
 
     for model_name in models_to_try:
-        for attempt, delay in enumerate(retry_delays, start=1):
+        for attempt in range(1, 3):  # max 2 attempts per model
             try:
-                print(f"[ai_service] Attempting {model_name} (attempt {attempt}/3)...")
+                print(f"[ai_service] Attempting {model_name} (attempt {attempt}/2)...")
                 response = client.models.generate_content(
                     model=model_name,
                     contents=prompt,
@@ -199,28 +202,38 @@ Return ONLY valid JSON matching the required schema. Do not include markdown or 
                         temperature=0.2,
                     ),
                 )
-                if response.text:
-                    data = json.loads(response.text)
-                    result = ScreenResult(**data)
-                    print(f"[ai_service] ✓ Scored with {model_name}: {result.ai_score}")
-                    return result
-                break  # Got a response but no text — move to next model
+                if not response.text:
+                    print(f"[ai_service] {model_name} returned empty response — skipping.")
+                    break
+
+                data = json.loads(response.text)
+                result = ScreenResult(**data)
+                print(f"[ai_service] ✓ Scored with {model_name}: {result.ai_score}")
+                return result
 
             except Exception as e:
                 err_str = str(e)
-                is_retryable = "503" in err_str or "429" in err_str or "UNAVAILABLE" in err_str or "EXHAUSTED" in err_str
-                print(f"[ai_service] {model_name} attempt {attempt} failed: {type(e).__name__}: {err_str[:120]}")
+                is_quota     = "429" in err_str or "RESOURCE_EXHAUSTED" in err_str
+                is_not_found = "404" in err_str or "NOT_FOUND" in err_str
+                is_server    = "503" in err_str or "UNAVAILABLE" in err_str
 
-                if is_retryable and attempt < len(retry_delays):
-                    print(f"[ai_service] Retrying in {delay}s...")
-                    time.sleep(delay)
+                print(f"[ai_service] {model_name} attempt {attempt} failed: {type(e).__name__}: {err_str[:150]}")
+
+                if is_quota:
+                    print(f"[ai_service] Quota exhausted on {model_name} — trying next model.")
+                    break
+                elif is_not_found:
+                    print(f"[ai_service] {model_name} not found in this API version — trying next model.")
+                    break
+                elif is_server and attempt < 2:
+                    print(f"[ai_service] Server error — retrying in 10s...")
+                    time.sleep(10)
                 else:
-                    print(f"[ai_service] Switching to next model or giving up.")
                     break
 
-    # ── Step 4: All models failed — regex fallback ────────────────────────────
+    # ── Step 5: All models failed ─────────────────────────────────────────────
     return _fallback_result(
         cv_file_path, cv_text,
-        "AI scoring temporarily unavailable (rate limit or service overload). Candidate info extracted via fallback parser. Try re-running screening later.",
+        "AI scoring unavailable (quota exhausted or API error). "
+        "Re-run screening once your API quota resets. Contact info extracted via regex parser.",
     )
-
