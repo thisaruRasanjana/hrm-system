@@ -23,7 +23,7 @@ def _send_email(to_email: str, subject: str, body: str):
         msg["To"] = to_email
         msg["Subject"] = subject
         msg.attach(MIMEText(body, "plain"))
-        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=5) as server:
             server.starttls()
             server.login(SMTP_USER, SMTP_PASSWORD)
             server.sendmail(SMTP_USER, to_email, msg.as_string())

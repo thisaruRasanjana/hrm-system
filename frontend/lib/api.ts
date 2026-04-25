@@ -42,7 +42,8 @@ export function setToken(token: string): void {
 /** Remove the access token for THIS tab only */
 export function removeToken(): void {
   sessionStorage.removeItem("access_token");
-  document.cookie = "access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC";
+  document.cookie =
+    "access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC";
 }
 
 async function refreshAccessToken(): Promise<string> {
@@ -58,22 +59,29 @@ async function refreshAccessToken(): Promise<string> {
 
 // ── Core fetch with auto-refresh + FastAPI error parsing (from dev) ────────────
 
-async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+async function request<T>(
+  endpoint: string,
+  options: RequestInit = {},
+): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`;
   const token = getToken();
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    ...(options.headers as Record<string, string> || {}),
+    ...((options.headers as Record<string, string>) || {}),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
 
   let response: Response;
   try {
-    response = await fetch(url, { ...options, headers, credentials: "include" });
+    response = await fetch(url, {
+      ...options,
+      headers,
+      credentials: "include",
+    });
   } catch (err: any) {
     throw new Error(
-      `Network Error: Could not connect to API at ${url}. Please ensure the backend is running. (${err.message})`
+      `Network Error: Could not connect to API at ${url}. Please ensure the backend is running. (${err.message})`,
     );
   }
 
@@ -99,7 +107,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
           request<T>(endpoint, {
             ...options,
             headers: { ...headers, Authorization: `Bearer ${newToken}` },
-          })
+          }),
         );
       });
     });
@@ -114,7 +122,9 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
         if (Array.isArray(errorData.detail)) {
           errorMessage = errorData.detail
             .map((err: any) =>
-              err.msg ? `${err.loc?.join(".") || "error"}: ${err.msg}` : JSON.stringify(err)
+              err.msg
+                ? `${err.loc?.join(".") || "error"}: ${err.msg}`
+                : JSON.stringify(err),
             )
             .join(", ");
         } else if (typeof errorData.detail === "string") {
@@ -142,17 +152,26 @@ export const api = {
     request<T>(endpoint, { method: "POST", body: JSON.stringify(data) }),
   put: <T>(endpoint: string, data: any) =>
     request<T>(endpoint, { method: "PUT", body: JSON.stringify(data) }),
+  patch: <T>(endpoint: string, data: any) =>
+    request<T>(endpoint, { method: "PATCH", body: JSON.stringify(data) }),
   delete: (endpoint: string) => request(endpoint, { method: "DELETE" }),
 };
 
 // ── Raw fetch wrapper (from Sanduni) — used by auth context ───────────────────
 
-export async function apiFetch(url: string, options: RequestInit = {}): Promise<Response> {
+export async function apiFetch(
+  url: string,
+  options: RequestInit = {},
+): Promise<Response> {
   const token = getToken();
   const headers = {
     "Content-Type": "application/json",
     ...(options.headers || {}),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
-  return fetch(`${API_BASE_URL}${url}`, { ...options, headers, credentials: "include" });
+  return fetch(`${API_BASE_URL}${url}`, {
+    ...options,
+    headers,
+    credentials: "include",
+  });
 }

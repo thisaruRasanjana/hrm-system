@@ -1,18 +1,16 @@
-from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
 from uuid import UUID
 
 from app.database.database import get_db
-from app.documents.services.approval_service import (
-    get_pending_documents,
-    approve_document,
-    reject_document
-)
-
 from app.documents.schemas.approval_schema import RejectDocumentRequest
-from app.core.deps import require_permission
+from app.documents.services.approval_service import (
+    approve_document,
+    get_pending_documents,
+    reject_document,
+)
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
 
-router = APIRouter(prefix="/documents/review", tags=["Document Approval"])
+router = APIRouter(tags=["Document Approval"])
 
 
 @router.get("/pending")
@@ -22,20 +20,25 @@ def pending_documents(db: Session = Depends(get_db)):
 
 @router.patch("/{document_id}/approve")
 def approve(document_id: UUID, db: Session = Depends(get_db)):
-    reviewer_id = 1 # Hardcoded for demo
-    return approve_document(document_id, reviewer_id, db)
+    reviewer_id = 1  # Hardcoded for demo — replace with real auth later
+    doc = approve_document(document_id, reviewer_id, db)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    return {"message": "Document approved successfully", "status": "APPROVED"}
 
 
 @router.patch("/{document_id}/reject")
 def reject(
     document_id: UUID,
     data: RejectDocumentRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
-    reviewer_id = 1 # Hardcoded for demo
-    return reject_document(
-        document_id,
-        reviewer_id,
-        data.reason,
-        db
-    )
+    reviewer_id = 1  # Hardcoded for demo — replace with real auth later
+    doc = reject_document(document_id, reviewer_id, data.reason, db)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    return {
+        "message": "Document rejected",
+        "status": "REJECTED",
+        "reason": data.reason,
+    }

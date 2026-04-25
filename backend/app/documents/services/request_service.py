@@ -1,13 +1,15 @@
-from sqlalchemy.orm import Session
 from app.documents.models.request_model import DocumentRequest, RequestStatus
 from app.employees.models import Employee
+from sqlalchemy.orm import Session
+
 
 def create_document_request(db: Session, data):
     request = DocumentRequest(
         employee_id=data.employee_id,
         document_type=data.document_type,
         reason=data.reason,
-        status=RequestStatus.PENDING
+        purpose=data.reason,  # mirror reason into purpose for HR view compatibility
+        status=RequestStatus.PENDING,
     )
 
     db.add(request)
@@ -16,6 +18,7 @@ def create_document_request(db: Session, data):
 
     return request
 
+
 def get_all_requests(db: Session):
     results = (
         db.query(DocumentRequest, Employee.first_name, Employee.last_name)
@@ -23,7 +26,7 @@ def get_all_requests(db: Session):
         .order_by(DocumentRequest.created_at.desc())
         .all()
     )
-    
+
     requests = []
     for req, first_name, last_name in results:
         req_dict = {c.name: getattr(req, c.name) for c in req.__table__.columns}
@@ -32,8 +35,9 @@ def get_all_requests(db: Session):
         else:
             req_dict["employee_name"] = "Unknown Employee"
         requests.append(req_dict)
-    
+
     return requests
+
 
 def get_employee_requests(db: Session, employee_id):
     results = (
@@ -43,7 +47,7 @@ def get_employee_requests(db: Session, employee_id):
         .order_by(DocumentRequest.created_at.desc())
         .all()
     )
-    
+
     requests = []
     for req, first_name, last_name in results:
         req_dict = {c.name: getattr(req, c.name) for c in req.__table__.columns}
@@ -52,5 +56,5 @@ def get_employee_requests(db: Session, employee_id):
         else:
             req_dict["employee_name"] = "Unknown Employee"
         requests.append(req_dict)
-    
+
     return requests
