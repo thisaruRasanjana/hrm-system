@@ -8,6 +8,7 @@ from app.documents.services import hr_request_service
 from app.documents.services import document_generator
 from app.documents.schemas import hr_request_schema
 from app.documents.models.request_model import RequestStatus
+from app.core.deps import require_permission
 
 router = APIRouter(
     prefix="/hr-document-requests",
@@ -17,7 +18,8 @@ router = APIRouter(
 @router.get("/", response_model=list[hr_request_schema.HRRequestResponse])
 def get_requests(
     status: Optional[str] = Query(None, description="Filter by status (NEW, IN_PROGRESS, COMPLETED, etc)"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user = Depends(require_permission("document:approve"))
 ):
     # Mapping "NEW" from frontend to "PENDING" in DB, if needed, but normally frontend sends PENDING.
     db_status = "PENDING" if status == "NEW" else status
@@ -27,7 +29,8 @@ def get_requests(
 def update_status(
     request_id: UUID,
     data: hr_request_schema.HRRequestStatusUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user = Depends(require_permission("document:approve"))
 ):
     req = hr_request_service.update_request_status(
         db=db,
@@ -41,7 +44,8 @@ def update_status(
 def generate_document(
     request_id: UUID,
     data: hr_request_schema.HRGenerateDocumentRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user = Depends(require_permission("document:approve"))
 ):
     try:
         req, html_content = document_generator.generate_document_from_request(
@@ -59,7 +63,7 @@ def generate_document(
         return {"error": str(e)}
 
 @router.post("/sync-emails")
-async def sync_emails(db: Session = Depends(get_db)):
+async def sync_emails(db: Session = Depends(get_db), current_user = Depends(require_permission("document:approve"))):
     import asyncio
     from app.documents.services import email_service
     result = await asyncio.to_thread(email_service.fetch_and_process_external_requests, db)
@@ -70,14 +74,15 @@ async def sync_emails(db: Session = Depends(get_db)):
 def assign_employee(
     request_id: UUID,
     data: dict,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user = Depends(require_permission("document:approve"))
 ):
     employee_id = int(data["employee_id"])
     return hr_request_service.assign_employee_to_request(db, request_id, employee_id)
 
 
 @router.post("/{request_id}/custom-letter")
-def send_custom_letter(request_id: UUID, data: dict, db: Session = Depends(get_db)):
+def send_custom_letter(request_id: UUID, data: dict, db: Session = Depends(get_db), current_user = Depends(require_permission("document:approve"))):
     """Generate a PDF from free-form letter text written by HR, and mark request COMPLETED."""
     import os
     from xhtml2pdf import pisa

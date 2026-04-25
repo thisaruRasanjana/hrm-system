@@ -21,7 +21,17 @@ import {
   CheckCircle,
   XCircle,
   AlertCircle,
+  Wand2,
+  PenLine,
+  ToggleLeft,
+  ToggleRight,
+  PlusCircle,
+  FileType
 } from "lucide-react";
+import GenerateDocumentModal from "./components/GenerateDocumentModal";
+import RichTextEditor from "./components/RichTextEditor";
+import TemplateEditModal from "./components/TemplateEditModal";
+import ConfirmationModal from "./components/ConfirmationModal";
 
 interface DocumentRequest {
   id: string;
@@ -71,8 +81,9 @@ interface DocumentType {
 export default function DocumentsPage() {
   const { user, hasAnyPermission } = useAuth();
   const isHR = hasAnyPermission([
-    "document:manage_templates",
-    "document:view_all",
+    "document:approve",
+    "document:manage_types",
+    "document:manage_templates"
   ]);
 
   const [activeTab, setActiveTab] = useState<string>("requests");
@@ -97,14 +108,17 @@ export default function DocumentsPage() {
     useState<DocumentRequest | null>(null);
   const [customLetterText, setCustomLetterText] = useState("");
   const [selectedTemplateId, setSelectedTemplateId] = useState<number | "">("");
+  const [showGenerateModal, setShowGenerateModal] = useState(false);
 
   // HR Template Modal
   const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<Template | null>(null);
   const [templateName, setTemplateName] = useState("");
   const [templateCategory, setTemplateCategory] = useState("");
   const [templateType, setTemplateType] = useState<"HTML" | "DOCX">("HTML");
   const [templateContent, setTemplateContent] = useState("");
   const [templateFile, setTemplateFile] = useState<File | null>(null);
+  const [templateToDelete, setTemplateToDelete] = useState<number | null>(null);
 
   // HR Type Modal
   const [showTypeModal, setShowTypeModal] = useState(false);
@@ -180,7 +194,7 @@ export default function DocumentsPage() {
 
   const fetchActiveTypes = async () => {
     try {
-      const data = await api.get<DocumentType[]>("/api/document-types/active/");
+      const data = await api.get<DocumentType[]>("/document-types/active/");
       setActiveDocTypes(data);
     } catch (err: any) {
       setError(err.message || "Failed to fetch types");
@@ -288,7 +302,7 @@ export default function DocumentsPage() {
   const fetchDocTypes = async () => {
     setLoading(true);
     try {
-      const data = await api.get<DocumentType[]>("/api/document-types/");
+      const data = await api.get<DocumentType[]>("/document-types/");
       setDocTypes(data);
     } catch (err: any) {
       setError(err.message || "Failed to fetch types");
@@ -361,13 +375,17 @@ export default function DocumentsPage() {
     }
   };
 
-  const handleDeleteTemplate = async (id: number) => {
-    if (!confirm("Delete this template?")) return;
+  const confirmDeleteTemplate = async () => {
+    if (!templateToDelete) return;
+    setLoading(true);
     try {
-      await api.delete(`/document-templates/${id}`);
+      await api.delete(`/document-templates/${templateToDelete}`);
+      setTemplateToDelete(null);
       fetchTemplates();
     } catch (err: any) {
       setError(err.message || "Failed to delete template");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -405,7 +423,7 @@ export default function DocumentsPage() {
   const handleCreateType = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await api.post("/api/document-types/", {
+      await api.post("/document-types/", {
         name: typeName,
         description: typeDesc,
         is_mandatory: typeMandatory,
@@ -422,7 +440,7 @@ export default function DocumentsPage() {
 
   const toggleTypeActive = async (id: string, current: boolean) => {
     try {
-      await api.patch(`/api/document-types/${id}`, { is_active: !current });
+      await api.patch(`/document-types/${id}`, { is_active: !current });
       fetchDocTypes();
     } catch (err: any) {
       setError(err.message || "Failed to toggle status");
@@ -636,7 +654,7 @@ export default function DocumentsPage() {
       </div>
 
       {/* ── Pill Tabs ── */}
-      <div className="inline-flex bg-white p-1 rounded-full shadow-md border overflow-x-auto">
+      <div className="inline-flex bg-white p-1 rounded-full shadow-md overflow-x-auto">
         {tabs.map((tab) => (
           <button
             key={tab.id}
@@ -667,98 +685,145 @@ export default function DocumentsPage() {
         {/* ── MY REQUESTS ────────────────────────────────────────────────── */}
         {activeTab === "requests" && (
           <div className="space-y-4">
-            <div className="flex justify-end">
-              <button
-                onClick={() => {
-                  setShowNewRequestModal(true);
-                  fetchActiveTypes();
-                }}
-                className="flex items-center gap-2 bg-[#F2924E] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#e4833f] transition shadow-sm"
-              >
-                <Plus size={16} /> New Request
-              </button>
+            {/* New Request Inline Form */}
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-6">
+              <div className="flex items-center gap-3">
+                <div className="bg-[#F2924E]/10 p-2 rounded-lg">
+                  <FileText size={18} className="text-[#F2924E]" />
+                </div>
+                <h3 className="font-semibold text-gray-800">New Request</h3>
+              </div>
+
+              <form onSubmit={handleNewRequest} className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-[12px] text-gray-500 font-bold uppercase tracking-wider">
+                    Document Type
+                  </label>
+                  <select
+                    value={selectedDocType}
+                    onChange={(e) => setSelectedDocType(e.target.value)}
+                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#F2924E]/20 focus:border-[#F2924E] transition-all bg-gray-50/30"
+                    required
+                  >
+                    <option value="">Select document type</option>
+                    {activeDocTypes.map((type) => (
+                      <option key={type.id} value={type.name}>
+                        {type.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[12px] text-gray-500 font-bold uppercase tracking-wider">
+                    Reason for Request
+                  </label>
+                  <textarea
+                    value={requestReason}
+                    onChange={(e) => setRequestReason(e.target.value)}
+                    placeholder="Why do you need this document?"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm min-h-[100px] outline-none focus:ring-2 focus:ring-[#F2924E]/20 focus:border-[#F2924E] transition-all bg-gray-50/30 resize-none"
+                    required
+                  />
+                </div>
+
+                <div className="flex justify-end pt-2">
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="px-6 py-2.5 text-sm font-bold rounded-xl bg-[#F2924E] text-white hover:bg-[#e07d3a] transition-all shadow-sm active:scale-95 disabled:opacity-50"
+                  >
+                    {loading ? "Submitting..." : "Submit Request"}
+                  </button>
+                </div>
+              </form>
             </div>
 
-            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
-              <table className="w-full text-left">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                      Document Type
-                    </th>
-                    <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                      Reason
-                    </th>
-                    <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                      Date
-                    </th>
-                    <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                      Download
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {loading && myRequests.length === 0 ? (
-                    <tr>
-                      <td
-                        colSpan={5}
-                        className="px-6 py-12 text-center text-gray-400"
-                      >
-                        <div className="flex justify-center items-center gap-2">
-                          <div className="w-4 h-4 border-2 border-[#F2924E] border-t-transparent rounded-full animate-spin" />
-                          Loading requests...
-                        </div>
-                      </td>
-                    </tr>
-                  ) : myRequests.length === 0 ? (
-                    <tr>
-                      <td
-                        colSpan={5}
-                        className="px-6 py-12 text-center text-gray-400 italic"
-                      >
-                        No requests yet. Click &quot;New Request&quot; to get
-                        started.
-                      </td>
-                    </tr>
-                  ) : (
-                    myRequests.map((req) => (
-                      <tr key={req.id} className="hover:bg-gray-50 transition">
-                        <td className="px-6 py-4 text-sm font-semibold text-gray-900">
-                          {req.document_type}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">
-                          {req.reason}
-                        </td>
-                        <td className="px-6 py-4">
-                          {getStatusBadge(req.status)}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-500">
-                          {new Date(req.created_at).toLocaleDateString("en-GB")}
-                        </td>
-                        <td className="px-6 py-4 text-sm">
-                          {req.status === "COMPLETED" &&
-                          req.generated_document_path ? (
-                            <a
-                              href={`http://localhost:8000/${req.generated_document_path}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-[#F2924E] hover:underline flex items-center gap-1 font-medium"
-                            >
-                              <Download size={14} /> Download
-                            </a>
-                          ) : (
-                            <span className="text-gray-300">—</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+            {(() => {
+              const pendingReqs = myRequests.filter(r => r.status === 'PENDING' || r.status === 'IN_PROGRESS' || r.status === 'NEW');
+              const prevReqs = myRequests.filter(r => r.status === 'COMPLETED' || r.status === 'REJECTED');
+
+              return (
+                <div className="space-y-6">
+                  {/* Pending Requests */}
+                  <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">
+                    <h3 className="font-bold text-gray-800 flex items-center gap-2 text-[15px]">
+                      <Clock size={16} className="text-[#F2924E]" /> Pending Requests
+                    </h3>
+                    
+                    {loading && myRequests.length === 0 ? (
+                      <div className="text-center p-6 bg-gray-50 rounded-xl text-gray-400 text-sm">
+                        Loading requests...
+                      </div>
+                    ) : pendingReqs.length === 0 ? (
+                      <p className="text-sm text-gray-400 italic bg-gray-50 rounded-xl p-6 text-center">
+                        No pending requests. Click &quot;New Request&quot; to get started.
+                      </p>
+                    ) : (
+                      <div className="space-y-3">
+                        {pendingReqs.map((req) => (
+                          <div key={req.id} className="flex justify-between items-center border border-gray-100 rounded-xl p-4 hover:bg-gray-50/50 transition-all">
+                            <div>
+                              <p className="font-bold text-gray-900 text-sm">{req.document_type}</p>
+                              <p className="text-[11px] text-gray-400 font-medium mt-0.5">
+                                Requested on {new Date(req.created_at).toLocaleDateString("en-GB")}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              {getStatusBadge(req.status)}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Previous Requests */}
+                  <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">
+                    <h3 className="font-bold text-gray-800 flex items-center gap-2 text-[15px]">
+                      <CheckCircle size={16} className="text-green-500" /> Previous Requests
+                    </h3>
+                    
+                    {prevReqs.length === 0 ? (
+                      <p className="text-sm text-gray-400 italic bg-gray-50 rounded-xl p-6 text-center">
+                        No previous requests
+                      </p>
+                    ) : (
+                      <div className="space-y-3">
+                        {prevReqs.map((req) => (
+                          <div key={req.id} className="flex justify-between items-center border border-gray-100 rounded-xl p-4 hover:bg-gray-50/50 transition-all">
+                            <div>
+                              <p className="font-bold text-gray-900 text-sm">{req.document_type}</p>
+                              <p className="text-[11px] text-gray-400 font-medium mt-0.5">
+                                Requested on {new Date(req.created_at).toLocaleDateString("en-GB")}
+                              </p>
+                              {req.status === 'REJECTED' && req.rejection_reason && (
+                                <p className="text-[11px] text-red-500 font-medium mt-1">
+                                  Reason: {req.rejection_reason}
+                                </p>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-3">
+                              {getStatusBadge(req.status)}
+                              {req.status === 'COMPLETED' && req.generated_document_path && (
+                                <a
+                                  href={`http://localhost:8000/${req.generated_document_path}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-[11px] font-bold px-4 py-1.5 rounded-lg transition-all flex items-center gap-1.5"
+                                >
+                                  <Download size={14} /> Download
+                                </a>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         )}
 
@@ -1248,7 +1313,14 @@ export default function DocumentsPage() {
                           <Eye size={13} />
                         </button>
                         <button
-                          onClick={() => handleDeleteTemplate(tpl.id)}
+                          onClick={() => setEditingTemplate(tpl)}
+                          className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 transition"
+                          title="Edit"
+                        >
+                          <PenLine size={13} />
+                        </button>
+                        <button
+                          onClick={() => setTemplateToDelete(tpl.id)}
                           className="p-1.5 rounded-lg border border-red-100 text-red-400 hover:bg-red-50 transition"
                           title="Delete"
                         >
@@ -1301,20 +1373,81 @@ export default function DocumentsPage() {
 
         {/* ── HR: DOCUMENT TYPES ─────────────────────────────────────────── */}
         {isHR && activeTab === "types" && (
-          <div className="space-y-4">
-            <div className="flex justify-end">
-              <button
-                onClick={() => setShowTypeModal(true)}
-                className="flex items-center gap-2 bg-[#F2924E] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#e4833f] transition shadow-sm"
-              >
-                <Plus size={16} /> Add Type
-              </button>
+          <div className="space-y-6">
+            <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+              <h2 className="text-lg font-bold text-gray-800 mb-6 flex items-center gap-2">
+                <PlusCircle size={18} className="text-[#F2924E]" />
+                Create New Document Type
+              </h2>
+              <form onSubmit={handleCreateType} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+                    Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    value={typeName}
+                    onChange={(e) => setTypeName(e.target.value)}
+                    placeholder="e.g. TIN Certificate"
+                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#F2924E]/40 focus:border-[#F2924E]"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+                    Description
+                  </label>
+                  <input
+                    value={typeDesc}
+                    onChange={(e) => setTypeDesc(e.target.value)}
+                    placeholder="Optional description"
+                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#F2924E]/40 focus:border-[#F2924E]"
+                  />
+                </div>
+                <div className="flex items-center w-full">
+                  <div className="relative grid grid-cols-2 p-1.5 bg-gray-50 rounded-xl border border-gray-200/60 w-full max-w-[280px] shadow-[inset_0_1px_3px_rgba(0,0,0,0.02)]">
+                    <div
+                      className={`absolute top-1.5 bottom-1.5 w-[calc(50%-6px)] bg-[#F2924E] rounded-lg transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] shadow-sm ${
+                        typeMandatory ? "left-1.5" : "left-[calc(50%+3px)]"
+                      }`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setTypeMandatory(true)}
+                      className={`relative z-10 py-2 text-[13px] tracking-wide uppercase font-bold transition-colors duration-300 rounded-lg ${
+                        typeMandatory ? "text-white" : "text-gray-500 hover:text-gray-700"
+                      }`}
+                    >
+                      Mandatory
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTypeMandatory(false)}
+                      className={`relative z-10 py-2 text-[13px] tracking-wide uppercase font-bold transition-colors duration-300 rounded-lg ${
+                        !typeMandatory ? "text-white" : "text-gray-500 hover:text-gray-700"
+                      }`}
+                    >
+                      Optional
+                    </button>
+                  </div>
+                </div>
+                <div className="flex items-end justify-end gap-3">
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="px-6 py-2.5 bg-[#F2924E] hover:bg-[#e07d3a] text-white text-sm font-semibold rounded-xl transition shadow-sm disabled:opacity-60"
+                  >
+                    {loading ? "Creating..." : "Create Document Type"}
+                  </button>
+                </div>
+              </form>
             </div>
+
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-                <span className="text-sm font-semibold text-gray-700">
-                  All Document Types
-                </span>
+                <div className="flex items-center gap-2">
+                  <FileType size={16} className="text-gray-400" />
+                  <span className="text-sm font-semibold text-gray-700">All Document Types</span>
+                </div>
                 <span className="text-xs text-gray-400">
                   {docTypes.length} types
                 </span>
@@ -1388,73 +1521,6 @@ export default function DocumentsPage() {
       </div>
 
       {/* ═══════════════════════════ MODALS ═══════════════════════════════ */}
-
-      {/* Employee: New Request Modal */}
-      {showNewRequestModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-            <div className="px-6 py-5 border-b border-gray-100 flex justify-between items-center">
-              <h3 className="text-lg font-bold text-gray-900">
-                Submit New Request
-              </h3>
-              <button
-                onClick={() => setShowNewRequestModal(false)}
-                className="text-gray-400 hover:text-gray-600 transition p-1 rounded-lg hover:bg-gray-100"
-              >
-                <X size={20} />
-              </button>
-            </div>
-            <form onSubmit={handleNewRequest} className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Document Type
-                </label>
-                <select
-                  value={selectedDocType}
-                  onChange={(e) => setSelectedDocType(e.target.value)}
-                  className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#F2924E]/30 focus:border-[#F2924E] outline-none transition"
-                  required
-                >
-                  <option value="">Select a document type</option>
-                  {activeDocTypes.map((type) => (
-                    <option key={type.id} value={type.name}>
-                      {type.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Reason / Purpose
-                </label>
-                <textarea
-                  value={requestReason}
-                  onChange={(e) => setRequestReason(e.target.value)}
-                  placeholder="Why do you need this document?"
-                  className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm min-h-[100px] focus:ring-2 focus:ring-[#F2924E]/30 focus:border-[#F2924E] outline-none transition resize-none"
-                  required
-                />
-              </div>
-              <div className="flex gap-3 pt-1">
-                <button
-                  type="button"
-                  onClick={() => setShowNewRequestModal(false)}
-                  className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm font-medium hover:bg-gray-50 transition"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="flex-1 bg-[#F2924E] text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-[#e4833f] transition disabled:opacity-50 shadow-sm"
-                >
-                  {loading ? "Submitting…" : "Submit Request"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* HR: Request Detail Side Drawer */}
       {selectedRequest && (
@@ -1553,53 +1619,35 @@ export default function DocumentsPage() {
 
                 <div className="p-5 bg-orange-50/60 border border-orange-100 rounded-2xl space-y-4">
                   <h4 className="text-xs font-bold text-orange-800 uppercase tracking-wider flex items-center gap-2">
-                    <FileCheck2 size={14} /> Automated Document Generation
+                    <Wand2 size={14} /> Document Generator
                   </h4>
-                  <select
-                    className="w-full bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#F2924E]/30"
-                    value={selectedTemplateId}
-                    onChange={(e) =>
-                      setSelectedTemplateId(e.target.value as any)
-                    }
-                  >
-                    <option value="">Select template…</option>
-                    {templates.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.name} ({t.template_type})
-                      </option>
-                    ))}
-                  </select>
+                  <p className="text-[13px] text-orange-900/80 leading-relaxed font-medium">
+                    Use the Document Generator to automatically fill templates with employee data, preview the document, or write a custom letter.
+                  </p>
                   <button
-                    onClick={() => handleGenerateDocument(selectedRequest.id)}
-                    disabled={!selectedTemplateId || loading}
-                    className="w-full bg-[#F2924E] text-white py-2.5 rounded-xl text-sm font-bold hover:bg-[#e4833f] transition disabled:opacity-50 shadow-sm"
+                    onClick={() => setShowGenerateModal(true)}
+                    className="w-full bg-[#F2924E] text-white py-2.5 rounded-xl text-sm font-bold hover:bg-[#e4833f] transition shadow-sm flex justify-center items-center gap-2"
                   >
-                    Generate PDF &amp; Complete Request
-                  </button>
-                </div>
-
-                <div className="space-y-3">
-                  <h4 className="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center gap-2">
-                    <Mail size={14} /> Custom Letter
-                  </h4>
-                  <textarea
-                    value={customLetterText}
-                    onChange={(e) => setCustomLetterText(e.target.value)}
-                    placeholder="Write a custom response or letter…"
-                    className="w-full p-4 border border-gray-200 rounded-2xl text-sm min-h-[140px] outline-none focus:ring-2 focus:ring-[#F2924E]/30 focus:border-[#F2924E] transition resize-none"
-                  />
-                  <button
-                    onClick={() => handleSendCustomLetter(selectedRequest.id)}
-                    disabled={!customLetterText.trim() || loading}
-                    className="w-full bg-gray-900 text-white py-2.5 rounded-xl text-sm font-bold hover:bg-black transition disabled:opacity-50"
-                  >
-                    Generate Custom PDF &amp; Send
+                    <FileText size={16} /> Open Document Generator
                   </button>
                 </div>
               </div>
             </div>
           </div>
         </div>
+      )}
+
+      {/* HR: Generate Document Modal */}
+      {showGenerateModal && selectedRequest && (
+        <GenerateDocumentModal
+          request={selectedRequest}
+          onClose={() => setShowGenerateModal(false)}
+          onSuccess={() => {
+            setShowGenerateModal(false);
+            fetchAllRequests();
+            setSelectedRequest(null);
+          }}
+        />
       )}
 
       {/* HR: Full-Screen Document Approval Modal */}
@@ -1800,13 +1848,20 @@ export default function DocumentsPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">
                     Category
                   </label>
-                  <input
-                    type="text"
+                  <select
                     value={templateCategory}
                     onChange={(e) => setTemplateCategory(e.target.value)}
                     required
-                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#F2924E]/30 focus:border-[#F2924E] transition"
-                  />
+                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#F2924E]/30 focus:border-[#F2924E] transition bg-white"
+                  >
+                    <option value="" disabled>Select category</option>
+                    <option value="Service Letters">Service Letters</option>
+                    <option value="Salary Letters">Salary Letters</option>
+                    <option value="Employment Confirmation">Employment Confirmation</option>
+                    <option value="Bank Letters">Bank Letters</option>
+                    <option value="HR Notices">HR Notices</option>
+                    <option value="Other">Other</option>
+                  </select>
                 </div>
               </div>
               <div>
@@ -1839,11 +1894,9 @@ export default function DocumentsPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">
                     HTML Content
                   </label>
-                  <textarea
-                    value={templateContent}
-                    onChange={(e) => setTemplateContent(e.target.value)}
-                    placeholder="<div>Dear {{employee_name}},</div>"
-                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm min-h-[160px] font-mono outline-none focus:ring-2 focus:ring-[#F2924E]/30 focus:border-[#F2924E] transition resize-none"
+                  <RichTextEditor
+                    content={templateContent}
+                    onChange={setTemplateContent}
                   />
                 </div>
               ) : (
@@ -1871,6 +1924,30 @@ export default function DocumentsPage() {
             </form>
           </div>
         </div>
+      )}
+
+      {/* Confirmation Modal */}
+      {templateToDelete !== null && (
+        <ConfirmationModal
+          title="Delete Template"
+          message="Are you sure you want to delete this template? This action cannot be undone."
+          confirmLabel="Delete"
+          onConfirm={confirmDeleteTemplate}
+          onCancel={() => setTemplateToDelete(null)}
+          isLoading={loading}
+        />
+      )}
+
+      {/* HR: Template Edit Modal */}
+      {editingTemplate && (
+        <TemplateEditModal
+          template={editingTemplate}
+          onClose={() => setEditingTemplate(null)}
+          onSuccess={() => {
+            setEditingTemplate(null);
+            fetchTemplates();
+          }}
+        />
       )}
 
       {/* HR: Template Preview Modal */}
@@ -1962,71 +2039,6 @@ export default function DocumentsPage() {
         </div>
       )}
 
-      {/* HR: Add Document Type Modal */}
-      {showTypeModal && (
-        <div className="fixed inset-0 z-[70] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-            <div className="px-6 py-5 border-b border-gray-100 flex justify-between items-center">
-              <h3 className="text-lg font-bold text-gray-900">
-                Add Document Type
-              </h3>
-              <button
-                onClick={() => setShowTypeModal(false)}
-                className="text-gray-400 hover:text-gray-600 transition p-1 rounded-lg hover:bg-gray-100"
-              >
-                <X size={20} />
-              </button>
-            </div>
-            <form onSubmit={handleCreateType} className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Name
-                </label>
-                <input
-                  type="text"
-                  value={typeName}
-                  onChange={(e) => setTypeName(e.target.value)}
-                  required
-                  placeholder="e.g. NIC, Degree Certificate"
-                  className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#F2924E]/30 focus:border-[#F2924E] transition"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Description
-                </label>
-                <textarea
-                  value={typeDesc}
-                  onChange={(e) => setTypeDesc(e.target.value)}
-                  placeholder="Optional description"
-                  className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#F2924E]/30 focus:border-[#F2924E] transition resize-none"
-                />
-              </div>
-              <div className="flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  id="type-mandatory"
-                  checked={typeMandatory}
-                  onChange={(e) => setTypeMandatory(e.target.checked)}
-                  className="w-4 h-4 accent-[#F2924E]"
-                />
-                <label
-                  htmlFor="type-mandatory"
-                  className="text-sm text-gray-700 font-medium cursor-pointer"
-                >
-                  Mandatory for all employees
-                </label>
-              </div>
-              <button
-                type="submit"
-                className="w-full bg-[#F2924E] text-white py-2.5 rounded-xl font-bold hover:bg-[#e4833f] transition shadow-sm"
-              >
-                Save Document Type
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

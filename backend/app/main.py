@@ -158,20 +158,14 @@ app.include_router(
 
 # Document module routers
 app.include_router(documents_router, prefix="/documents", tags=["Documents"])
-app.include_router(
-    request_router.router, prefix="/document-requests", tags=["Document Requests"]
-)
-app.include_router(
-    hr_request_router, prefix="/hr-document-requests", tags=["HR Document Requests"]
-)
+app.include_router(request_router.router)
+app.include_router(hr_request_router)
 app.include_router(hr_own_document_router, tags=["HR Own Documents"])
 app.include_router(
     approval_router, prefix="/documents/review", tags=["Document Approval"]
 )
-app.include_router(template_router, prefix="/document-templates", tags=["Templates"])
-app.include_router(
-    document_type_router, prefix="/api/document-types", tags=["Document Types"]
-)
+app.include_router(template_router)
+app.include_router(document_type_router)
 
 # ── Static file uploads ────────────────────────────────────────────────────────
 os.makedirs("uploads/profiles", exist_ok=True)

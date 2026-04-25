@@ -5,6 +5,7 @@ from uuid import UUID
 from app.database.database import get_db
 from app.documents.schemas import schemas, request_schema
 from app.documents.services import service, request_service
+from app.core.deps import require_permission
 
 router = APIRouter(
     tags=["HR Own Documents"]
@@ -16,7 +17,8 @@ def upload_hr_document(
     document_type: str = Form(...),
     is_mandatory: bool = Form(False),
     file: UploadFile = File(...),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user = Depends(require_permission("document:upload"))
 ):
     return service.upload_employee_document(
         db=db,
@@ -32,7 +34,8 @@ def upload_hr_document(
 )
 def get_hr_my_documents(
     hr_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user = Depends(require_permission("document:view"))
 ):
     return service.get_employee_documents(db, hr_id)
 
@@ -40,7 +43,8 @@ def get_hr_my_documents(
 @router.post("/hr-own-document-requests/", response_model=request_schema.RequestResponse)
 def create_hr_request(
     data: request_schema.CreateRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user = Depends(require_permission("document:request"))
 ):
     return request_service.create_document_request(db, data)
 
@@ -48,6 +52,7 @@ def create_hr_request(
 @router.get("/hr-own-document-requests/{hr_id}", response_model=list[request_schema.RequestResponse])
 def get_hr_requests(
     hr_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user = Depends(require_permission("document:view"))
 ):
     return request_service.get_employee_requests(db, hr_id)

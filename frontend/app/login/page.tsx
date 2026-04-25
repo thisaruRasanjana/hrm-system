@@ -59,7 +59,7 @@ export default function LoginPage() {
 
       window.location.replace("/dashboard");
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("Login error:", error);
       setErrorMsg(error?.message || "Login failed. Please check backend connection.");
     }

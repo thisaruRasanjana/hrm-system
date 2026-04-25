@@ -6,7 +6,7 @@ from fastapi.responses import FileResponse
 
 from app.database.database import get_db
 from app.documents.services import service
-from app.core.deps import require_permission
+from app.core.deps import require_permission, get_current_user
 
 router = APIRouter(
     prefix="",
@@ -19,7 +19,8 @@ def upload_document(
     document_type_id: UUID = Form(...),
     is_mandatory: bool = Form(False),
     file: UploadFile = File(...),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user = Depends(require_permission("document:upload"))
 ):
     return service.upload_employee_document(
         db=db,
@@ -35,7 +36,8 @@ def upload_document(
 )
 def get_my_documents(
     employee_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user = Depends(require_permission("document:view"))
 ):
     return service.get_employee_documents(db, employee_id)
 
@@ -43,7 +45,8 @@ def get_my_documents(
 def download_document(
     document_id: UUID,
     employee_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user = Depends(require_permission("document:view"))
 ):
     return service.download_employee_document(
         db=db,
