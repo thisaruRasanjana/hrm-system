@@ -13,12 +13,15 @@ from app.employees.email import send_welcome_email
 
 logger = logging.getLogger(__name__)
 
+
 def get_employees(db: Session, skip: int = 0, limit: int = 100):
     # Eager load role and user for the schema
     return db.query(Employee).offset(skip).limit(limit).all()
 
+
 def get_employee_by_id(db: Session, employee_id: int):
     return db.query(Employee).filter(Employee.id == employee_id).first()
+
 
 def create_employee(db: Session, employee: EmployeeCreate, background_tasks: BackgroundTasks):
     """
@@ -34,7 +37,6 @@ def create_employee(db: Session, employee: EmployeeCreate, background_tasks: Bac
         hashed = hash_password(temp_password)
 
         # 2. Create User record
-        # Using email as username for simplicity, ensuring unique constraint is met
         db_user = User(
             username=employee.email,
             email=employee.email,
@@ -61,9 +63,9 @@ def create_employee(db: Session, employee: EmployeeCreate, background_tasks: Bac
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Role ID {employee.role_id} not found"
             )
-        
+
         db_user.roles = [role]
-        
+
         # 5. Finalize transaction
         db.commit()
         db.refresh(db_employee)
@@ -84,6 +86,7 @@ def create_employee(db: Session, employee: EmployeeCreate, background_tasks: Bac
             detail=f"Employee creation failed: {str(e)}"
         )
 
+
 def update_employee(db: Session, employee_id: int, employee_update: EmployeeUpdate):
     db_employee = db.query(Employee).filter(Employee.id == employee_id).first()
     if db_employee:
@@ -93,6 +96,7 @@ def update_employee(db: Session, employee_id: int, employee_update: EmployeeUpda
         db.commit()
         db.refresh(db_employee)
     return db_employee
+
 
 def delete_employee(db: Session, employee_id: int):
     db_employee = db.query(Employee).filter(Employee.id == employee_id).first()

@@ -4,11 +4,6 @@ from typing import Optional
 from enum import Enum
 
 
-class EmployeeStatus(str, Enum):
-    active = "active"
-    inactive = "inactive"
-
-
 class EmployeeBase(BaseModel):
     employee_id: str
     first_name: str
@@ -16,10 +11,9 @@ class EmployeeBase(BaseModel):
     email: EmailStr
     phone: str
     address: Optional[str] = None
-    department_id: Optional[int] = None   # Optional in base for out/legacy
-    designation: str
+    department_id: Optional[int] = None   # FK to departments table
+    designation: Optional[str] = None
     joined_date: Optional[date] = None
-    status: EmployeeStatus = EmployeeStatus.active
     date_of_birth: Optional[date] = None
     gender: Optional[str] = None
     marital_status: Optional[str] = None
@@ -35,8 +29,8 @@ class EmployeeBase(BaseModel):
 
 
 class EmployeeCreate(EmployeeBase):
-    department_id: int  # Required for creation
-    role_id: int  # Required for unified creation
+    department_id: int   # Required for creation
+    role_id: int         # Required for unified creation
 
 
 class EmployeeUpdate(BaseModel):
@@ -49,7 +43,6 @@ class EmployeeUpdate(BaseModel):
     department_id: Optional[int] = None
     designation: Optional[str] = None
     joined_date: Optional[date] = None
-    status: Optional[EmployeeStatus] = None
     date_of_birth: Optional[date] = None
     gender: Optional[str] = None
     marital_status: Optional[str] = None

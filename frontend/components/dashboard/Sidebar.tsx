@@ -2,18 +2,20 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useAuth } from "@/context/auth-context";
 import {
   LayoutGrid,
   Shield,
   Users,
   Calendar,
   FileText,
+  FileCheck2,
   Settings
 } from "lucide-react";
 
 export default function Sidebar() {
-
   const pathname = usePathname();
+  const { hasAnyPermission } = useAuth();
 
   const menu = [
     { name: "Dashboard", path: "/dashboard", icon: LayoutGrid },

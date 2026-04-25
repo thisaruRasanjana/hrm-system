@@ -1,14 +1,15 @@
+import os
+import asyncio
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.staticfiles import StaticFiles
-import os
 
 from app.database.database import engine, SessionLocal
 from app.database.base import Base
 
-# ── Import all models so SQLAlchemy metadata is populated (order matters for FKs) ──
+# ── Import all models so SQLAlchemy metadata is populated ──
 import app.roles.models        # noqa: F401
 import app.auth.models         # noqa: F401
 import app.departments.models  # noqa: F401
@@ -20,6 +21,12 @@ import app.events.models        # noqa: F401
 import app.notifications.models # noqa: F401
 import app.calendar_holidays.models # noqa: F401
 import app.dashboard.models    # noqa: F401
+
+# Document module model imports
+import app.documents.models.model            # noqa: F401
+import app.documents.models.request_model    # noqa: F401
+import app.documents.models.template_model   # noqa: F401
+import app.documents.models.document_type_model # noqa: F401
 
 # ── Routers ────────────────────────────────────────────────────────────────────
 from app.auth.router        import router as auth_router
@@ -35,15 +42,39 @@ from app.calendar_holidays.router import router as holidays_router
 from app.notifications.router import router as notifications_router
 from app.time_tracking.router import router as time_tracking_router
 
+# Document module routers
+from app.documents.routers.router import router as documents_router
+from app.documents.routers import request_router
+from app.documents.routers.hr_request_router import router as hr_request_router
+from app.documents.routers.approval_router import router as approval_router
+from app.documents.routers.template_router import router as template_router
+from app.documents.routers.document_type_router import router as document_type_router
+
 # ── Seed helpers ───────────────────────────────────────────────────────────────
 from app.roles.seed       import seed_roles
 from app.departments.seed import seed_departments
 
+EMAIL_POLL_INTERVAL = 60  # seconds between each email check
+
+async def email_polling_loop():
+    """Runs in the background and polls Gmail inbox every EMAIL_POLL_INTERVAL seconds."""
+    await asyncio.sleep(5)
+    while True:
+        try:
+            from app.documents.services import email_service
+            db = SessionLocal()
+            result = email_service.fetch_and_process_external_requests(db)
+            db.close()
+            if result.get("processed_emails", 0) > 0:
+                print(f"[Email Poller] Synced {result['processed_emails']} new external email request(s).")
+        except Exception as e:
+            print(f"[Email Poller] Error: {e}")
+        await asyncio.sleep(EMAIL_POLL_INTERVAL)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Create all tables then run seed functions on startup."""
-    # Auto-create any tables that don't exist yet (safe — won't touch existing tables)
+    # Auto-create any tables that don't exist yet
     Base.metadata.create_all(bind=engine)
 
     db = SessionLocal()
@@ -58,13 +89,26 @@ async def lifespan(app: FastAPI):
             print(f"[WARNING] seed_holidays skipped: {e}")
     finally:
         db.close()
+    
+    # Start background tasks
+    task = asyncio.create_task(email_polling_loop())
+    print("[Email Poller] Background email polling started (every 60 seconds).")
+    
     yield
+    
+    # Stop background tasks
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
+    print("[Email Poller] Background email polling stopped.")
 
 
 app = FastAPI(
     title="HRM System API",
     version="2.0.0",
-    description="Role-based HRM System — permissions managed via /roles/",
+    description="Role-based HRM System with Document Management",
     lifespan=lifespan,
 )
 
@@ -75,13 +119,14 @@ app.add_middleware(
         "http://localhost:3000",
         "http://127.0.0.1:3000",
         "http://localhost:3001",
+        "*"
     ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# ── Register API routers (auth, roles, employees, leave, then others) ──────────
+# ── Register API routers ──
 app.include_router(auth_router,          prefix="/auth",          tags=["Authentication"])
 app.include_router(roles_router,         prefix="/roles",         tags=["Roles & Permissions"])
 app.include_router(employee_router,      prefix="/employees",     tags=["Employees"])
@@ -95,14 +140,25 @@ app.include_router(holidays_router,      prefix="/holidays",      tags=["Holiday
 app.include_router(notifications_router, prefix="/notifications", tags=["Notifications"])
 app.include_router(time_tracking_router, prefix="/time-tracking", tags=["Time Tracking"])
 
+# Document module routers
+app.include_router(documents_router,         prefix="/documents",            tags=["Documents"])
+app.include_router(request_router.router,    prefix="/document-requests",    tags=["Document Requests"])
+app.include_router(hr_request_router,        prefix="/hr-document-requests", tags=["HR Document Requests"])
+app.include_router(approval_router,          prefix="/documents/review",     tags=["Document Approval"])
+app.include_router(template_router,          prefix="/document-templates",   tags=["Templates"])
+app.include_router(document_type_router,     prefix="/api/document-types",   tags=["Document Types"])
+
 # ── Static file uploads ────────────────────────────────────────────────────────
 os.makedirs("uploads/profiles", exist_ok=True)
+os.makedirs("uploads/documents", exist_ok=True)
+os.makedirs("uploads/templates", exist_ok=True)
+os.makedirs("uploads/generated_documents", exist_ok=True)
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 # ── Root ───────────────────────────────────────────────────────────────────────
 @app.get("/")
 def root():
-    return {"message": "HRM System API v2.0 — Role-based permissions active"}
+    return {"message": "HRM System API v2.0 — Role-based permissions & Documents active"}
 
 
 security_bearer = HTTPBearer()

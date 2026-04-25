@@ -2,10 +2,9 @@ import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from dotenv import load_dotenv
+import urllib.parse
 
 load_dotenv()
-
-import urllib.parse
 
 DB_HOST = os.getenv("DB_HOST")
 DB_PORT = os.getenv("DB_PORT")
@@ -30,9 +29,6 @@ SessionLocal = sessionmaker(
     autoflush=False,
     bind=engine
 )
-
-print("DATABASE URL USED BY FASTAPI:", DATABASE_URL)
-
 
 def get_db():
     db = SessionLocal()

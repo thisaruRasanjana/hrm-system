@@ -1,7 +1,5 @@
 import "./globals.css";
 import { Arimo } from "next/font/google";
-import Sidebar from "@/components/Sidebar";
-import TopBar from "@/components/TopBar";
 import { AuthProvider } from "@/context/auth-context";
 
 const arimo = Arimo({
@@ -10,7 +8,7 @@ const arimo = Arimo({
 });
 
 export const metadata = {
-  title: "HRMS - Employee Management",
+  title: "HRMS - HRM System",
   description: "Human Resource Management System",
 };
 

@@ -10,3 +10,10 @@ passlib[bcrypt]
 python-multipart
 python-jose[cryptography]
 pyotp
+mammoth
+xhtml2pdf
+python-docx
+imap-tools
+pydantic
+anyio
+starlette

@@ -24,7 +24,7 @@ export default function LoginPage() {
     setErrorMsg("");
 
     try {
-      const res = await fetch("http://127.0.0.1:8000/auth/login", {
+      const res = await fetch("http://localhost:8000/auth/login", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -57,11 +57,11 @@ export default function LoginPage() {
       // Use AuthContext login to set token and fetch user data immediately
       await login(data.access_token);
 
-      router.push("/dashboard");
+      window.location.replace("/dashboard");
 
     } catch (error) {
       console.error("Login error:", error);
-      setErrorMsg("Login failed. Please check backend connection.");
+      setErrorMsg(error?.message || "Login failed. Please check backend connection.");
     }
 
     setLoading(false);
@@ -73,7 +73,7 @@ export default function LoginPage() {
     setErrorMsg("");
 
     try {
-      const res = await fetch("http://127.0.0.1:8000/auth/login/2fa", {
+      const res = await fetch("http://localhost:8000/auth/login/2fa", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ temp_token: tempToken, code: otpCode }),

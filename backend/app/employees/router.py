@@ -21,7 +21,7 @@ def read_employee(employee_id: int, db: Session = Depends(get_db)):
 
 @router.post("/", response_model=schemas.EmployeeOut, status_code=status.HTTP_201_CREATED)
 def create_employee(
-    employee: schemas.EmployeeCreate, 
+    employee: schemas.EmployeeCreate,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db)
 ):

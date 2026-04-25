@@ -85,7 +85,7 @@ function EmployeeViewContent() {
     phone: employee.phone,
     department: employee.department_rel?.name || "No Department",
     designation: employee.designation,
-    status: employee.status.toUpperCase(),
+    status: employee.status ? employee.status.toUpperCase() : "UNKNOWN",
     personal: {
       dob: employee.date_of_birth || "Not Provided",
       gender: employee.gender || "Not Provided",

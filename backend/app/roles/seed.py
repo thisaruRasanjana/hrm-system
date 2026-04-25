@@ -22,12 +22,12 @@ SYSTEM_PERMISSIONS = [
     ("role:assign", "role", "assign", "Assign roles to users"),
 
     # Document Management
-    ("document:upload_own", "document", "upload_own", "Upload own documents"),
-    ("document:request_own", "document", "request_own", "Request own documents"),
-    ("document:approve", "document", "approve", "Approve document requests"),
-    ("document:request_manage", "document", "request_manage", "Manage all document requests"),
-    ("document:template_upload", "document", "template_upload", "Upload document templates"),
-    ("document:type_manage", "document", "type_manage", "Manage document types"),
+    ("document:view", "document", "view", "View uploaded documents"),
+    ("document:upload", "document", "upload", "Upload new documents"),
+    ("document:request", "document", "request", "Request official documents"),
+    ("document:approve", "document", "approve", "Approve or reject submitted documents"),
+    ("document:manage_types", "document", "manage_types", "Manage document types and requirements"),
+    ("document:manage_templates", "document", "manage_templates", "Create and edit document templates"),
 
     # Leave Management
     ("leave:request", "leave", "request", "Submit leave requests"),
@@ -71,7 +71,7 @@ SUPER_ADMIN_EXCLUDES = {"document:upload_own", "document:request_own"}
 HR_PERMISSIONS = {
     "employee:create", "employee:update", "employee:delete", "employee:view_all", "employee:view_own",
     "role:create", "role:view", "role:assign",
-    "document:upload_own", "document:request_own", "document:approve", "document:request_manage", "document:template_upload", "document:type_manage",
+    "document:view", "document:upload", "document:request", "document:approve", "document:manage_types", "document:manage_templates",
     "leave:request", "leave:edit_pending", "leave:view_history", "leave:approve", "leave:reject", "leave:report",
     "recruitment:manage", "recruitment:view"
 }
@@ -81,7 +81,7 @@ for p in SYSTEM_PERMISSIONS:
         HR_PERMISSIONS.add(p[0])
 
 MANAGER_PERMISSIONS = {
-    "employee:view_own", "document:upload_own", "document:request_own", "document:approve",
+    "employee:view_own", "document:view", "document:upload", "document:request", "document:approve",
     "leave:request", "leave:edit_pending", "leave:view_history", "leave:approve", "leave:reject",
     "widget.time_tracking.view", "widget.leave_balance.view", "widget.notifications.view",
     "widget.weekly_hours.view", "widget.calendar.view", "widget.approval_summary.view_approvals",
@@ -90,7 +90,7 @@ MANAGER_PERMISSIONS = {
 }
 
 EMPLOYEE_PERMISSIONS = {
-    "employee:view_own", "document:upload_own", "document:request_own",
+    "employee:view_own", "document:view", "document:upload", "document:request",
     "leave:request", "leave:edit_pending", "leave:view_history",
     "widget.time_tracking.view", "widget.leave_balance.view", "widget.notifications.view",
     "widget.weekly_hours.view", "widget.calendar.view", "widget.approval_summary.view_requests",

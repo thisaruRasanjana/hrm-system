@@ -1,5 +1,8 @@
 "use client";
 
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/auth-context";
 import Sidebar from "@/components/dashboard/Sidebar";
 import Topbar from "@/components/dashboard/Topbar";
 import { usePathname } from "next/navigation";
@@ -9,8 +12,29 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const { user, loading } = useAuth();
+  const router = useRouter();
   const pathname = usePathname() || "";
   const isSettings = pathname.startsWith('/dashboard/settings');
+
+  // Client-side auth guard — redirect to /login if not authenticated
+  useEffect(() => {
+    if (!loading && !user) {
+      router.replace("/login");
+    }
+  }, [user, loading, router]);
+
+  // While checking auth, show nothing to avoid flash
+  if (loading || !user) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-[#F5F6F8]">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 border-4 border-orange-400 border-t-transparent rounded-full animate-spin" />
+          <span className="text-sm text-gray-500">Loading...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen w-full bg-[#F5F6F8]">
