@@ -41,6 +41,14 @@ def update_vacancy(
     return service.get_vacancy_by_id(db, vacancy_id)
 
 
+@router.delete("/vacancies/{vacancy_id}")
+def delete_vacancy(vacancy_id: int, db: Session = Depends(get_db)):
+    success = service.delete_vacancy(db, vacancy_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Vacancy not found")
+    return {"message": "Vacancy deleted successfully"}
+
+
 # ── CV Upload ─────────────────────────────────────────────────────────────────
 
 @router.post("/vacancies/{vacancy_id}/upload-cvs", response_model=schemas.UploadSummary)

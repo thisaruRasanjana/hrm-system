@@ -47,6 +47,13 @@ export default function CandidateProfilePage() {
   const [manualEmail, setManualEmail] = useState("");
   const [savingEmail, setSavingEmail] = useState(false);
 
+  // Edit details state
+  const [isEditingDetails, setIsEditingDetails] = useState(false);
+  const [editFullName, setEditFullName] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [savingDetails, setSavingDetails] = useState(false);
+
   /** True only when the candidate has a real, sendable email on file */
   const hasValidEmail = (email?: string | null) =>
     !!email && email.includes("@") &&
@@ -61,6 +68,9 @@ export default function CandidateProfilePage() {
         setCandidate(data);
         setNotes(data.notes?.trim() ?? "");
         setApplicationId(data.application_id);
+        setEditFullName(data.full_name || "");
+        setEditPhone(data.phone || "");
+        setEditEmail(data.email || "");
 
         // Show the scheduling section if the candidate has already been called or has notes
         if (data.status === "Called" || (data.notes && data.notes.trim() !== "")) {
@@ -133,6 +143,29 @@ export default function CandidateProfilePage() {
     setSendingEmail(false);
   };
 
+  const saveDetails = async () => {
+    setSavingDetails(true);
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/recruitment/candidates/${candidateId}/details`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ full_name: editFullName, phone: editPhone, email: editEmail }),
+        }
+      );
+      if (!res.ok) {
+        alert("Failed to save details. Please try again.");
+        return;
+      }
+      setCandidate(prev => prev ? { ...prev, full_name: editFullName, phone: editPhone, email: editEmail } : prev);
+      setIsEditingDetails(false);
+    } catch {
+      alert("Could not connect to server.");
+    }
+    setSavingDetails(false);
+  };
+
   const saveEmail = async () => {
     if (!manualEmail.includes("@")) {
       alert("Please enter a valid email address.");
@@ -141,7 +174,7 @@ export default function CandidateProfilePage() {
     setSavingEmail(true);
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/recruitment/candidates/${candidateId}/email`,
+        `${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/recruitment/candidates/${candidateId}/details`,
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -265,28 +298,83 @@ export default function CandidateProfilePage() {
               {/* Candidate Details */}
 
               <div className="bg-white rounded-2xl border border-gray-200 p-6">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg font-semibold text-gray-800">
+                    Details
+                  </h3>
+                  {!isEditingDetails ? (
+                    <button
+                      onClick={() => setIsEditingDetails(true)}
+                      className="text-orange-500 hover:text-orange-600 text-sm font-medium transition"
+                    >
+                      Edit Info
+                    </button>
+                  ) : (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setIsEditingDetails(false)}
+                        className="px-4 py-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 rounded-lg text-sm font-medium transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={saveDetails}
+                        disabled={savingDetails}
+                        className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                      >
+                        {savingDetails ? "Saving..." : "Save"}
+                      </button>
+                    </div>
+                  )}
+                </div>
 
-                <h3 className="text-lg font-semibold text-gray-800 mb-4">
-                  Details
-                </h3>
-
-                <p className="text-sm text-gray-500">Name</p>
-                <p className="text-sm text-gray-700 mb-3">
-                  {candidate.full_name}
-                </p>
-
-                <p className="text-sm text-gray-500">Phone</p>
-                <p className="text-sm text-gray-700 mb-3">
-                  {candidate.phone}
-                </p>
-
-                {candidate.email && (
+                {!isEditingDetails ? (
                   <>
+                    <p className="text-sm text-gray-500">Name</p>
+                    <p className="text-sm text-gray-700 mb-3">
+                      {candidate.full_name}
+                    </p>
+
+                    <p className="text-sm text-gray-500">Phone</p>
+                    <p className="text-sm text-gray-700 mb-3">
+                      {candidate.phone || "Not provided"}
+                    </p>
+
                     <p className="text-sm text-gray-500">Email</p>
                     <p className="text-sm text-gray-700 mb-3">
-                      {candidate.email}
+                      {candidate.email || "Not provided"}
                     </p>
                   </>
+                ) : (
+                  <div className="space-y-3 mb-4">
+                    <div>
+                      <label className="text-xs text-gray-500 block mb-1">Name</label>
+                      <input
+                        type="text"
+                        value={editFullName}
+                        onChange={(e) => setEditFullName(e.target.value)}
+                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-300"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 block mb-1">Phone</label>
+                      <input
+                        type="text"
+                        value={editPhone}
+                        onChange={(e) => setEditPhone(e.target.value)}
+                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-300"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 block mb-1">Email</label>
+                      <input
+                        type="email"
+                        value={editEmail}
+                        onChange={(e) => setEditEmail(e.target.value)}
+                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-300"
+                      />
+                    </div>
+                  </div>
                 )}
 
                 <p className="text-sm text-gray-500">AI Match Score</p>
