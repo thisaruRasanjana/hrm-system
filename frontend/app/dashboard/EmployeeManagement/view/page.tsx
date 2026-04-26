@@ -129,7 +129,7 @@ function EmployeeViewContent() {
       {/* Header / Back Navigation */}
       <div className="mb-6 flex flex-col gap-1">
         <Link
-          href="/"
+          href="/dashboard/employees"
           className="inline-flex items-center gap-1.5 text-sm text-gray-600 hover:text-orange-500 transition-colors self-start mb-2"
         >
           <IconArrowLeft />
@@ -144,7 +144,7 @@ function EmployeeViewContent() {
 
         {/* Edit Button (Top Right) */}
         <Link
-          href={`/EmployeeManegement/edit?id=${encodeURIComponent(employee.id)}`}
+          href={`/dashboard/EmployeeManagement/edit?id=${encodeURIComponent(employee.id)}`}
           className="absolute top-6 right-8 inline-flex items-center justify-center w-10 h-10 bg-white border border-gray-200 rounded-lg text-gray-500 hover:text-orange-500 hover:border-orange-200 transition-colors shadow-sm"
           aria-label="Edit Profile"
         >

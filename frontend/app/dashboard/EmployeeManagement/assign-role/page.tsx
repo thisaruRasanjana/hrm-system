@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { IconArrowLeft, IconChevron } from "@/components/icons";
 import { api } from "@/lib/api";
+import { useAuth } from "@/context/auth-context";
 
 interface Permission {
   id: number;
@@ -31,10 +32,18 @@ function AssignRoleContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const id = searchParams.get("id");
+  const { hasPermission, loading: authLoading } = useAuth();
 
   const [roles, setRoles] = useState<Role[]>([]);
   const [allPermissions, setAllPermissions] = useState<Permission[]>([]);
   const [employee, setEmployee] = useState<Employee | null>(null);
+
+  useEffect(() => {
+    if (!authLoading && !hasPermission("role:assign")) {
+      router.replace("/dashboard/employees");
+    }
+  }, [authLoading, hasPermission, router]);
+
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);

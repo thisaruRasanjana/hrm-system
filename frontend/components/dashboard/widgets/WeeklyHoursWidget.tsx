@@ -2,6 +2,7 @@
 
 import { BarChart3 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 
 interface Props { permissions: string[] }
@@ -9,6 +10,7 @@ interface Props { permissions: string[] }
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 export default function WeeklyHoursWidget(_: Props) {
+  const router = useRouter();
   // 7 buckets Mon–Sun
   const [dayHours, setDayHours] = useState<number[]>([0, 0, 0, 0, 0, 0, 0]);
   const [totalHours, setTotalHours] = useState(0);
@@ -96,6 +98,16 @@ export default function WeeklyHoursWidget(_: Props) {
             </div>
           ))}
         </div>
+      </div>
+ 
+      {/* Footer */}
+      <div className="mt-auto pt-4 border-t border-gray-100 flex justify-end">
+        <button 
+          onClick={() => router.push("/dashboard/time-tracking")}
+          className="text-[#f2924e] text-[10px] font-bold uppercase tracking-wider hover:underline"
+        >
+          View All
+        </button>
       </div>
     </div>
   );

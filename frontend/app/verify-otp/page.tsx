@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import AuthLayout from "@/components/auth/AuthLayout";
+import { api } from "@/lib/api";
 
 export default function VerifyOTP() {
 
@@ -24,26 +25,10 @@ export default function VerifyOTP() {
     setLoading(true);
 
     try {
-      const res = await fetch("http://127.0.0.1:8000/auth/verify-otp", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email, otp }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        alert(data.detail || "Invalid OTP");
-        setLoading(false);
-        return;
-      }
-
+      await api.post("/auth/verify-otp", { email, otp });
       router.push("/reset-password");
-
-    } catch (error) {
-      alert("Backend server not reachable");
+    } catch (err: any) {
+      alert(err.message || "Invalid OTP");
     }
 
     setLoading(false);

@@ -91,9 +91,15 @@ export default function ApprovalSummaryWidget({ permissions }: Props) {
         )}
       </div>
 
-      <p className="text-xs text-gray-400 mt-4 pt-4 border-t border-gray-100">
-        Connects to Documents module after merge
-      </p>
+      {/* Footer */}
+      <div className="mt-auto pt-4 border-t border-gray-100 flex justify-end">
+        <button 
+          onClick={() => router.push("/dashboard/documents")}
+          className="text-[#f2924e] text-[10px] font-bold uppercase tracking-wider hover:underline"
+        >
+          View All
+        </button>
+      </div>
     </div>
   );
 }

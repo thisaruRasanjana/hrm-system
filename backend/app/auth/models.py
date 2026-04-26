@@ -1,6 +1,7 @@
 from sqlalchemy import Column, String, Integer, Boolean, DateTime, func, Table, ForeignKey
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
+from datetime import datetime
 from app.database.base import Base
 from app.roles.models import user_roles  # noqa: F401 — ensures table is registered
 
@@ -14,6 +15,8 @@ class User(Base):
     username = Column(String(100), unique=True, index=True, nullable=True)
     password_hash = Column("hashed_password", String(255), nullable=False)  # DB col: hashed_password
     is_active = Column(Boolean, default=True)
+    is_superadmin = Column(Boolean, default=False)
+    is_deleted = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     refresh_token = Column(String, nullable=True)
@@ -46,3 +49,23 @@ class User(Base):
     # Relationships (RBAC via join table — from dev)
     roles = relationship("Role", secondary=user_roles, back_populates="users")
     employee = relationship("Employee", back_populates="user", uselist=False)
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    action = Column(String, nullable=False) # 'LOGIN_SUCCESS', 'LOGIN_FAILED', 'LOGOUT'
+    ip_address = Column(String, nullable=True)
+    timestamp = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    user = relationship("User")
+
+class OTPRecord(Base):
+    __tablename__ = "otp_records"
+    id = Column(Integer, primary_key=True)
+    email = Column(String, nullable=False, index=True)
+    otp = Column(String, nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    verified = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)

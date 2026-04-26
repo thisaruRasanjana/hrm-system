@@ -42,7 +42,16 @@ def get_current_user(
 
 
 def get_user_permissions(user: User, db: Session) -> List[str]:
-    """Resolves permissions from the user's roles (many-to-many) or single role_id."""
+    """
+    Resolves permissions from the user's roles.
+    Super Admins (is_superadmin=True) automatically get ALL permissions.
+    """
+    # Super Admin Bypass
+    if getattr(user, "is_superadmin", False):
+        from app.roles.models import Permission
+        all_perms = db.query(Permission).all()
+        return [p.permission_name for p in all_perms]
+
     permissions = set()
     
     # 1. From many-to-many roles

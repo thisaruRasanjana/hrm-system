@@ -35,8 +35,7 @@ export default function LeaveBalanceWidget(_: Props) {
 
   return (
     <div
-      onClick={() => router.push("/dashboard/leave")}
-      className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition cursor-pointer h-full w-full flex flex-col"
+      className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm h-full w-full flex flex-col"
     >
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
@@ -90,8 +89,13 @@ export default function LeaveBalanceWidget(_: Props) {
       </div>
 
       {/* Footer */}
-      <div className="mt-6 pt-4 border-t border-gray-100">
-        <span className="text-[#F2924E] text-sm font-medium">View details ›</span>
+      <div className="mt-auto pt-4 border-t border-gray-100 flex justify-end">
+        <button 
+          onClick={() => router.push("/dashboard/leave")}
+          className="text-[#f2924e] text-[10px] font-bold uppercase tracking-wider hover:underline"
+        >
+          View All
+        </button>
       </div>
     </div>
   );

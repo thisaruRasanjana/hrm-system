@@ -8,7 +8,7 @@ import os
 from app.database.database import engine, SessionLocal
 from app.database.base import Base
 
-# ── Import all models so SQLAlchemy metadata is populated (order matters for FKs) ──
+# ── Import all models ──
 import app.roles.models        # noqa: F401
 import app.auth.models         # noqa: F401
 import app.departments.models  # noqa: F401
@@ -42,15 +42,11 @@ from app.departments.seed import seed_departments
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Create all tables then run seed functions on startup."""
-    # Auto-create any tables that don't exist yet (safe — won't touch existing tables)
     Base.metadata.create_all(bind=engine)
-
     db = SessionLocal()
     try:
         seed_departments(db)
         seed_roles(db)
-        # Seed calendar holidays
         try:
             from app.calendar_holidays.router import seed_holidays
             seed_holidays()
@@ -69,19 +65,17 @@ app = FastAPI(
 )
 
 # ── CORS ───────────────────────────────────────────────────────────────────────
+origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://localhost:3001",
-    ],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# ── Register API routers (auth, roles, employees, leave, then others) ──────────
+# ── Register API routers ───────────────────────────────────────────────────────
 app.include_router(auth_router,          prefix="/auth",          tags=["Authentication"])
 app.include_router(roles_router,         prefix="/roles",         tags=["Roles & Permissions"])
 app.include_router(employee_router,      prefix="/employees",     tags=["Employees"])
@@ -103,7 +97,6 @@ app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 @app.get("/")
 def root():
     return {"message": "HRM System API v2.0 — Role-based permissions active"}
-
 
 security_bearer = HTTPBearer()
 

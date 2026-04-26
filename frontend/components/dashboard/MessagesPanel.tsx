@@ -27,8 +27,10 @@ interface MessagesPanelProps {
 type ViewState = "list" | "read" | "compose" | "sent_success";
 
 export default function MessagesPanel({ isOpen, onClose }: MessagesPanelProps) {
-  const { user } = useAuth();
-  const canSend = ["Admin", "HR Manager", "Manager", "super_admin", "hr", "manager"].includes(user?.role || "");
+  const { user, hasPermission } = useAuth();
+  
+  // Permission-driven visibility
+  const canSend = hasPermission("messaging.send");
 
   const [view, setView] = useState<ViewState>("list");
   const [messages, setMessages] = useState<Message[]>([]);
@@ -73,7 +75,7 @@ export default function MessagesPanel({ isOpen, onClose }: MessagesPanelProps) {
       setSelectedMessage(null);
       if (canSend) fetchDepartments();
     }
-  }, [isOpen, activeTab]);
+  }, [isOpen, activeTab, canSend]);
 
   // ── Send ─────────────────────────────────────────────────────────────────────
   const handleSend = async (e: React.FormEvent) => {

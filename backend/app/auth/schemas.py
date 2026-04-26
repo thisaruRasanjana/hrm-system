@@ -63,6 +63,21 @@ class UserResponse(BaseModel):
     quiet_hours_start: Optional[str] = "22:00"
     quiet_hours_end: Optional[str] = "08:00"
 
+    # Fields sourced from Employee model
+    designation: Optional[str] = None
+    joined_date: Optional[str] = None
+    status: Optional[str] = None
+    gender: Optional[str] = None
+    marital_status: Optional[str] = None
+    nationality: Optional[str] = None
+    emergency_contact_name: Optional[str] = None
+    emergency_contact_relation: Optional[str] = None
+    bank_name: Optional[str] = None
+    bank_account_no: Optional[str] = None
+    bank_branch: Optional[str] = None
+    skills: Optional[str] = None
+    qualifications: Optional[str] = None
+
     model_config = {"from_attributes": True}
 
 
@@ -73,6 +88,16 @@ class UserProfileUpdate(BaseModel):
     address: Optional[str] = None
     date_of_birth: Optional[str] = None
     emergency_contact_number: Optional[str] = None
+    gender: Optional[str] = None
+    marital_status: Optional[str] = None
+    nationality: Optional[str] = None
+    emergency_contact_name: Optional[str] = None
+    emergency_contact_relation: Optional[str] = None
+    bank_name: Optional[str] = None
+    bank_account_no: Optional[str] = None
+    bank_branch: Optional[str] = None
+    skills: Optional[str] = None
+    qualifications: Optional[str] = None
 
 
 class UserPasswordUpdate(BaseModel):

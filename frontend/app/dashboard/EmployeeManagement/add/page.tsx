@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { IconArrowLeft } from "@/components/icons";
 import { api } from "@/lib/api";
+import { useAuth } from "@/context/auth-context";
 
 interface Department {
   id: number;
@@ -13,6 +14,14 @@ interface Department {
 
 export default function EmployeeAddPage() {
   const router = useRouter();
+  const { hasPermission, loading: authLoading } = useAuth();
+
+  // Permission guard — redirect immediately if user lacks employee:create
+  useEffect(() => {
+    if (!authLoading && !hasPermission("employee:create")) {
+      router.replace("/dashboard/employees");
+    }
+  }, [authLoading, hasPermission, router]);
 
   const [formData, setFormData] = useState({
     employeeId: "",
@@ -50,6 +59,7 @@ export default function EmployeeAddPage() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showAdditionalInfo, setShowAdditionalInfo] = useState(false);
 
   // Initialize with a random ID
   useEffect(() => {
@@ -130,9 +140,17 @@ export default function EmployeeAddPage() {
       } else {
         router.push("/dashboard/employees");
       }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Failed to add employee.";
-      setError(msg.includes("422") ? "Please check your data — a required field may be invalid or the Employee ID/Email is already used." : msg);
+    } catch (err: any) {
+      const msg = err?.message || "Failed to add employee.";
+      if (msg.toLowerCase().includes("email already used")) {
+        setError("This email is already used.");
+      } else if (msg.toLowerCase().includes("employee id already used")) {
+        setError("This Employee ID is already used.");
+      } else if (msg.includes("422")) {
+        setError("Please check all required fields.");
+      } else {
+        setError(msg);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -149,11 +167,7 @@ export default function EmployeeAddPage() {
         <p className="text-[14px] text-gray-400 mt-1">Enter employee details to register</p>
       </div>
 
-      {error && (
-        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl text-red-600 text-[14px]">
-          {error}
-        </div>
-      )}
+
 
       <div className="space-y-6">
         {/* Basic Information */}
@@ -202,8 +216,66 @@ export default function EmployeeAddPage() {
           </div>
         </div>
 
-        {/* Personal Information */}
+        {/* Work Information - Moved up before additional info */}
         <div className="bg-white rounded-xl border border-gray-200 p-8">
+          <h2 className="text-[16px] font-bold text-[#212B36] mb-6">Work Information</h2>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div>
+              <label className={labelClass}>DEPARTMENT {requiredAsterisk}</label>
+              <select value={formData.work.departmentId || ""} onChange={(e) => setFormData({ ...formData, work: { ...formData.work, departmentId: parseInt(e.target.value) } })} className={selectClass}>
+                <option value="" disabled>Select Department</option>
+                {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={labelClass}>INITIAL ROLE {requiredAsterisk}</label>
+              <select value={formData.work.roleId || ""} onChange={(e) => setFormData({ ...formData, work: { ...formData.work, roleId: parseInt(e.target.value) } })} className={selectClass}>
+                <option value="" disabled>Select Role</option>
+                {roles.map(r => <option key={r.id} value={r.id}>{r.role_name}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div>
+              <label className={labelClass}>DESIGNATION {requiredAsterisk}</label>
+              <input type="text" placeholder="e.g., Senior Software Engineer" value={formData.work.designation} onChange={(e) => setFormData({ ...formData, work: { ...formData.work, designation: e.target.value } })} className={inputClass} />
+            </div>
+            <div className="hidden md:block"></div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className={labelClass}>JOINED DATE</label>
+              <input type="date" value={formData.work.joinedDate} onChange={(e) => setFormData({ ...formData, work: { ...formData.work, joinedDate: e.target.value } })} className={`${inputClass} [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-60`} />
+            </div>
+            <div>
+              <label className={labelClass}>EMPLOYMENT STATUS</label>
+              <div className="flex bg-gray-100 p-1.5 rounded-lg w-fit mt-1.5">
+                <button type="button" onClick={() => setFormData({ ...formData, work: { ...formData.work, status: "active" } })} className={`px-8 py-2 rounded-md text-[14px] font-medium transition-all duration-200 ${formData.work.status === "active" ? "bg-[#EE7F22] text-white shadow-sm" : "text-gray-500 hover:text-gray-700 hover:bg-gray-200/50"}`}>Active</button>
+                <button type="button" onClick={() => setFormData({ ...formData, work: { ...formData.work, status: "inactive" } })} className={`px-8 py-2 rounded-md text-[14px] font-medium transition-all duration-200 ${formData.work.status === "inactive" ? "bg-white text-gray-800 shadow-sm" : "text-gray-500 hover:text-gray-700 hover:bg-gray-200/50"}`}>Inactive</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {!showAdditionalInfo && (
+          <div className="flex justify-center mt-4">
+            <button 
+              type="button" 
+              onClick={() => setShowAdditionalInfo(true)}
+              className="text-[#EE7F22] hover:text-[#d66f1b] font-medium text-[14px] underline transition-colors"
+            >
+              + Add Additional Information (Optional)
+            </button>
+          </div>
+        )}
+
+        {showAdditionalInfo && (
+          <>
+            {/* Personal Information */}
+            <div className="bg-white rounded-xl border border-gray-200 p-8">
           <h2 className="text-[16px] font-bold text-[#212B36] mb-6">Personal Information</h2>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
@@ -303,53 +375,18 @@ export default function EmployeeAddPage() {
             <input type="text" placeholder="Enter branch name" value={formData.bankBranch} onChange={(e) => setFormData({ ...formData, bankBranch: e.target.value })} className={inputClass} />
           </div>
         </div>
+      </>
+    )}
 
-        {/* Work Information */}
-        <div className="bg-white rounded-xl border border-gray-200 p-8">
-          <h2 className="text-[16px] font-bold text-[#212B36] mb-6">Work Information</h2>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            <div>
-              <label className={labelClass}>DEPARTMENT {requiredAsterisk}</label>
-              <select value={formData.work.departmentId || ""} onChange={(e) => setFormData({ ...formData, work: { ...formData.work, departmentId: parseInt(e.target.value) } })} className={selectClass}>
-                <option value="" disabled>Select Department</option>
-                {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className={labelClass}>INITIAL ROLE {requiredAsterisk}</label>
-              <select value={formData.work.roleId || ""} onChange={(e) => setFormData({ ...formData, work: { ...formData.work, roleId: parseInt(e.target.value) } })} className={selectClass}>
-                <option value="" disabled>Select Role</option>
-                {roles.map(r => <option key={r.id} value={r.id}>{r.role_name}</option>)}
-              </select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            <div>
-              <label className={labelClass}>DESIGNATION {requiredAsterisk}</label>
-              <input type="text" placeholder="e.g., Senior Software Engineer" value={formData.work.designation} onChange={(e) => setFormData({ ...formData, work: { ...formData.work, designation: e.target.value } })} className={inputClass} />
-            </div>
-            <div className="hidden md:block"></div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className={labelClass}>JOINED DATE</label>
-              <input type="date" value={formData.work.joinedDate} onChange={(e) => setFormData({ ...formData, work: { ...formData.work, joinedDate: e.target.value } })} className={`${inputClass} [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-60`} />
-            </div>
-            <div>
-              <label className={labelClass}>EMPLOYMENT STATUS</label>
-              <div className="flex bg-gray-100 p-1.5 rounded-lg w-fit mt-1.5">
-                <button type="button" onClick={() => setFormData({ ...formData, work: { ...formData.work, status: "active" } })} className={`px-8 py-2 rounded-md text-[14px] font-medium transition-all duration-200 ${formData.work.status === "active" ? "bg-[#EE7F22] text-white shadow-sm" : "text-gray-500 hover:text-gray-700 hover:bg-gray-200/50"}`}>Active</button>
-                <button type="button" onClick={() => setFormData({ ...formData, work: { ...formData.work, status: "inactive" } })} className={`px-8 py-2 rounded-md text-[14px] font-medium transition-all duration-200 ${formData.work.status === "inactive" ? "bg-white text-gray-800 shadow-sm" : "text-gray-500 hover:text-gray-700 hover:bg-gray-200/50"}`}>Inactive</button>
-              </div>
-            </div>
-          </div>
+      {error && (
+        <div className="mt-6 p-4 bg-red-50 border border-red-200 rounded-xl text-red-600 text-[14px] flex items-center gap-2">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+          {error}
         </div>
+      )}
 
         {/* Action Buttons */}
-        <div className="flex justify-end gap-3 mt-8">
+        <div className="flex justify-end gap-3 mt-6">
           <button type="button" onClick={() => handleSave(false)} disabled={isSubmitting} className="px-6 py-2.5 rounded-xl bg-[#F8F9FA] text-[#212B36] font-medium text-[14px] hover:bg-gray-100 transition-colors disabled:opacity-50">
             {isSubmitting ? "Saving..." : "Save"}
           </button>

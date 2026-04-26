@@ -123,8 +123,7 @@ export default function TimeTrackingWidget(_: Props) {
 
   return (
     <div
-      onClick={() => router.push("/dashboard/time-tracking")}
-      className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition cursor-pointer h-full w-full flex flex-col"
+      className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm h-full w-full flex flex-col"
     >
       {/* Header */}
       <div className="flex justify-between items-center mb-4">
@@ -176,11 +175,19 @@ export default function TimeTrackingWidget(_: Props) {
       </div>
 
       {/* Footer */}
-      <div className="flex justify-between text-sm text-gray-500 mt-4 pt-4 border-t border-gray-100">
-        <span>Today's total</span>
-        <span className="font-semibold text-gray-800">
-          {todayHours !== null ? `${todayHours.toFixed(1)}h` : "—"}
-        </span>
+      <div className="flex justify-between items-center text-sm text-gray-500 mt-4 pt-4 border-t border-gray-100">
+        <div className="flex gap-1.5 items-center">
+          <span className="text-xs text-gray-400">Today:</span>
+          <span className="font-bold text-gray-800">
+            {todayHours !== null ? `${todayHours.toFixed(1)}h` : "—"}
+          </span>
+        </div>
+        <button 
+          onClick={() => router.push("/dashboard/time-tracking")}
+          className="text-[#f2924e] text-[10px] font-bold uppercase tracking-wider hover:underline"
+        >
+          View All
+        </button>
       </div>
     </div>
   );

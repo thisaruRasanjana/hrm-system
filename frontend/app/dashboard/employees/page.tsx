@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { IconSearch, IconChevron, IconEye, IconEdit, IconTrash } from "@/components/icons";
 import { api } from "@/lib/api";
+import { useAuth } from "@/context/auth-context";
 
 /**
  * Reusable Select Filter component with custom chevron
@@ -49,6 +50,8 @@ export default function EmployeeManagementPage() {
   const [department, setDepartment] = useState("all");
   const [role, setRole] = useState("all");
 
+  const { hasPermission } = useAuth();
+
   useEffect(() => {
     const fetchEmployees = async () => {
       try {
@@ -68,7 +71,7 @@ export default function EmployeeManagementPage() {
     const matchesSearch =
       searchQuery === "" ||
       fullName.includes(searchQuery.toLowerCase()) ||
-      emp.employee_id.toLowerCase().includes(searchQuery.toLowerCase());
+      (emp.employee_id?.toLowerCase() || "").includes(searchQuery.toLowerCase());
     const matchesDept = department === "all" || emp.department_rel?.name === department;
     const matchesRole = role === "all" || emp.designation === role;
     return matchesSearch && matchesDept && matchesRole;
@@ -154,12 +157,16 @@ export default function EmployeeManagementPage() {
                         <Link href={`/dashboard/EmployeeManagement/view?id=${emp.id}`} className="hover:text-gray-600 transition-colors" aria-label="View">
                           <IconEye />
                         </Link>
-                        <Link href={`/dashboard/EmployeeManagement/edit?id=${emp.id}`} className="hover:text-gray-600 transition-colors" aria-label="Edit">
-                          <IconEdit />
-                        </Link>
-                        <Link href={`/dashboard/EmployeeManagement/delete?id=${emp.id}`} className="hover:text-red-500 transition-colors" aria-label="Delete">
-                          <IconTrash />
-                        </Link>
+                        {hasPermission("employee:update") && (
+                          <Link href={`/dashboard/EmployeeManagement/edit?id=${emp.id}`} className="hover:text-gray-600 transition-colors" aria-label="Edit">
+                            <IconEdit />
+                          </Link>
+                        )}
+                        {hasPermission("employee:delete") && (
+                          <Link href={`/dashboard/EmployeeManagement/delete?id=${emp.id}`} className="hover:text-red-500 transition-colors" aria-label="Delete">
+                            <IconTrash />
+                          </Link>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -171,15 +178,17 @@ export default function EmployeeManagementPage() {
       </div>
 
       {/* Add Employee Button */}
-      <div className="mt-6 flex justify-end">
-        <Link
-          href="/dashboard/EmployeeManagement/add"
-          className="inline-flex items-center gap-2 bg-[#EE7F22] hover:bg-[#d66f1b] text-white font-semibold px-6 py-3 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-          Add Employee
-        </Link>
-      </div>
+      {hasPermission("employee:create") && (
+        <div className="mt-6 flex justify-end">
+          <Link
+            href="/dashboard/EmployeeManagement/add"
+            className="inline-flex items-center gap-2 bg-[#EE7F22] hover:bg-[#d66f1b] text-white font-semibold px-6 py-3 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+            Add Employee
+          </Link>
+        </div>
+      )}
     </div>
   );
 }

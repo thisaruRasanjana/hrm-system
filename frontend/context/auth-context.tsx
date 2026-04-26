@@ -24,7 +24,7 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   login: (token: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
   hasPermission: (perm: string) => boolean;
   hasAnyPermission: (perms: string[]) => boolean;
@@ -66,7 +66,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await fetchUser();
   };
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      await apiFetch("/auth/logout", { method: "POST" });
+    } catch (e) {
+      console.error("Logout API error:", e);
+    }
     removeToken();   // removes only this tab's token
     window.location.href = "/login";
   };

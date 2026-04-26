@@ -5,10 +5,16 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { IconArrowLeft } from "@/components/icons";
 import { api } from "@/lib/api";
+import { useAuth } from "@/context/auth-context";
 
 interface Department {
   id: number;
   name: string;
+}
+
+interface Role {
+  id: number;
+  role_name: string;
 }
 
 interface Employee {
@@ -19,12 +25,21 @@ interface Employee {
   emergency_contact_name?: string; emergency_contact_phone?: string; emergency_contact_relation?: string;
   skills?: string; qualifications?: string;
   bank_name?: string; bank_account_no?: string; bank_branch?: string;
+  role?: { id: number; role_name: string };
 }
 
 function EmployeeEditContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const id = searchParams.get("id");
+  const { hasPermission, loading: authLoading } = useAuth();
+
+  useEffect(() => {
+    if (!authLoading && !hasPermission("employee:update")) {
+      router.replace("/dashboard/employees");
+    }
+  }, [authLoading, hasPermission, router]);
+
 
   const [formData, setFormData] = useState({
     employeeId: "", firstName: "", lastName: "", email: "", phone: "", address: "",
@@ -32,10 +47,18 @@ function EmployeeEditContent() {
     emergencyContactName: "", emergencyContactPhone: "", emergencyContactRelation: "",
     skills: "", qualifications: "",
     bankName: "", bankAccountNo: "", bankBranch: "",
-    work: { departmentId: null as number | null, designation: "", joinedDate: "", status: "active" },
+    work: { 
+      departmentId: null as number | null, 
+      roleId: null as number | null,
+      designation: "", 
+      joinedDate: "", 
+      status: "active" 
+    },
   });
 
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [roles, setRoles] = useState<Role[]>([]);
+  const [showAdditionalInfo, setShowAdditionalInfo] = useState(true); // Default true for edit
 
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -45,12 +68,14 @@ function EmployeeEditContent() {
     if (!id) return;
     const init = async () => {
       try {
-        const [deps, employeeData] = await Promise.all([
+        const [deps, roleData, employeeData] = await Promise.all([
           api.get<Department[]>("/departments/"),
+          api.get<Role[]>("/roles/"),
           api.get<Employee>(`/employees/${id}`)
         ]);
 
         setDepartments(deps);
+        setRoles(roleData);
         setFormData({
           employeeId: employeeData.employee_id,
           firstName: employeeData.first_name, lastName: employeeData.last_name,
@@ -67,6 +92,7 @@ function EmployeeEditContent() {
           bankBranch: employeeData.bank_branch || "",
           work: {
             departmentId: employeeData.department_id,
+            roleId: employeeData.role?.id || null,
             designation: employeeData.designation,
             joinedDate: employeeData.joined_date || "",
             status: employeeData.status
@@ -88,7 +114,7 @@ function EmployeeEditContent() {
 
   const handleSave = async (redirectToRole: boolean = false) => {
     if (!id) return;
-    if (!formData.employeeId || !formData.firstName || !formData.lastName || !formData.email || !formData.phone || !formData.work.designation) {
+    if (!formData.employeeId || !formData.firstName || !formData.lastName || !formData.email || !formData.phone || !formData.work.designation || !formData.work.departmentId) {
       setError("Please fill in all required fields (marked with *).");
       return;
     }
@@ -103,6 +129,7 @@ function EmployeeEditContent() {
         phone: formData.phone,
         address: formData.address || null,
         department_id: formData.work.departmentId,
+        role_id: formData.work.roleId,
         designation: formData.work.designation,
         joined_date: formData.work.joinedDate || null,
         status: formData.work.status,
@@ -110,7 +137,6 @@ function EmployeeEditContent() {
         gender: formData.gender || null,
         marital_status: formData.maritalStatus || null,
         nationality: formData.nationality || null,
-        // New Fields
         emergency_contact_name: formData.emergencyContactName || null,
         emergency_contact_phone: formData.emergencyContactPhone || null,
         emergency_contact_relation: formData.emergencyContactRelation || null,
@@ -193,106 +219,6 @@ function EmployeeEditContent() {
           </div>
         </div>
 
-        {/* Personal Information */}
-        <div className="bg-white rounded-xl border border-gray-200 p-8">
-          <h2 className="text-[16px] font-bold text-[#212B36] mb-6">Personal Information</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            <div>
-              <label className={labelClass}>DATE OF BIRTH</label>
-              <input type="date" value={formData.dateOfBirth} onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })} className={`${inputClass} [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-60`} />
-            </div>
-            <div>
-              <label className={labelClass}>GENDER</label>
-              <select value={formData.gender} onChange={(e) => setFormData({ ...formData, gender: e.target.value })} className={selectClass}>
-                <option value="">Select gender</option>
-                <option value="Male">Male</option>
-                <option value="Female">Female</option>
-                <option value="Other">Other</option>
-                <option value="Prefer not to say">Prefer not to say</option>
-              </select>
-            </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className={labelClass}>MARITAL STATUS</label>
-              <select value={formData.maritalStatus} onChange={(e) => setFormData({ ...formData, maritalStatus: e.target.value })} className={selectClass}>
-                <option value="">Select status</option>
-                <option value="Single">Single</option>
-                <option value="Married">Married</option>
-                <option value="Divorced">Divorced</option>
-                <option value="Widowed">Widowed</option>
-              </select>
-            </div>
-            <div>
-              <label className={labelClass}>NATIONALITY</label>
-              <input type="text" placeholder="e.g., Sri Lankan" value={formData.nationality} onChange={(e) => setFormData({ ...formData, nationality: e.target.value })} className={inputClass} />
-            </div>
-          </div>
-        </div>
-
-        {/* Emergency Contact */}
-        <div className="bg-white rounded-xl border border-gray-200 p-8">
-          <h2 className="text-[16px] font-bold text-[#212B36] mb-6">Emergency Contact</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            <div>
-              <label className={labelClass}>CONTACT NAME</label>
-              <input type="text" placeholder="Enter contact name" value={formData.emergencyContactName} onChange={(e) => setFormData({ ...formData, emergencyContactName: e.target.value })} className={inputClass} />
-            </div>
-            <div>
-              <label className={labelClass}>RELATIONSHIP</label>
-              <input type="text" placeholder="e.g., Spouse, Parent" value={formData.emergencyContactRelation} onChange={(e) => setFormData({ ...formData, emergencyContactRelation: e.target.value })} className={inputClass} />
-            </div>
-          </div>
-          <div>
-            <label className={labelClass}>PHONE NUMBER</label>
-            <input type="tel" placeholder="+94 77 000 0000" value={formData.emergencyContactPhone} onChange={(e) => setFormData({ ...formData, emergencyContactPhone: e.target.value })} className={inputClass} />
-          </div>
-        </div>
-
-        {/* Skills & Qualifications */}
-        <div className="bg-white rounded-xl border border-gray-200 p-8">
-          <h2 className="text-[16px] font-bold text-[#212B36] mb-6">Skills & Qualifications</h2>
-          <div className="space-y-6">
-            <div>
-              <label className={labelClass}>SKILLS</label>
-              <textarea
-                placeholder="List skills separated by commas (e.g., JavaScript, React, SQL)"
-                value={formData.skills}
-                onChange={(e) => setFormData({ ...formData, skills: e.target.value })}
-                className={`${inputClass} min-h-[100px] py-3 resize-none`}
-              />
-            </div>
-            <div>
-              <label className={labelClass}>QUALIFICATIONS</label>
-              <textarea
-                placeholder="Enter educational qualifications and certifications"
-                value={formData.qualifications}
-                onChange={(e) => setFormData({ ...formData, qualifications: e.target.value })}
-                className={`${inputClass} min-h-[100px] py-3 resize-none`}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Bank Details */}
-        <div className="bg-white rounded-xl border border-gray-200 p-8">
-          <h2 className="text-[16px] font-bold text-[#212B36] mb-6">Bank Details</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            <div>
-              <label className={labelClass}>BANK NAME</label>
-              <input type="text" placeholder="Enter bank name" value={formData.bankName} onChange={(e) => setFormData({ ...formData, bankName: e.target.value })} className={inputClass} />
-            </div>
-            <div>
-              <label className={labelClass}>ACCOUNT NUMBER</label>
-              <input type="text" placeholder="Enter account number" value={formData.bankAccountNo} onChange={(e) => setFormData({ ...formData, bankAccountNo: e.target.value })} className={inputClass} />
-            </div>
-          </div>
-          <div>
-            <label className={labelClass}>BRANCH NAME</label>
-            <input type="text" placeholder="Enter branch name" value={formData.bankBranch} onChange={(e) => setFormData({ ...formData, bankBranch: e.target.value })} className={inputClass} />
-          </div>
-        </div>
-
         {/* Work Information */}
         <div className="bg-white rounded-xl border border-gray-200 p-8">
           <h2 className="text-[16px] font-bold text-[#212B36] mb-6">Work Information</h2>
@@ -305,9 +231,19 @@ function EmployeeEditContent() {
               </select>
             </div>
             <div>
+              <label className={labelClass}>ROLE {requiredAsterisk}</label>
+              <select value={formData.work.roleId || ""} onChange={(e) => setFormData({ ...formData, work: { ...formData.work, roleId: parseInt(e.target.value) } })} className={selectClass}>
+                <option value="" disabled>Select Role</option>
+                {roles.map(r => <option key={r.id} value={r.id}>{r.role_name}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div>
               <label className={labelClass}>DESIGNATION {requiredAsterisk}</label>
               <input type="text" placeholder="e.g., Senior Software Engineer" value={formData.work.designation} onChange={(e) => setFormData({ ...formData, work: { ...formData.work, designation: e.target.value } })} className={inputClass} />
             </div>
+            <div className="hidden md:block"></div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
@@ -323,6 +259,122 @@ function EmployeeEditContent() {
             </div>
           </div>
         </div>
+
+        {!showAdditionalInfo && (
+          <div className="flex justify-center mt-4">
+            <button 
+              type="button" 
+              onClick={() => setShowAdditionalInfo(true)}
+              className="text-[#EE7F22] hover:text-[#d66f1b] font-medium text-[14px] underline transition-colors"
+            >
+              + Edit Additional Information (Optional)
+            </button>
+          </div>
+        )}
+
+        {showAdditionalInfo && (
+          <>
+            {/* Personal Information */}
+            <div className="bg-white rounded-xl border border-gray-200 p-8">
+              <h2 className="text-[16px] font-bold text-[#212B36] mb-6">Personal Information</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <div>
+                  <label className={labelClass}>DATE OF BIRTH</label>
+                  <input type="date" value={formData.dateOfBirth} onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })} className={`${inputClass} [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-60`} />
+                </div>
+                <div>
+                  <label className={labelClass}>GENDER</label>
+                  <select value={formData.gender} onChange={(e) => setFormData({ ...formData, gender: e.target.value })} className={selectClass}>
+                    <option value="">Select gender</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                    <option value="Prefer not to say">Prefer not to say</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className={labelClass}>MARITAL STATUS</label>
+                  <select value={formData.maritalStatus} onChange={(e) => setFormData({ ...formData, maritalStatus: e.target.value })} className={selectClass}>
+                    <option value="">Select status</option>
+                    <option value="Single">Single</option>
+                    <option value="Married">Married</option>
+                    <option value="Divorced">Divorced</option>
+                    <option value="Widowed">Widowed</option>
+                  </select>
+                </div>
+                <div>
+                  <label className={labelClass}>NATIONALITY</label>
+                  <input type="text" placeholder="e.g., Sri Lankan" value={formData.nationality} onChange={(e) => setFormData({ ...formData, nationality: e.target.value })} className={inputClass} />
+                </div>
+              </div>
+            </div>
+
+            {/* Emergency Contact */}
+            <div className="bg-white rounded-xl border border-gray-200 p-8">
+              <h2 className="text-[16px] font-bold text-[#212B36] mb-6">Emergency Contact</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <div>
+                  <label className={labelClass}>CONTACT NAME</label>
+                  <input type="text" placeholder="Enter contact name" value={formData.emergencyContactName} onChange={(e) => setFormData({ ...formData, emergencyContactName: e.target.value })} className={inputClass} />
+                </div>
+                <div>
+                  <label className={labelClass}>RELATIONSHIP</label>
+                  <input type="text" placeholder="e.g., Spouse, Parent" value={formData.emergencyContactRelation} onChange={(e) => setFormData({ ...formData, emergencyContactRelation: e.target.value })} className={inputClass} />
+                </div>
+              </div>
+              <div>
+                <label className={labelClass}>PHONE NUMBER</label>
+                <input type="tel" placeholder="+94 77 000 0000" value={formData.emergencyContactPhone} onChange={(e) => setFormData({ ...formData, emergencyContactPhone: e.target.value })} className={inputClass} />
+              </div>
+            </div>
+
+            {/* Skills & Qualifications */}
+            <div className="bg-white rounded-xl border border-gray-200 p-8">
+              <h2 className="text-[16px] font-bold text-[#212B36] mb-6">Skills & Qualifications</h2>
+              <div className="space-y-6">
+                <div>
+                  <label className={labelClass}>SKILLS</label>
+                  <textarea
+                    placeholder="List skills separated by commas (e.g., JavaScript, React, SQL)"
+                    value={formData.skills}
+                    onChange={(e) => setFormData({ ...formData, skills: e.target.value })}
+                    className={`${inputClass} min-h-[100px] py-3 resize-none`}
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>QUALIFICATIONS</label>
+                  <textarea
+                    placeholder="Enter educational qualifications and certifications"
+                    value={formData.qualifications}
+                    onChange={(e) => setFormData({ ...formData, qualifications: e.target.value })}
+                    className={`${inputClass} min-h-[100px] py-3 resize-none`}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Bank Details */}
+            <div className="bg-white rounded-xl border border-gray-200 p-8">
+              <h2 className="text-[16px] font-bold text-[#212B36] mb-6">Bank Details</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <div>
+                  <label className={labelClass}>BANK NAME</label>
+                  <input type="text" placeholder="Enter bank name" value={formData.bankName} onChange={(e) => setFormData({ ...formData, bankName: e.target.value })} className={inputClass} />
+                </div>
+                <div>
+                  <label className={labelClass}>ACCOUNT NUMBER</label>
+                  <input type="text" placeholder="Enter account number" value={formData.bankAccountNo} onChange={(e) => setFormData({ ...formData, bankAccountNo: e.target.value })} className={inputClass} />
+                </div>
+              </div>
+              <div>
+                <label className={labelClass}>BRANCH NAME</label>
+                <input type="text" placeholder="Enter branch name" value={formData.bankBranch} onChange={(e) => setFormData({ ...formData, bankBranch: e.target.value })} className={inputClass} />
+              </div>
+            </div>
+          </>
+        )}
 
         {/* Action Buttons */}
         <div className="flex justify-end gap-4 mt-8">

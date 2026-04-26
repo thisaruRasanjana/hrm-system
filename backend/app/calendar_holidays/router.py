@@ -66,13 +66,28 @@ def seed_holidays():
         db.close()
 
 @router.get("", response_model=List[HolidayResponse])
-def get_holidays(db: Session = Depends(get_db)):
+def get_holidays(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     return db.query(Holiday).all()
 
 @router.post("", response_model=HolidayResponse)
 def add_holiday(data: HolidayCreate, db: Session = Depends(get_db), current_user: User = Depends(require_permission("widget.calendar.edit"))):
     holiday = Holiday(name=data.name, date=data.date, is_mercantile=data.is_mercantile, created_by=current_user.id)
     db.add(holiday)
+    db.commit()
+    db.refresh(holiday)
+    return holiday
+
+@router.put("/{holiday_id}", response_model=HolidayResponse)
+def update_holiday(holiday_id: int, data: HolidayCreate, db: Session = Depends(get_db), current_user: User = Depends(require_permission("widget.calendar.edit"))):
+    holiday = db.query(Holiday).filter(Holiday.id == holiday_id).first()
+    if not holiday:
+        raise HTTPException(status_code=404, detail="Holiday not found")
+    holiday.name = data.name
+    holiday.date = data.date
+    holiday.is_mercantile = data.is_mercantile
     db.commit()
     db.refresh(holiday)
     return holiday

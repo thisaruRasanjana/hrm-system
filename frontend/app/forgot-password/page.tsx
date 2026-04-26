@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import AuthLayout from "@/components/auth/AuthLayout";
+import { api } from "@/lib/api";
 
 export default function ForgotPassword() {
   const router = useRouter();
@@ -20,27 +21,12 @@ export default function ForgotPassword() {
     setLoading(true);
 
     try {
-      const res = await fetch("http://127.0.0.1:8000/auth/send-otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        alert(data.detail || "Failed to send OTP");
-        setLoading(false);
-        return;
-      }
-
+      await api.post("/auth/send-otp", { email });
       sessionStorage.setItem("reset_email", email);
-
       alert("OTP sent successfully!");
       router.push("/verify-otp");
-
-    } catch (error) {
-      alert("Backend server not reachable");
+    } catch (err: any) {
+      alert(err.message || "Failed to send OTP");
     }
 
     setLoading(false);
