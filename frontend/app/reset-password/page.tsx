@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import AuthLayout from "@/components/auth/AuthLayout";
 import { Eye, EyeOff } from "lucide-react";
+import { api } from "@/lib/api";
 
 export default function ResetPassword() {
 
@@ -28,24 +29,10 @@ export default function ResetPassword() {
     setLoading(true);
 
     try {
-      const res = await fetch("http://127.0.0.1:8000/auth/reset-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        alert(data.detail || "Failed to reset password");
-        setLoading(false);
-        return;
-      }
-
+      await api.post("/auth/reset-password", { email, password });
       router.push("/reset-success");
-
-    } catch (error) {
-      alert("Backend server not reachable");
+    } catch (err: any) {
+      alert(err.message || "Failed to reset password");
     }
 
     setLoading(false);

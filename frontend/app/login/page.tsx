@@ -4,6 +4,10 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import AuthLayout from "@/components/auth/AuthLayout";
 import { useAuth } from "@/context/auth-context";
+import { apiFetch } from "@/lib/api";
+import { Eye, EyeOff } from "lucide-react";
+
+const DASHBOARD_URL = process.env.NEXT_PUBLIC_DASHBOARD_URL ?? "/dashboard";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -11,6 +15,7 @@ export default function LoginPage() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   
   const [show2FA, setShow2FA] = useState(false);
@@ -18,28 +23,38 @@ export default function LoginPage() {
   const [otpCode, setOtpCode] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
 
+  const performRedirect = async () => {
+    try {
+      const res = await apiFetch("/auth/me");
+      if (!res.ok) {
+        router.push(DASHBOARD_URL);
+        return;
+      }
+      const userData = await res.json();
+      const roleRedirects: Record<string, string> = {
+        super_admin: process.env.NEXT_PUBLIC_DASHBOARD_URL ?? "/dashboard",
+        hr: process.env.NEXT_PUBLIC_DASHBOARD_URL ?? "/dashboard",
+        manager: process.env.NEXT_PUBLIC_DASHBOARD_URL ?? "/dashboard",
+        employee: process.env.NEXT_PUBLIC_DASHBOARD_URL ?? "/dashboard",
+      };
+      router.push(roleRedirects[userData.role] ?? DASHBOARD_URL);
+    } catch {
+      router.push(DASHBOARD_URL);
+    }
+  };
+
   const handleLogin = async (e: any) => {
     e.preventDefault();
     setLoading(true);
     setErrorMsg("");
 
     try {
-      const res = await fetch("http://127.0.0.1:8000/auth/login", {
+      const res = await apiFetch("/auth/login", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
         body: JSON.stringify({ email, password }),
       });
 
-      let data;
-
-      try {
-        data = await res.json();
-      } catch {
-        throw new Error("Invalid server response");
-      }
+      const data = await res.json();
 
       if (res.ok && data.require_2fa) {
         setTempToken(data.temp_token);
@@ -54,14 +69,11 @@ export default function LoginPage() {
         return;
       }
 
-      // Use AuthContext login to set token and fetch user data immediately
       await login(data.access_token);
-
-      router.push("/dashboard");
-
-    } catch (error) {
+      await performRedirect();
+    } catch (error: any) {
       console.error("Login error:", error);
-      setErrorMsg("Login failed. Please check backend connection.");
+      setErrorMsg(error.message || "Login failed. Please check backend connection.");
     }
 
     setLoading(false);
@@ -73,9 +85,8 @@ export default function LoginPage() {
     setErrorMsg("");
 
     try {
-      const res = await fetch("http://127.0.0.1:8000/auth/login/2fa", {
+      const res = await apiFetch("/auth/login/2fa", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ temp_token: tempToken, code: otpCode }),
       });
 
@@ -87,13 +98,11 @@ export default function LoginPage() {
         return;
       }
 
-      // Use AuthContext login for 2FA as well
       await login(data.access_token);
-
-      router.push("/dashboard");
-    } catch (error) {
+      await performRedirect();
+    } catch (error: any) {
       console.error("2FA error:", error);
-      setErrorMsg("Verification failed.");
+      setErrorMsg(error.message || "Verification failed.");
     }
     setLoading(false);
   };
@@ -130,16 +139,25 @@ export default function LoginPage() {
             Password
           </label>
 
-          <input
-            type="password"
-            placeholder="Enter your password"
-            className="w-full mb-2 px-4 py-3 border border-gray-300 rounded-lg
-            text-[#1E293B] placeholder-[#D1D5DC]
-            focus:outline-none focus:ring-2 focus:ring-[#F2924E]"
-            value={password}
-            onChange={(e)=>setPassword(e.target.value)}
-            required
-          />
+          <div className="relative mb-2">
+            <input
+              type={showPassword ? "text" : "password"}
+              placeholder="Enter your password"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg
+              text-[#1E293B] placeholder-[#D1D5DC]
+              focus:outline-none focus:ring-2 focus:ring-[#F2924E]"
+              value={password}
+              onChange={(e)=>setPassword(e.target.value)}
+              required
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-4 top-3.5 text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+            </button>
+          </div>
 
           <p
             className="text-right text-[14px] text-[#F2924E] cursor-pointer mb-6"

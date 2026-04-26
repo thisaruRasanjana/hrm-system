@@ -12,6 +12,7 @@ class Message(Base):
     content = Column(Text, nullable=False)
     target_group = Column(String, nullable=True)  # "All Employees", "HR", or specific department
     sender_deleted = Column(Boolean, default=False)
+    sender_permanent_deleted = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
 

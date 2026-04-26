@@ -99,6 +99,13 @@ def assign_roles_to_user(db: Session, payload: AssignRoleRequest) -> dict:
 
     # Full replacement of user's roles
     user.roles = roles
+    if roles:
+        user.role_id = roles[0].id
+        user.role = roles[0].role_name.lower()
+    else:
+        user.role_id = None
+        user.role = None
+    
     db.commit()
     return {"user_id": user.id, "assigned_role_ids": [r.id for r in roles]}
 

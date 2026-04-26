@@ -5,17 +5,21 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from dotenv import load_dotenv
 
-load_dotenv()
-
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-SMTP_HOST = os.getenv("SMTP_SERVER")
-SMTP_PORT = int(os.getenv("SMTP_PORT", 587))
-SMTP_USER = os.getenv("SMTP_EMAIL")
-SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
-SMTP_FROM = os.getenv("SMTP_EMAIL")
+# Explicitly load .env from the backend root
+from pathlib import Path
+env_path = Path(__file__).parent.parent.parent / ".env"
+load_dotenv(dotenv_path=env_path)
+
+SMTP_HOST = os.getenv("MAIL_SERVER")
+port_val = os.getenv("MAIL_PORT")
+SMTP_PORT = int(port_val) if port_val and port_val.isdigit() else 587
+SMTP_USER = os.getenv("MAIL_USERNAME")
+SMTP_PASSWORD = os.getenv("MAIL_PASSWORD")
+SMTP_FROM = os.getenv("MAIL_FROM")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
 
@@ -25,7 +29,15 @@ def send_welcome_email(email: str, full_name: str, temp_password: str):
     If email sending fails, it logs the error but doesn't raise an exception.
     """
     if not all([SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, SMTP_FROM]):
-        logger.error("SMTP configuration is incomplete. Skipping email sending.")
+        config_map = {
+            "MAIL_SERVER": SMTP_HOST,
+            "MAIL_PORT": SMTP_PORT,
+            "MAIL_USERNAME": SMTP_USER,
+            "MAIL_PASSWORD": "SET" if SMTP_PASSWORD else None,
+            "MAIL_FROM": SMTP_FROM
+        }
+        missing = [k for k, v in config_map.items() if not v]
+        logger.error(f"SMTP configuration is incomplete. Missing or empty: {', '.join(missing)}")
         return
 
     subject = "Welcome to the HRM System!"

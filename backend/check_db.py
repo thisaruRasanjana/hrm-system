@@ -1,21 +1,24 @@
-import os, psycopg2, dotenv
-dotenv.load_dotenv()
-try:
-    conn = psycopg2.connect(
-        host=os.getenv('DB_HOST'),
-        port=os.getenv('DB_PORT'),
-        user=os.getenv('DB_USER'),
-        password=os.getenv('DB_PASSWORD'),
-        dbname=os.getenv('DB_NAME')
-    )
-    cur = conn.cursor()
-    print("Checking 'time_entries' table columns...")
-    cur.execute("SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'time_entries'")
-    rows = cur.fetchall()
-    if not rows:
-        print("Table 'time_entries' does not exist!")
-    for col, dtype in rows:
-        print(f"{col}: {dtype}")
-    conn.close()
-except Exception as e:
-    print(f"Error: {e}")
+from app.database.database import engine
+from sqlalchemy import inspect
+
+def check_columns():
+    inspector = inspect(engine)
+    
+    print("\n-- Checking 'users' table --")
+    columns = [c['name'] for c in inspector.get_columns('users')]
+    print(f"Columns: {columns}")
+    if 'is_superadmin' in columns:
+        print("[OK] 'is_superadmin' exists in 'users'")
+    else:
+        print("[MISSING] 'is_superadmin' is NOT in 'users'")
+
+    print("\n-- Checking 'messages' table --")
+    columns = [c['name'] for c in inspector.get_columns('messages')]
+    print(f"Columns: {columns}")
+    if 'sender_permanent_deleted' in columns:
+        print("[OK] 'sender_permanent_deleted' exists in 'messages'")
+    else:
+        print("[MISSING] 'sender_permanent_deleted' is NOT in 'messages'")
+
+if __name__ == "__main__":
+    check_columns()

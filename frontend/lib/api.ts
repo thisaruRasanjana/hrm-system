@@ -2,19 +2,16 @@
  * api.ts — Central HTTP client for the HRM system.
  *
  * TOKEN STORAGE: sessionStorage (NOT localStorage)
- * ─────────────────────────────────────────────────
- * sessionStorage is PER-TAB isolated. Each browser tab has its own
- * independent storage. This means:
- *   - Tab A logged in as admin  → sees admin data only
- *   - Tab B logged in as employee1 → sees employee1 data only
- *   - Refreshing Tab A → still sees admin data (sessionStorage survives refresh)
- *   - Tab A refresh does NOT affect Tab B (unlike localStorage which is shared!)
- *
- * For password-reset flow (cross-page within same tab), reset_email still uses
- * sessionStorage, which is fine because it's the same tab.
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+if (!API_BASE_URL) {
+  throw new Error("NEXT_PUBLIC_API_BASE_URL is not set in .env.local");
+}
+
+const REFRESH_THRESHOLD_MS = parseInt(
+  process.env.NEXT_PUBLIC_TOKEN_REFRESH_THRESHOLD_MINUTES ?? "3"
+) * 60 * 1000;
 
 let isRefreshing = false;
 let refreshSubscribers: ((token: string) => void)[] = [];
@@ -28,21 +25,29 @@ function onRefreshed(token: string) {
   refreshSubscribers = [];
 }
 
-/** Read the access token for THIS tab only */
 export function getToken(): string | null {
+  if (typeof window === "undefined") return null;
   return sessionStorage.getItem("access_token");
 }
 
-/** Store the access token for THIS tab only */
 export function setToken(token: string): void {
   sessionStorage.setItem("access_token", token);
   document.cookie = `access_token=${token}; path=/; SameSite=Lax`;
 }
 
-/** Remove the access token for THIS tab only */
 export function removeToken(): void {
   sessionStorage.removeItem("access_token");
   document.cookie = "access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC";
+}
+
+function isTokenExpiringSoon(token: string): boolean {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    const expiresAt = payload.exp * 1000;
+    return expiresAt < Date.now() + REFRESH_THRESHOLD_MS;
+  } catch {
+    return true;
+  }
 }
 
 async function refreshAccessToken(): Promise<string> {
@@ -56,11 +61,22 @@ async function refreshAccessToken(): Promise<string> {
   return data.access_token;
 }
 
-// ── Core fetch with auto-refresh + FastAPI error parsing (from dev) ────────────
+// ── Core fetch with auto-refresh + FastAPI error parsing ────────────
 
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`;
-  const token = getToken();
+  let token = getToken();
+
+  // Proactive refresh
+  if (token && isTokenExpiringSoon(token) && !isRefreshing) {
+    try {
+      token = await refreshAccessToken();
+    } catch {
+      removeToken();
+      window.location.href = "/login";
+      throw new Error("Session expired");
+    }
+  }
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -106,7 +122,6 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   }
 
   if (!response.ok) {
-    // FastAPI detailed error parsing (from dev)
     let errorMessage = `API Request failed: ${response.status}`;
     try {
       const errorData = await response.json();
@@ -131,10 +146,9 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     throw new Error(errorMessage);
   }
 
-  return response.json();
+  const text = await response.text();
+  return text ? JSON.parse(text) : { success: true };
 }
-
-// ── Simple api shorthand (from dev) ───────────────────────────────────────────
 
 export const api = {
   get: <T>(endpoint: string) => request<T>(endpoint, { method: "GET" }),
@@ -145,10 +159,20 @@ export const api = {
   delete: (endpoint: string) => request(endpoint, { method: "DELETE" }),
 };
 
-// ── Raw fetch wrapper (from Sanduni) — used by auth context ───────────────────
-
 export async function apiFetch(url: string, options: RequestInit = {}): Promise<Response> {
-  const token = getToken();
+  let token = getToken();
+
+  // Proactive refresh
+  if (token && isTokenExpiringSoon(token) && !isRefreshing) {
+    try {
+      token = await refreshAccessToken();
+    } catch {
+      removeToken();
+      window.location.href = "/login";
+      throw new Error("Session expired");
+    }
+  }
+
   const headers = {
     "Content-Type": "application/json",
     ...(options.headers || {}),

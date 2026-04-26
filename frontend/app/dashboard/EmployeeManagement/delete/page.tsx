@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { IconArrowLeft, IconTrash } from "@/components/icons";
 import { api } from "@/lib/api";
+import { useAuth } from "@/context/auth-context";
 
 interface Employee {
   id: number;
@@ -19,10 +20,17 @@ function DeleteEmployeeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const id = searchParams.get("id");
+  const { hasPermission, loading: authLoading } = useAuth();
 
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [loading, setLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  useEffect(() => {
+    if (!authLoading && !hasPermission("employee:delete")) {
+      router.replace("/dashboard/employees");
+    }
+  }, [authLoading, hasPermission, router]);
 
   useEffect(() => {
     if (!id) return;

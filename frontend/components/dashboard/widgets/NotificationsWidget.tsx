@@ -120,12 +120,14 @@ export default function NotificationsWidget() {
       </div>
 
       {/* Footer */}
-      <button 
-        onClick={() => router.push("/dashboard/notifications")}
-        className="mt-4 pt-4 border-t border-gray-100 w-full text-center text-[#f08a4b] text-sm font-semibold hover:underline"
-      >
-        View All Notifications
-      </button>
+      <div className="mt-auto pt-4 border-t border-gray-100 flex justify-end">
+        <button 
+          onClick={() => router.push("/dashboard/notifications")}
+          className="text-[#f2924e] text-[10px] font-bold uppercase tracking-wider hover:underline"
+        >
+          View All
+        </button>
+      </div>
     </div>
   );
 }

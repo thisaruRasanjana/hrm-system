@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, Date, Enum, Text, ForeignKey
+from sqlalchemy import Column, String, Integer, Date, Enum, Text, ForeignKey, Boolean
 from sqlalchemy.orm import relationship
 from app.database.base import Base
 import enum
@@ -26,7 +26,8 @@ class Employee(Base):
 
     designation = Column(String(100), nullable=False)
     joined_date = Column(Date, nullable=True)
-    status = Column(Enum(EmployeeStatus), default=EmployeeStatus.active)
+    status = Column(Enum(EmployeeStatus, name="employeestatus", create_type=False), default=EmployeeStatus.active)
+    is_deleted = Column(Boolean, default=False)
 
     # Personal Information
     date_of_birth = Column(Date, nullable=True)

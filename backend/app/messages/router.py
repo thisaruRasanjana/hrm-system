@@ -4,8 +4,9 @@ from typing import List, Optional
 from datetime import datetime, timezone
 
 from app.database.database import get_db
-from app.core.deps import get_current_user
+from app.core.deps import get_current_user, get_user_permissions
 from app.auth.models import User
+from app.roles.models import Role
 from app.messages import models, schemas
 
 router = APIRouter()
@@ -18,9 +19,9 @@ def send_message(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    # Roles that can send messages (match exact DB values)
-    SENDER_ROLES = {"Admin", "HR Manager", "Manager", "super_admin", "hr", "manager"}
-    if current_user.role not in SENDER_ROLES:
+    # Dynamic Permission Check
+    permissions = get_user_permissions(current_user, db)
+    if "messaging.send" not in permissions:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You don't have permission to send messages"
@@ -39,13 +40,14 @@ def send_message(
 
     # Determine recipients based on target_group
     recipients_query = db.query(User)
-    if message.target_group == "All Employees":
-        # Everyone except admin/hr
-        recipients_query = recipients_query.filter(User.role == "Employee")
-    elif message.target_group in ("HR", "HR Manager"):
-        recipients_query = recipients_query.filter(User.role == "HR Manager")
-    elif message.target_group == "All":
+    if message.target_group == "All":
         pass  # All users
+    elif message.target_group == "All Employees":
+        # Dynamically filter users who have the "Employee" role
+        recipients_query = recipients_query.filter(User.roles.any(Role.role_name == "Employee"))
+    elif message.target_group in ("HR", "HR Manager"):
+        # Dynamically filter users who have the "HR" role
+        recipients_query = recipients_query.filter(User.roles.any(Role.role_name == "HR"))
     else:
         # Specific department name
         recipients_query = recipients_query.filter(User.department == message.target_group)
@@ -64,11 +66,16 @@ def send_message(
     db.commit()
     
     return {
-        **db_message.__dict__,
+        "id": db_message.id,
+        "sender_id": db_message.sender_id,
+        "subject": db_message.subject,
+        "content": db_message.content,
+        "target_group": db_message.target_group,
+        "created_at": db_message.created_at,
         "sender_name": f"{current_user.first_name} {current_user.last_name}".strip() or current_user.email,
         "is_read": False,
         "is_deleted": False,
-        "sender_deleted": False
+        "sender_deleted": db_message.sender_deleted
     }
 
 
@@ -94,7 +101,12 @@ def get_inbox(
     messages = []
     for msg, rec, sender in results:
         messages.append({
-            **msg.__dict__,
+            "id": msg.id,
+            "sender_id": msg.sender_id,
+            "subject": msg.subject,
+            "content": msg.content,
+            "target_group": msg.target_group,
+            "created_at": msg.created_at,
             "sender_name": f"{sender.first_name} {sender.last_name}".strip() or sender.email,
             "is_read": rec.is_read,
             "is_deleted": rec.is_deleted,
@@ -109,11 +121,20 @@ def get_sent(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    # Only users with messaging.send permission have a sent box
+    permissions = get_user_permissions(current_user, db)
+    if "messaging.send" not in permissions:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have permission to access the sent box"
+        )
+
     results = (
         db.query(models.Message)
         .filter(
             models.Message.sender_id == current_user.id,
-            models.Message.sender_deleted == False
+            models.Message.sender_deleted == False,
+            models.Message.sender_permanent_deleted == False
         )
         .order_by(models.Message.created_at.desc())
         .all()
@@ -122,7 +143,12 @@ def get_sent(
     messages = []
     for msg in results:
         messages.append({
-            **msg.__dict__,
+            "id": msg.id,
+            "sender_id": msg.sender_id,
+            "subject": msg.subject,
+            "content": msg.content,
+            "target_group": msg.target_group,
+            "created_at": msg.created_at,
             "sender_name": "Me",
             "is_read": True,
             "is_deleted": False,
@@ -155,7 +181,8 @@ def get_trash(
         db.query(models.Message)
         .filter(
             models.Message.sender_id == current_user.id,
-            models.Message.sender_deleted == True
+            models.Message.sender_deleted == True,
+            models.Message.sender_permanent_deleted == False
         )
         .all()
     )
@@ -163,7 +190,12 @@ def get_trash(
     messages = []
     for msg, rec, sender in inbox_trash:
         messages.append({
-            **msg.__dict__,
+            "id": msg.id,
+            "sender_id": msg.sender_id,
+            "subject": msg.subject,
+            "content": msg.content,
+            "target_group": msg.target_group,
+            "created_at": msg.created_at,
             "sender_name": f"{sender.first_name} {sender.last_name}".strip() or sender.email,
             "is_read": rec.is_read,
             "is_deleted": rec.is_deleted,
@@ -172,7 +204,12 @@ def get_trash(
     
     for msg in sent_trash:
         messages.append({
-            **msg.__dict__,
+            "id": msg.id,
+            "sender_id": msg.sender_id,
+            "subject": msg.subject,
+            "content": msg.content,
+            "target_group": msg.target_group,
+            "created_at": msg.created_at,
             "sender_name": "Me",
             "is_read": True,
             "is_deleted": True,
@@ -250,6 +287,7 @@ def permanent_delete(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    # Inbox permanent delete
     recipient_rec = db.query(models.MessageRecipient).filter(
         models.MessageRecipient.message_id == message_id,
         models.MessageRecipient.recipient_id == current_user.id,
@@ -261,11 +299,19 @@ def permanent_delete(
         db.commit()
         return {"message": "Message permanently deleted from inbox"}
     
-    # If sender and in trash, we could delete the record if no other recipients have it?
-    # But for simplicity, we'll just keep the Message record if recipients still have it.
-    # The requirement says "Set MessageRecipient.is_permanent_deleted = True"
+    # Sent permanent delete
+    message_rec = db.query(models.Message).filter(
+        models.Message.id == message_id,
+        models.Message.sender_id == current_user.id,
+        models.Message.sender_deleted == True
+    ).first()
+
+    if message_rec:
+        message_rec.sender_permanent_deleted = True
+        db.commit()
+        return {"message": "Message permanently deleted from sent"}
     
-    raise HTTPException(status_code=400, detail="Only deleted inbox messages can be permanently deleted via this endpoint")
+    raise HTTPException(status_code=404, detail="Message not found in trash")
 
 
 # ── PUT read ────────────────────────────────────────────────────────────────────

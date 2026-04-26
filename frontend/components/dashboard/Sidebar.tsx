@@ -11,17 +11,30 @@ import {
   Settings
 } from "lucide-react";
 
+import { useAuth } from "@/context/auth-context";
+
 export default function Sidebar() {
 
   const pathname = usePathname();
+  const { hasPermission, hasAnyPermission } = useAuth();
 
   const menu = [
     { name: "Dashboard", path: "/dashboard", icon: LayoutGrid },
-    { name: "Employee Management", path: "/dashboard/employees", icon: Users },
-    { name: "Role Management", path: "/dashboard/EmployeeManagement/assign-role", icon: Shield },
-    { name: "Recruitment", path: "/dashboard/recruitment", icon: Users },
-    { name: "Leave", path: "/dashboard/leave", icon: Calendar },
-    { name: "Document", path: "/dashboard/documents", icon: FileText },
+    { 
+      name: "Employee Management", 
+      path: "/dashboard/employees", 
+      icon: Users,
+      permission: "employee:view_all" 
+    },
+    { 
+      name: "Role Management", 
+      path: "/dashboard/EmployeeManagement/assign-role", 
+      icon: Shield,
+      permission: "role:view"
+    },
+    { name: "Recruitment", path: "/dashboard/recruitment", icon: Users, permission: "recruitment:view" },
+    { name: "Leave", path: "/dashboard/leave", icon: Calendar, permission: "leave:request" },
+    { name: "Document", path: "/dashboard/documents", icon: FileText, permission: "document:request_own" },
     { name: "Settings", path: "/dashboard/settings", icon: Settings }
   ];
 
@@ -49,6 +62,14 @@ export default function Sidebar() {
       <nav className="flex flex-col gap-7">
 
         {menu.map((item) => {
+          // Check permissions
+          if (item.name === "Employee Management") {
+            if (!hasAnyPermission(["employee:view_all", "employee:create", "employee:update", "employee:delete"])) return null;
+          } else if (item.name === "Role Management") {
+            if (!hasAnyPermission(["role:view", "role:create", "role:assign"])) return null;
+          } else if (item.permission && !hasPermission(item.permission)) {
+            return null;
+          }
 
           const Icon = item.icon;
           const active = pathname === item.path;
