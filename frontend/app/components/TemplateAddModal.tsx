@@ -96,11 +96,11 @@ export default function TemplateAddModal({ onClose, onSuccess }: Props) {
       onClick={onClose}
     >
       <div
-        className="bg-white w-[640px] max-h-[90vh] rounded-2xl shadow-2xl flex flex-col animate-modal"
+        className="bg-white w-[640px] max-h-[90vh] rounded-2xl shadow-2xl border border-gray-100 flex flex-col animate-modal"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b">
+        <div className="flex items-center justify-between px-6 py-4">
           <div className="flex items-center gap-3">
             <div className="bg-[#F2924E]/10 p-2 rounded-lg">
               <FileText size={18} className="text-[#F2924E]" />
@@ -131,7 +131,7 @@ export default function TemplateAddModal({ onClose, onSuccess }: Props) {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Service Letter Template"
-              className="w-full border rounded-lg px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-[#F2924E] focus:border-[#F2924E]"
+              className="w-full border border-gray-100 bg-gray-50/50 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#F2924E]/30 transition shadow-sm"
             />
           </div>
 
@@ -143,7 +143,7 @@ export default function TemplateAddModal({ onClose, onSuccess }: Props) {
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value)}
-              className="w-full border rounded-lg px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-[#F2924E]"
+              className="w-full border border-gray-100 bg-gray-50/50 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#F2924E]/30 transition shadow-sm"
             >
               <option value="">Select a category</option>
               {CATEGORIES.map((cat) => (
@@ -159,7 +159,7 @@ export default function TemplateAddModal({ onClose, onSuccess }: Props) {
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Template Type <span className="text-red-500">*</span>
             </label>
-            <div className="inline-flex bg-gray-100 rounded-lg p-1">
+            <div className="inline-flex bg-gray-100/50 border border-gray-100 rounded-xl p-1">
               <button
                 type="button"
                 onClick={() => setTemplateType("HTML")}
@@ -202,7 +202,7 @@ export default function TemplateAddModal({ onClose, onSuccess }: Props) {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Upload File
               </label>
-              <label className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-xl py-8 cursor-pointer hover:border-[#F2924E] transition">
+              <label className="flex flex-col items-center justify-center border-2 border-dashed border-gray-200 rounded-xl py-8 cursor-pointer hover:border-[#F2924E]/50 hover:bg-gray-50 transition">
                 <Upload size={28} className="text-gray-400 mb-2" />
                 <span className="text-sm text-gray-500">
                   {file ? file.name : "Click to upload DOCX or PDF"}
@@ -236,10 +236,10 @@ export default function TemplateAddModal({ onClose, onSuccess }: Props) {
         </div>
 
         {/* Footer */}
-        <div className="border-t px-6 py-4 flex gap-3 justify-end">
+        <div className="px-6 py-4 flex gap-3 justify-end">
           <button
             onClick={onClose}
-            className="px-5 py-2 text-sm rounded-lg border hover:bg-gray-50 transition"
+            className="px-5 py-2.5 text-sm rounded-xl border border-gray-100 hover:bg-gray-50 text-gray-600 font-bold transition-all duration-300 shadow-sm"
           >
             Cancel
           </button>

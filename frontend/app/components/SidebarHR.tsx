@@ -10,7 +10,7 @@ import Link from "next/link";
 
 export default function SidebarHR() {
   return (
-    <div className="w-64 bg-[#EAEAEA] border-r border-gray-200 flex flex-col justify-between">
+    <div className="w-64 bg-[#EAEAEA] border-r border-gray-100 shadow-sm flex flex-col justify-between">
 
       {/* Top */}
       <div>

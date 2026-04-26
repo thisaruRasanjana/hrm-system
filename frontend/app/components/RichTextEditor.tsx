@@ -76,9 +76,9 @@ export default function RichTextEditor({ content, onChange }: Props) {
   );
 
   return (
-    <div className="border rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-[#F2924E] transition">
+    <div className="border border-gray-100 rounded-xl overflow-hidden shadow-sm focus-within:ring-2 focus-within:ring-[#F2924E]/20 transition-all duration-300">
       {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-0.5 px-3 py-2 border-b bg-gray-50">
+      <div className="flex flex-wrap items-center gap-0.5 px-3 py-2 border-b border-gray-100 bg-gray-50/50">
 
         {/* Text styles */}
         <ToolbarButton
@@ -185,7 +185,7 @@ export default function RichTextEditor({ content, onChange }: Props) {
       <EditorContent editor={editor} />
 
       {/* Placeholder hint */}
-      <div className="px-4 py-2 border-t bg-gray-50 flex flex-wrap gap-2">
+      <div className="px-4 py-3 border-t border-gray-100 bg-gray-50/50 flex flex-wrap gap-2">
         <span className="text-xs text-gray-400">Placeholders:</span>
         {["{{employee_name}}", "{{date}}", "{{purpose}}", "{{department}}", "{{designation}}"].map(
           (ph) => (

@@ -8,7 +8,7 @@ import Link from "next/link";
 
 export default function Sidebar() {
   return (
-    <div className="w-64 bg-[#EAEAEA] border-r border-gray-300 flex flex-col justify-between">
+    <div className="w-64 bg-[#EAEAEA] border-r border-gray-100 shadow-sm flex flex-col justify-between">
 
 
       {/* Top Section */}

@@ -91,7 +91,7 @@ export default function TemplatesManagementPage() {
       </div>
 
       {/* Stat Card */}
-      <div className="border border-orange-200 rounded-xl p-6 flex justify-between items-center">
+      <div className="bg-white border border-gray-100 shadow-sm rounded-xl p-6 flex justify-between items-center">
         <div>
           <p className="text-xs text-gray-400">TOTAL TEMPLATES</p>
           <h2 className="text-3xl font-semibold">{templates.length}</h2>
@@ -106,12 +106,12 @@ export default function TemplatesManagementPage() {
 
       {/* Cards Grid */}
       {loading ? (
-        <div className="bg-white border rounded-xl p-16 text-center text-gray-400">
+        <div className="bg-white border border-gray-100 shadow-sm rounded-xl p-16 text-center text-gray-400">
           <LayoutTemplate size={40} className="mx-auto mb-3 opacity-30" />
           <p className="text-sm">Loading templates...</p>
         </div>
       ) : templates.length === 0 ? (
-        <div className="bg-white border rounded-xl p-16 text-center text-gray-400">
+        <div className="bg-white border border-gray-100 shadow-sm rounded-xl p-16 text-center text-gray-400">
           <LayoutTemplate size={48} className="mx-auto mb-4 opacity-20" />
           <p className="font-medium text-gray-500">No templates yet</p>
           <p className="text-sm mt-1">Click "Add Template" to create your first one.</p>
@@ -121,7 +121,7 @@ export default function TemplatesManagementPage() {
           {templates.map((tpl) => (
             <div
               key={tpl.id}
-              className="bg-white border rounded-2xl p-5 flex flex-col gap-3 hover:shadow-md transition-shadow"
+              className="bg-white border border-gray-100 shadow-sm rounded-xl p-5 flex flex-col gap-3 hover:shadow-md transition-shadow"
             >
               {/* Card Top — icon, name/category, actions all inline */}
               <div className="flex items-center gap-3">
@@ -138,7 +138,7 @@ export default function TemplatesManagementPage() {
                 <div className="flex items-center gap-1.5 flex-shrink-0">
                   <button
                     onClick={() => setPreviewTemplate(tpl)}
-                    className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 transition"
+                    className="p-1.5 rounded-lg border border-gray-100 text-gray-500 hover:bg-gray-50 transition"
                     title="Preview"
                   >
                     <Eye size={14} />
@@ -162,14 +162,14 @@ export default function TemplatesManagementPage() {
 
               {/* Preview snippet for HTML templates */}
               {tpl.template_type === "HTML" && tpl.content && (
-                <div className="bg-gray-50 rounded-lg px-3 py-2 text-xs text-gray-400 line-clamp-3 leading-relaxed border">
+                <div className="bg-gray-50 rounded-lg px-3 py-2 text-xs text-gray-400 line-clamp-3 leading-relaxed border border-gray-100">
                   {tpl.content.replace(/<[^>]+>/g, " ").trim().slice(0, 120)}...
                 </div>
               )}
 
               {/* File indicator */}
               {tpl.template_type !== "HTML" && (
-                <div className="bg-gray-50 rounded-lg px-3 py-2 text-xs text-gray-400 border flex items-center gap-2">
+                <div className="bg-gray-50 rounded-lg px-3 py-2 text-xs text-gray-400 border border-gray-100 flex items-center gap-2">
                   <FileText size={12} />
                   {tpl.file_path?.split("/").pop() ?? "Uploaded file"}
                 </div>

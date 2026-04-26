@@ -101,7 +101,7 @@ export default function HRRequestDocumentPage() {
       </div>
 
       {/* New Request */}
-      <div className="bg-white p-6 rounded-xl shadow-sm border space-y-6">
+      <div className="bg-white p-8 rounded-2xl shadow-md border border-gray-200 space-y-6">
 
         <div className="flex items-center gap-3">
           <div className="bg-[#F2924E]/20 p-2 rounded-lg">
@@ -119,7 +119,7 @@ export default function HRRequestDocumentPage() {
           <select
             value={documentType}
             onChange={(e) => setDocumentType(e.target.value)}
-            className="mt-2 w-full border rounded-lg px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-[#F2924E]"
+            className="mt-2 w-full border-0 bg-gray-50/80 rounded-lg px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#F2924E]/30 transition shadow-sm"
           >
             <option value="">Select document type</option>
 
@@ -141,7 +141,7 @@ export default function HRRequestDocumentPage() {
             rows={4}
             value={purpose}
             onChange={(e) => setPurpose(e.target.value)}
-            className="mt-2 w-full border rounded-lg px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-[#F2924E]"
+            className="mt-2 w-full border-0 bg-gray-50/80 rounded-lg px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#F2924E]/30 transition shadow-sm"
           />
         </div>
 
@@ -159,7 +159,7 @@ export default function HRRequestDocumentPage() {
         <div className="flex justify-end">
           <button
             onClick={handleSubmit}
-            className="px-4 py-2 text-sm rounded-md bg-[#F2924E] text-white hover:opacity-90 transition"
+            className="px-6 py-2.5 text-sm font-bold rounded-xl bg-[#F2924E] text-white hover:opacity-90 transition shadow-md hover:shadow-lg"
           >
             Submit Request
           </button>
@@ -168,65 +168,75 @@ export default function HRRequestDocumentPage() {
       </div>
 
       {/* Pending Requests */}
-      <div className="bg-white p-6 rounded-xl shadow-sm border space-y-4">
+      <div className="bg-white p-8 rounded-2xl shadow-md border border-gray-200 space-y-6">
 
         <h3 className="font-semibold">Pending Requests</h3>
 
-        {pendingRequests.map((req) => (
-          <div
-            key={req.id}
-            className="flex justify-between items-center border rounded-lg p-4 hover:bg-gray-50 transition"
-          >
-            <div>
-              <p className="font-medium text-sm">{req.document_type}</p>
+        {pendingRequests.length === 0 ? (
+          <p className="text-sm text-gray-400 text-center py-4">No pending requests.</p>
+        ) : (
+          pendingRequests.map((req) => (
+            <div
+              key={req.id}
+              className="flex justify-between items-center bg-gray-50/50 rounded-xl p-5 hover:bg-gray-50 transition-all duration-300 shadow-sm hover:shadow-md"
+            >
+              <div>
+                <p className="font-bold text-sm text-gray-800">{req.document_type}</p>
 
-              <p className="text-xs text-gray-400">
-                Requested on {new Date(req.created_at).toLocaleDateString()}
-              </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  Requested on {new Date(req.created_at).toLocaleDateString()}
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3">
+
+                <span className="bg-orange-50 text-[#F2924E] px-3 py-1 text-[10px] uppercase tracking-wider rounded-full font-bold border border-orange-100">
+                  Pending
+                </span>
+
+                <button
+                  onClick={() => setSelectedRequest(req)}
+                  className="bg-white border border-gray-100 hover:bg-gray-50 text-gray-600 text-xs px-4 py-1.5 rounded-lg transition shadow-sm"
+                >
+                  View
+                </button>
+
+              </div>
             </div>
-
-            <div className="flex items-center gap-3">
-
-              <span className="bg-yellow-100 text-yellow-600 px-3 py-1 text-xs rounded-full font-medium">
-                Pending
-              </span>
-
-              <button
-                onClick={() => setSelectedRequest(req)}
-                className="bg-gray-200 hover:bg-gray-300 text-xs px-3 py-1 rounded-md transition"
-              >
-                View
-              </button>
-
-            </div>
-          </div>
-        ))}
+          ))
+        )}
 
       </div>
 
       {/* Previous Requests */}
-      <div className="bg-white p-6 rounded-xl shadow-sm border space-y-4">
+      <div className="bg-white p-8 rounded-2xl shadow-md space-y-6">
 
         <h3 className="font-semibold">Previous Requests</h3>
 
-        {previousRequests.map((req) => (
-          <div
-            key={req.id}
-            className="flex justify-between items-center border rounded-lg p-4 hover:bg-gray-50 transition"
-          >
-            <div>
-              <p className="font-medium text-sm">{req.document_type}</p>
+        {previousRequests.length === 0 ? (
+          <p className="text-sm text-gray-400 text-center py-4">No previous requests.</p>
+        ) : (
+          previousRequests.map((req) => (
+            <div
+              key={req.id}
+              className="flex justify-between items-center bg-gray-50/50 rounded-xl p-5 hover:bg-gray-50 transition-all duration-300 shadow-sm hover:shadow-md"
+            >
+              <div>
+                <p className="font-bold text-sm text-gray-800">{req.document_type}</p>
 
-              <p className="text-xs text-gray-400">
-                Requested on {new Date(req.created_at).toLocaleDateString()}
-              </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  Requested on {new Date(req.created_at).toLocaleDateString()}
+                </p>
+              </div>
+
+              <span className={`px-3 py-1 text-[10px] uppercase tracking-wider rounded-full font-bold border ${
+                req.status === 'COMPLETED' ? 'bg-orange-50 text-[#F2924E] border-orange-100' : 'bg-gray-50 text-gray-500 border-gray-100'
+              }`}>
+                {req.status}
+              </span>
             </div>
-
-            <span className="bg-green-100 text-green-600 px-3 py-1 text-xs rounded-full font-medium">
-              {req.status}
-            </span>
-          </div>
-        ))}
+          ))
+        )}
 
       </div>
 
@@ -235,70 +245,70 @@ export default function HRRequestDocumentPage() {
   typeof window !== "undefined" &&
   createPortal(
     <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/30 backdrop-blur-sm"
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/30 backdrop-blur-sm animate-backdrop"
       onClick={() => setSelectedRequest(null)}
     >
-      <div
-        className="bg-white w-[420px] rounded-xl shadow-xl p-6 relative"
-        onClick={(e) => e.stopPropagation()}
-      >
+        <div
+          className="bg-white w-[420px] rounded-2xl shadow-2xl p-8 relative animate-modal"
+          onClick={(e) => e.stopPropagation()}
+        >
         {/* Close Icon */}
         <button
           onClick={() => setSelectedRequest(null)}
-          className="absolute right-4 top-4 text-gray-400 hover:text-gray-600"
+          className="absolute right-6 top-6 text-gray-400 hover:text-gray-600 transition"
         >
-          <X size={18} />
+          <X size={20} />
         </button>
 
         {/* Header */}
-        <div className="flex items-center gap-3 mb-4">
-          <div className="bg-[#F2924E]/20 p-2 rounded-lg">
-            <FileText size={18} className="text-[#F2924E]" />
+        <div className="flex items-center gap-4 mb-6">
+          <div className="bg-[#F2924E]/10 p-2.5 rounded-xl">
+            <FileText size={20} className="text-[#F2924E]" />
           </div>
 
-          <h2 className="text-lg font-semibold text-gray-800">
+          <h2 className="text-lg font-bold text-gray-900">
             Request Details
           </h2>
         </div>
 
         {/* Details */}
-        <div className="space-y-3 text-sm">
-          <div className="flex justify-between">
-            <span className="text-gray-500">Document Type</span>
-            <span className="font-medium">
+        <div className="space-y-4 text-sm">
+          <div className="flex justify-between items-center py-2 border-b border-gray-50">
+            <span className="text-gray-500 font-medium">Document Type</span>
+            <span className="font-bold text-gray-900">
               {selectedRequest.document_type}
             </span>
           </div>
 
-          <div className="flex justify-between">
-            <span className="text-gray-500">Status</span>
+          <div className="flex justify-between items-center py-2 border-b border-gray-50">
+            <span className="text-gray-500 font-medium">Status</span>
 
-            <span className="bg-yellow-100 text-yellow-600 px-2 py-1 rounded-full text-xs font-medium">
+            <span className="bg-yellow-100 text-yellow-600 px-3 py-1 rounded-full text-[10px] uppercase tracking-wider font-bold">
               {selectedRequest.status}
             </span>
           </div>
 
-          <div className="flex justify-between">
-            <span className="text-gray-500">Requested Date</span>
-            <span className="font-medium">
+          <div className="flex justify-between items-center py-2 border-b border-gray-50">
+            <span className="text-gray-500 font-medium">Requested Date</span>
+            <span className="font-bold text-gray-900">
               {new Date(selectedRequest.created_at).toLocaleDateString()}
             </span>
           </div>
 
-          <div className="border-t pt-3">
-            <p className="text-gray-500 mb-1">Purpose</p>
+          <div className="pt-2">
+            <p className="text-gray-500 font-medium mb-2">Purpose</p>
 
-            <p className="text-gray-700 leading-relaxed">
+            <p className="text-gray-700 leading-relaxed bg-gray-50 p-4 rounded-xl font-medium">
               {selectedRequest.purpose}
             </p>
           </div>
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end mt-6">
+        <div className="flex justify-end mt-8">
           <button
             onClick={() => setSelectedRequest(null)}
-            className="px-4 py-2 text-sm rounded-md bg-[#F2924E] text-white hover:opacity-90 transition"
+            className="w-full py-3 text-sm font-bold rounded-xl bg-[#F2924E] text-white hover:opacity-90 transition shadow-md"
           >
             Close
           </button>

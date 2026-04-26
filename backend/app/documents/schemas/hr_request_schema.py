@@ -11,6 +11,7 @@ class HRRequestStatusUpdate(BaseModel):
 class HRGenerateDocumentRequest(BaseModel):
     template_id: int
     preview: Optional[bool] = False
+    override_reason: Optional[str] = None
 
 class HRRequestResponse(BaseModel):
     id: UUID

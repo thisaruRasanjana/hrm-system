@@ -125,9 +125,9 @@ export default function DocumentReviewModal({
                   </div>
                 </div>
               ) : (
-                <div className="bg-red-50 border border-red-100 rounded-2xl p-6 space-y-4">
+                <div className="bg-gray-50 border border-gray-100 rounded-2xl p-6 space-y-4">
                   <div className="flex items-start gap-4">
-                    <div className="w-10 h-10 bg-red-500 rounded-xl flex items-center justify-center text-white shrink-0 shadow-sm">
+                    <div className="w-10 h-10 bg-gray-800 rounded-xl flex items-center justify-center text-white shrink-0 shadow-sm">
                       <XCircle size={20} />
                     </div>
                     <div className="flex-1">
@@ -142,7 +142,7 @@ export default function DocumentReviewModal({
                           setReason(e.target.value);
                           setError("");
                         }}
-                        className="w-full border border-red-200 rounded-xl p-4 text-[13px] font-medium text-gray-800 placeholder-gray-400 resize-none focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-300 bg-white transition-all h-32 shadow-inner"
+                        className="w-full border border-gray-200 rounded-xl p-4 text-[13px] font-medium text-gray-800 placeholder-gray-400 resize-none focus:outline-none focus:ring-2 focus:ring-gray-100 focus:border-gray-300 bg-white transition-all h-32 shadow-inner"
                       />
                     </div>
                   </div>
@@ -183,7 +183,7 @@ export default function DocumentReviewModal({
               <button
                 disabled={loading || !reason.trim()}
                 onClick={rejectDocument}
-                className="flex-[2] bg-red-500 hover:bg-red-600 text-white py-4 rounded-2xl font-bold text-[14px] transition-all shadow-md hover:shadow-lg disabled:opacity-50 flex items-center justify-center gap-2"
+                className="flex-1 bg-gray-800 hover:bg-gray-900 text-white py-4 rounded-2xl font-bold text-[14px] transition-all shadow-md hover:shadow-lg disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {loading ? "Submitting..." : "Submit Rejection"}
               </button>
@@ -193,7 +193,7 @@ export default function DocumentReviewModal({
                   setRejectMode(false);
                   setError("");
                 }}
-                className="flex-1 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 py-4 rounded-2xl font-bold text-[14px] transition-all"
+                className="flex-1 bg-white border border-gray-100 hover:bg-gray-50 text-gray-600 py-4 rounded-2xl font-bold text-[14px] transition-all duration-300 shadow-sm"
               >
                 Cancel
               </button>

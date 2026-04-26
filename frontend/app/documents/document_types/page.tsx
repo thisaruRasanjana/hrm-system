@@ -160,20 +160,35 @@ export default function DocumentTypesPage() {
               className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#F2924E]/40 focus:border-[#F2924E]"
             />
           </div>
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => setIsMandatory(!isMandatory)}
-              className="focus:outline-none"
-            >
-              {isMandatory
-                ? <ToggleRight size={32} className="text-[#F2924E]" />
-                : <ToggleLeft size={32} className="text-gray-300" />}
-            </button>
-            <span className="text-sm font-medium text-gray-700">
-              {isMandatory ? "Mandatory" : "Optional"}
-            </span>
-          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider">
+              Type
+            </label>
+            <div className="flex bg-gray-50/50 rounded-xl border border-gray-100 p-1.5 w-max shadow-sm">
+              <button
+                type="button"
+                onClick={() => setIsMandatory(true)}
+                className={`px-6 py-2 text-sm font-bold rounded-lg transition-all duration-300 ${
+                  isMandatory 
+                    ? 'bg-[#F2924E] text-white shadow-md' 
+                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100/50'
+                }`}
+              >
+                Mandatory
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsMandatory(false)}
+                className={`px-6 py-2 text-sm font-bold rounded-lg transition-all duration-300 ${
+                  !isMandatory 
+                    ? 'bg-[#F2924E] text-white shadow-md' 
+                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100/50'
+                }`}
+              >
+                Optional
+              </button>
+            </div>
+         </div>
           <div className="flex items-end justify-end gap-3">
             {createError && <p className="text-xs text-red-500">{createError}</p>}
             <button
@@ -230,12 +245,31 @@ export default function DocumentTypesPage() {
                           className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#F2924E]/40"
                         />
                       </td>
-                      <td className="px-6 py-3 text-center">
-                        <button onClick={() => setEditMandatory(!editMandatory)} className="focus:outline-none">
-                          {editMandatory
-                            ? <ToggleRight size={24} className="text-[#F2924E]" />
-                            : <ToggleLeft size={24} className="text-gray-300" />}
-                        </button>
+                      <td className="px-6 py-3">
+                        <div className="flex bg-gray-50/50 rounded-lg border border-gray-100 p-1 w-max mx-auto shadow-sm">
+                          <button
+                            type="button"
+                            onClick={() => setEditMandatory(true)}
+                            className={`px-3 py-1 text-[11px] font-bold rounded-md transition-all duration-300 ${
+                              editMandatory 
+                                ? 'bg-[#F2924E] text-white shadow-sm' 
+                                : 'text-gray-500 hover:text-gray-700'
+                            }`}
+                          >
+                            Mandatory
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditMandatory(false)}
+                            className={`px-3 py-1 text-[11px] font-bold rounded-md transition-all duration-300 ${
+                              !editMandatory 
+                                ? 'bg-[#F2924E] text-white shadow-sm' 
+                                : 'text-gray-500 hover:text-gray-700'
+                            }`}
+                          >
+                            Optional
+                          </button>
+                        </div>
                       </td>
                       <td className="px-6 py-3 text-center">—</td>
                       <td className="px-6 py-3">

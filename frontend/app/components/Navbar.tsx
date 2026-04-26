@@ -2,7 +2,7 @@ import { Bell, MessageSquare, User } from "lucide-react";
 
 export default function Navbar() {
   return (
-    <div className="h-16 bg-white border-b flex items-center justify-between px-12">
+    <div className="h-16 bg-white border-b border-gray-100 shadow-sm flex items-center justify-between px-12 relative z-10">
 
       <input
         type="text"
