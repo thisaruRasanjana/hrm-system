@@ -86,10 +86,10 @@ export default function TemplateEditModal({ template, onClose, onSuccess }: Prop
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b">
+        <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 bg-gray-50/50">
           <div className="flex items-center gap-3">
-            <div className="bg-blue-50 p-2 rounded-lg">
-              <FileText size={18} className="text-blue-500" />
+            <div className="bg-[#F2924E]/10 p-2 rounded-lg">
+              <FileText size={18} className="text-[#F2924E]" />
             </div>
             <div>
               <h2 className="text-lg font-semibold text-gray-800">Edit Template</h2>
@@ -116,7 +116,8 @@ export default function TemplateEditModal({ template, onClose, onSuccess }: Prop
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full border rounded-lg px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-[#F2924E] focus:border-[#F2924E]"
+              placeholder="e.g. Service Letter Template"
+              className="w-full border border-gray-100 bg-gray-50/50 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#F2924E]/20 transition shadow-sm"
             />
           </div>
 
@@ -128,7 +129,7 @@ export default function TemplateEditModal({ template, onClose, onSuccess }: Prop
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value)}
-              className="w-full border rounded-lg px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-[#F2924E]"
+              className="w-full border border-gray-100 bg-gray-50/50 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#F2924E]/20 transition shadow-sm"
             >
               <option value="">Select a category</option>
               {CATEGORIES.map((cat) => (
@@ -144,7 +145,7 @@ export default function TemplateEditModal({ template, onClose, onSuccess }: Prop
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Template Type
             </label>
-            <div className="inline-flex bg-gray-100 rounded-lg p-1">
+            <div className="inline-flex bg-gray-100/50 border border-gray-100 rounded-xl p-1">
               <button
                 type="button"
                 onClick={() => setTemplateType("HTML")}
@@ -195,7 +196,7 @@ export default function TemplateEditModal({ template, onClose, onSuccess }: Prop
                   </span>
                 </p>
               )}
-              <label className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-xl py-8 cursor-pointer hover:border-[#F2924E] transition">
+              <label className="flex flex-col items-center justify-center border-2 border-dashed border-gray-100 rounded-xl py-8 cursor-pointer hover:border-[#F2924E]/50 hover:bg-gray-50 transition shadow-sm">
                 <Upload size={28} className="text-gray-400 mb-2" />
                 <span className="text-sm text-gray-500">
                   {file ? file.name : "Click to upload a new file"}
@@ -222,17 +223,17 @@ export default function TemplateEditModal({ template, onClose, onSuccess }: Prop
         </div>
 
         {/* Footer */}
-        <div className="border-t px-6 py-4 flex gap-3 justify-end">
+        <div className="border-t border-gray-100 px-6 py-4 flex gap-3 justify-end bg-gray-50/50">
           <button
             onClick={onClose}
-            className="px-5 py-2 text-sm rounded-lg border hover:bg-gray-50 transition"
+            className="px-5 py-2.5 text-sm rounded-xl border border-gray-100 hover:bg-gray-50 text-gray-600 font-bold transition-all duration-300 shadow-sm bg-white"
           >
             Cancel
           </button>
           <button
             onClick={handleSubmit}
             disabled={loading}
-            className="px-6 py-2 text-sm rounded-lg bg-[#F2924E] text-white hover:bg-[#e07d3a] transition disabled:opacity-60"
+            className="px-6 py-2.5 text-sm rounded-xl bg-[#F2924E] text-white hover:bg-[#e07d3a] transition disabled:opacity-60 font-bold shadow-md hover:shadow-lg"
           >
             {loading ? "Saving..." : "Save Changes"}
           </button>

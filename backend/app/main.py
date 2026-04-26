@@ -13,6 +13,7 @@ from app.auth.models import Role, Permission
 from app.documents.models.model import EmployeeDocument
 from app.documents.models.template_model import DocumentTemplate
 from app.documents.models.document_type_model import DocumentType
+from app.documents.models.audit_log_model import DocumentAuditLog
 
 # Routers
 from app.employees.router import router as employee_router
@@ -37,10 +38,10 @@ async def email_polling_loop():
             result = await asyncio.to_thread(email_service.fetch_and_process_external_requests, db)
             db.close()
             
-            if result.get("status") == "error":
+            if isinstance(result, int) and result > 0:
+                print(f"[Email Poller] Synced {result} new external email request(s).")
+            elif isinstance(result, dict) and result.get("status") == "error":
                 print(f"[Email Poller] Service Error: {result.get('message')}")
-            elif result.get("processed_emails", 0) > 0:
-                print(f"[Email Poller] Synced {result['processed_emails']} new external email request(s).")
         except Exception as e:
             print(f"[Email Poller] Loop Error: {e}")
         await asyncio.sleep(EMAIL_POLL_INTERVAL)
@@ -49,9 +50,7 @@ def seed_default_data():
     """Seed roles and permissions if they don't exist yet."""
     db = SessionLocal()
     try:
-        if db.query(Permission).count() > 0:
-            return
-
+        existing_perms = {p.name for p in db.query(Permission).all()}
         default_permissions = [
             Permission(name="employee:view",   description="Employee Permission"),
             Permission(name="employee:create", description="Employee Permission"),
@@ -69,20 +68,38 @@ def seed_default_data():
             Permission(name="recruitment:manage",description="Recruitment Permission"),
             Permission(name="report:view",     description="Report Permission"),
         ]
-        db.add_all(default_permissions)
-        db.commit()
+        
+        new_perms = [p for p in default_permissions if p.name not in existing_perms]
+        if new_perms:
+            db.add_all(new_perms)
+            db.commit()
 
         all_perms = db.query(Permission).all()
-        hr_manager = Role(name="HR Manager", description="Full HR access", is_system=1, permissions=all_perms)
-        employee_role = Role(name="Employee", description="Standard employee access", is_system=1,
-                             permissions=[p for p in all_perms if p.name in ("employee:view", "document:view", "document:upload", "leave:view")])
-        admin_role = Role(name="Admin", description="System administrator", is_system=1, permissions=all_perms)
-        manager_role = Role(name="Manager", description="Department manager access", is_system=1,
-                            permissions=[p for p in all_perms if p.name in ("employee:view", "employee:edit", "leave:view", "leave:approve", "document:view", "report:view")])
+        
+        existing_roles = {r.name: r for r in db.query(Role).all()}
+        
+        if "HR Manager" not in existing_roles:
+            hr_manager = Role(name="HR Manager", description="Full HR access", is_system=1, permissions=all_perms)
+            db.add(hr_manager)
+        else:
+            existing_roles["HR Manager"].permissions = all_perms
+            
+        if "Employee" not in existing_roles:
+            employee_role = Role(name="Employee", description="Standard employee access", is_system=1,
+                                 permissions=[p for p in all_perms if p.name in ("employee:view", "document:view", "document:upload", "leave:view")])
+            db.add(employee_role)
+            
+        if "Admin" not in existing_roles:
+            admin_role = Role(name="Admin", description="System administrator", is_system=1, permissions=all_perms)
+            db.add(admin_role)
+            
+        if "Manager" not in existing_roles:
+            manager_role = Role(name="Manager", description="Department manager access", is_system=1,
+                                permissions=[p for p in all_perms if p.name in ("employee:view", "employee:edit", "leave:view", "leave:approve", "document:view", "report:view")])
+            db.add(manager_role)
 
-        db.add_all([hr_manager, employee_role, admin_role, manager_role])
         db.commit()
-        print("[Seed] Default roles and permissions created.")
+        print("[Seed] Default roles and permissions synced.")
     except Exception as e:
         db.rollback()
         print(f"[Seed] Skipped: {e}")

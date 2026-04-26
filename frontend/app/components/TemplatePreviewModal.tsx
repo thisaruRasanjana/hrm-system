@@ -53,7 +53,7 @@ export default function TemplatePreviewModal({ template, onClose }: Props) {
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b">
+        <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 bg-gray-50/50">
           <div className="flex items-center gap-3">
             <div className="bg-[#F2924E]/10 p-2 rounded-lg">
               <FileText size={18} className="text-[#F2924E]" />
@@ -77,8 +77,8 @@ export default function TemplatePreviewModal({ template, onClose }: Props) {
         </div>
 
         {/* Preview Body */}
-        <div className="flex-1 overflow-hidden p-6">
-          <div className="border rounded-xl overflow-y-auto h-[560px] bg-gray-50 relative">
+        <div className="flex-1 overflow-hidden p-6 bg-white">
+          <div className="border border-gray-100 rounded-2xl overflow-y-auto h-[560px] bg-gray-50/50 relative shadow-inner">
             {template.template_type === "HTML" && template.content ? (
               // HTML Preview — render HTML content in a sandboxed iframe
               <iframe
@@ -154,10 +154,10 @@ export default function TemplatePreviewModal({ template, onClose }: Props) {
         </div>
 
         {/* Footer */}
-        <div className="border-t px-6 py-4 flex justify-end">
+        <div className="border-t border-gray-100 px-6 py-4 flex justify-end bg-gray-50/50">
           <button
             onClick={onClose}
-            className="px-5 py-2 text-sm rounded-lg bg-[#F2924E] text-white hover:bg-[#e07d3a] transition"
+            className="px-6 py-2.5 text-sm rounded-xl bg-[#F2924E] text-white hover:bg-[#e07d3a] transition font-bold shadow-md hover:shadow-lg"
           >
             Close Preview
           </button>

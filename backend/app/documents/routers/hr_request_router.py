@@ -1,41 +1,34 @@
-from fastapi import APIRouter, Depends, Query
-from sqlalchemy.orm import Session
-from typing import Optional
+"""
+documents/routers/hr_request_router.py
+=======================================
+Router for HR document request operations.
+"""
+
 from uuid import UUID
 
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
+
 from app.database.database import get_db
-from app.documents.services import hr_request_service
-from app.documents.services import document_generator
 from app.documents.schemas import hr_request_schema
-from app.documents.models.request_model import RequestStatus
+from app.documents.services import hr_request_service, document_generator
+from app.auth.dependencies import require_permission
 
 router = APIRouter(
     prefix="/hr-document-requests",
     tags=["HR Document Requests"]
 )
 
-@router.get("/", response_model=list[hr_request_schema.HRRequestResponse])
-def get_requests(
-    status: Optional[str] = Query(None, description="Filter by status (NEW, IN_PROGRESS, COMPLETED, etc)"),
-    db: Session = Depends(get_db)
-):
-    # Mapping "NEW" from frontend to "PENDING" in DB, if needed, but normally frontend sends PENDING.
-    db_status = "PENDING" if status == "NEW" else status
-    return hr_request_service.get_all_hr_requests(db, db_status)
 
-@router.put("/{request_id}/status")
-def update_status(
-    request_id: UUID,
-    data: hr_request_schema.HRRequestStatusUpdate,
+@router.get("/", response_model=hr_request_schema.HRGetRequestsResponse)
+def get_all_hr_requests(
+    filter_status: str = None,
     db: Session = Depends(get_db)
 ):
-    req = hr_request_service.update_request_status(
-        db=db,
-        request_id=request_id,
-        status=data.status,
-        rejection_reason=data.rejection_reason
-    )
-    return {"message": "Status updated successfully", "status": req.status.value}
+    """List all document requests with their linked employee details."""
+    requests = hr_request_service.get_all_hr_requests(db, filter_status)
+    return {"data": requests}
+
 
 @router.post("/{request_id}/generate")
 def generate_document(
@@ -43,6 +36,7 @@ def generate_document(
     data: hr_request_schema.HRGenerateDocumentRequest,
     db: Session = Depends(get_db)
 ):
+    """Generate a document from a template for a specific request."""
     try:
         req, html_content = document_generator.generate_document_from_request(
             db=db,
@@ -53,89 +47,63 @@ def generate_document(
         )
         return {
             "message": "Document generated successfully",
-            "document_path": req.generated_document_path,
+            "document_path": getattr(req, "generated_document_path", None),
             "preview_html": html_content
         }
     except ValueError as e:
-        return {"error": str(e)}
-
-@router.post("/sync-emails")
-async def sync_emails(db: Session = Depends(get_db)):
-    import asyncio
-    from app.documents.services import email_service
-    result = await asyncio.to_thread(email_service.fetch_and_process_external_requests, db)
-    return result
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
 
 
-@router.put("/{request_id}/assign-employee")
-def assign_employee(
+@router.patch("/{request_id}/status")
+def update_request_status(
     request_id: UUID,
-    data: dict,
+    data: hr_request_schema.HRRequestStatusUpdate,
     db: Session = Depends(get_db)
 ):
-    employee_id = int(data["employee_id"])
+    """Update the status of a document request (e.g. to IN_PROGRESS or REJECTED)."""
+    return hr_request_service.update_request_status(
+        db,
+        request_id,
+        data.status,
+        data.rejection_reason
+    )
+
+
+@router.post("/{request_id}/assign-employee")
+def assign_employee(
+    request_id: UUID,
+    employee_id: int,
+    db: Session = Depends(get_db)
+):
+    """Link an existing employee to an external email request."""
     return hr_request_service.assign_employee_to_request(db, request_id, employee_id)
 
 
 @router.post("/{request_id}/custom-letter")
-def send_custom_letter(request_id: UUID, data: dict, db: Session = Depends(get_db)):
-    """Generate a PDF from free-form letter text written by HR, and mark request COMPLETED."""
-    import os
-    from xhtml2pdf import pisa
+def send_custom_letter(
+    request_id: UUID,
+    content: str,
+    db: Session = Depends(get_db)
+):
+    """Generate a completely custom PDF letter and mark the request COMPLETED."""
+    final_path, html_content = document_generator.generate_from_custom_text(
+        str(request_id),
+        content
+    )
+
     from app.documents.models.request_model import DocumentRequest, RequestStatus
-
-    content = data.get("content", "").strip()
-    if not content:
-        return {"error": "Letter content cannot be empty"}
-
     doc_request = db.query(DocumentRequest).filter(DocumentRequest.id == request_id).first()
     if not doc_request:
-        return {"error": "Request not found"}
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Request not found")
 
-    # Wrap the custom text in a clean printable HTML page
-    html = f"""<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-    <style>
-      @page {{ margin: 1in; }}
-      body {{ font-family: 'Helvetica', 'Arial', sans-serif; font-size: 11pt; line-height: 1.4; color: #333; }}
-      p {{ margin: 0 0 12pt 0; }}
-      .letter-body {{ white-space: pre-wrap; word-break: break-word; text-align: justify; }}
-    </style>
-</head>
-<body>
-  <div class="letter-body">{content}</div>
-</body>
-</html>"""
-
-    # Save as PDF
-    GENERATED_DOCS_DIR = os.path.join("uploads", "generated_documents")
-    os.makedirs(GENERATED_DOCS_DIR, exist_ok=True)
-    import uuid as _uuid
-    pdf_filename = f"custom_{_uuid.uuid4().hex[:8]}.pdf"
-    pdf_path = os.path.join(GENERATED_DOCS_DIR, pdf_filename)
-
-    with open(pdf_path, "wb") as pdf_file:
-        pisa_status = pisa.CreatePDF(html, dest=pdf_file)
-
-    if pisa_status.err:
-        return {"error": "Failed to generate PDF from custom letter"}
-
-    final_path = pdf_path.replace("\\", "/")
     doc_request.status = RequestStatus.COMPLETED
-    doc_request.generated_document_path = final_path
+    doc_request.generated_document_path = final_path.replace("\\", "/") if final_path else None
     db.commit()
-    db.refresh(doc_request)
 
-    # Auto-email for EXTERNAL requests
-    if getattr(doc_request, "source", "INTERNAL") == "EXTERNAL" and doc_request.requester_email:
-        try:
-            from app.documents.services.email_service import send_document_to_requester
-            abs_path = os.path.join(os.getcwd(), final_path.replace("/", os.sep))
-            send_document_to_requester(doc_request.requester_email, abs_path, doc_request.document_type)
-        except Exception as e:
-            print(f"[Custom Letter] Warning: could not email document: {e}")
-
-    return {"message": "Custom letter generated and sent", "document_path": final_path}
-
+    return {
+        "message": "Custom letter generated successfully",
+        "document_path": doc_request.generated_document_path
+    }

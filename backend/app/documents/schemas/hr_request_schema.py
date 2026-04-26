@@ -1,24 +1,38 @@
-from pydantic import BaseModel
-from typing import Optional, List
-from uuid import UUID
+"""
+documents/schemas/hr_request_schema.py
+======================================
+Pydantic schemas for HR operations on document requests.
+"""
+
 from datetime import datetime
+from typing import List, Optional
+from uuid import UUID
+
+from pydantic import BaseModel, Field
+
 from app.documents.models.request_model import RequestStatus
 
+
 class HRRequestStatusUpdate(BaseModel):
-    status: RequestStatus
-    rejection_reason: Optional[str] = None
+    """Input schema for HR to approve, reject, or complete a request."""
+    status: RequestStatus = Field(..., description="The target status (e.g. APPROVED, REJECTED)")
+    rejection_reason: Optional[str] = Field(None, description="Required if status is REJECTED")
+
 
 class HRGenerateDocumentRequest(BaseModel):
-    template_id: int
-    preview: Optional[bool] = False
-    override_reason: Optional[str] = None
+    """Input schema for triggering document generation from a template."""
+    template_id: int = Field(..., description="ID of the DocumentTemplate to use")
+    preview: Optional[bool] = Field(False, description="If true, returns HTML preview without saving")
+    override_reason: Optional[str] = Field(None, description="Optional custom reason to embed in the letter")
+
 
 class HRRequestResponse(BaseModel):
+    """Response schema for a document request viewed by HR."""
     id: UUID
     employee_id: Optional[int] = None
     employee_name: Optional[str] = "External Request"
     document_type: str
-    purpose: str
+    reason: str  # Note: Previously called 'purpose', aligned with DB model
     status: RequestStatus
     source: str = "INTERNAL"
     requester_email: Optional[str] = None
@@ -28,6 +42,7 @@ class HRRequestResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
 
 class HRGetRequestsResponse(BaseModel):
     data: List[HRRequestResponse]
