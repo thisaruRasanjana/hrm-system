@@ -40,8 +40,8 @@ export default function DocumentReviewModal({
   };
 
   const rejectDocument = async () => {
-    if (!reason.trim()) {
-      setError("Please enter a rejection reason");
+    if (!reason.trim() || reason.trim().length < 10) {
+      setError("Please enter a detailed rejection reason (minimum 10 characters).");
       return;
     }
 

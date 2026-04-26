@@ -5,6 +5,7 @@ import DocumentTabs from "../../components/DocumentTabsHR";
 import {
   PlusCircle, Trash2, Pencil, Check, X, ToggleLeft, ToggleRight, FileType,
 } from "lucide-react";
+import ConfirmModal from "../../components/ConfirmModal";
 
 type DocType = {
   id: string;
@@ -34,6 +35,11 @@ export default function DocumentTypesPage() {
   const [editDescription, setEditDescription] = useState("");
   const [editMandatory, setEditMandatory] = useState(false);
   const [editError, setEditError] = useState("");
+
+  // Deletion state
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const employeeDbId =
     typeof window !== "undefined"
@@ -84,10 +90,24 @@ export default function DocumentTypesPage() {
     fetchTypes();
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Delete this document type? Existing uploads will not be affected.")) return;
-    await fetch(`${API}/${id}`, { method: "DELETE", headers: { "X-Employee-ID": employeeDbId } });
-    fetchTypes();
+  const handleDelete = (id: string) => {
+    setDeletingId(id);
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!deletingId) return;
+    setIsDeleting(true);
+    try {
+      await fetch(`${API}/${deletingId}`, { method: "DELETE", headers: { "X-Employee-ID": employeeDbId } });
+      fetchTypes();
+      setShowDeleteConfirm(false);
+      setDeletingId(null);
+    } catch (err) {
+      console.error("Delete failed", err);
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const startEdit = (type: DocType) => {
@@ -317,6 +337,21 @@ export default function DocumentTypesPage() {
           </table>
         )}
       </div>
+
+      <ConfirmModal
+        isOpen={showDeleteConfirm}
+        title="Delete Document Type"
+        message="Are you sure you want to delete this document type? This action cannot be undone, although existing uploads will remain safe."
+        confirmText="Delete Type"
+        cancelText="Cancel"
+        onConfirm={confirmDelete}
+        onCancel={() => {
+          setShowDeleteConfirm(false);
+          setDeletingId(null);
+        }}
+        loading={isDeleting}
+        type="danger"
+      />
     </div>
   );
 }

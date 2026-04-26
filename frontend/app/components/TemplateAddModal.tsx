@@ -100,7 +100,7 @@ export default function TemplateAddModal({ onClose, onSuccess }: Props) {
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4">
+        <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 bg-gray-50/50">
           <div className="flex items-center gap-3">
             <div className="bg-[#F2924E]/10 p-2 rounded-lg">
               <FileText size={18} className="text-[#F2924E]" />
@@ -235,18 +235,17 @@ export default function TemplateAddModal({ onClose, onSuccess }: Props) {
           )}
         </div>
 
-        {/* Footer */}
-        <div className="px-6 py-4 flex gap-3 justify-end">
+        <div className="px-6 py-4 flex gap-3 justify-end border-t border-gray-100 bg-gray-50/50">
           <button
             onClick={onClose}
-            className="px-5 py-2.5 text-sm rounded-xl border border-gray-100 hover:bg-gray-50 text-gray-600 font-bold transition-all duration-300 shadow-sm"
+            className="px-5 py-2.5 text-sm rounded-xl border border-gray-100 hover:bg-gray-50 text-gray-600 font-bold transition-all duration-300 shadow-sm bg-white"
           >
             Cancel
           </button>
           <button
             onClick={handleSubmit}
             disabled={loading}
-            className="px-6 py-2 text-sm rounded-lg bg-[#F2924E] text-white hover:bg-[#e07d3a] transition disabled:opacity-60"
+            className="px-6 py-2.5 text-sm rounded-xl bg-[#F2924E] text-white hover:bg-[#e07d3a] transition disabled:opacity-60 font-bold shadow-md hover:shadow-lg"
           >
             {loading ? "Creating..." : "Create Template"}
           </button>
