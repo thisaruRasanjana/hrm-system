@@ -1,4 +1,5 @@
 "use client";
+import { API_BASE_URL } from "@/lib/constants";
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
@@ -61,7 +62,7 @@ export default function CandidateProfilePage() {
 
   useEffect(() => {
 
-    fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/recruitment/candidates/${candidateId}`)
+    fetch(`${API_BASE_URL}/recruitment/candidates/${candidateId}`)
       .then(res => res.json())
       .then(data => {
 
@@ -86,7 +87,7 @@ export default function CandidateProfilePage() {
       });
 
     // Fetch interview panel for the vacancy
-    fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/recruitment/vacancies/${vacancyId}/panel`)
+    fetch(`${API_BASE_URL}/recruitment/vacancies/${vacancyId}/panel`)
       .then(res => {
         if (res.ok) return res.json();
         return null;
@@ -100,7 +101,7 @@ export default function CandidateProfilePage() {
     if (!applicationId) return;
 
     const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/recruitment/applications/${applicationId}`,
+      `${API_BASE_URL}/recruitment/applications/${applicationId}`,
       {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -127,7 +128,7 @@ export default function CandidateProfilePage() {
     if (!applicationId) return;
     setSendingEmail(true);
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/recruitment/applications/${applicationId}/send-scheduling-link`, {
+      const res = await fetch(`${API_BASE_URL}/recruitment/applications/${applicationId}/send-scheduling-link`, {
         method: "POST"
       });
       if (!res.ok) {
@@ -147,7 +148,7 @@ export default function CandidateProfilePage() {
     setSavingDetails(true);
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/recruitment/candidates/${candidateId}/details`,
+        `${API_BASE_URL}/recruitment/candidates/${candidateId}/details`,
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -174,7 +175,7 @@ export default function CandidateProfilePage() {
     setSavingEmail(true);
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/recruitment/candidates/${candidateId}/details`,
+        `${API_BASE_URL}/recruitment/candidates/${candidateId}/details`,
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -244,7 +245,7 @@ export default function CandidateProfilePage() {
               {candidate.cv_file_path ? (
                 (() => {
                   const cvFilename = candidate.cv_file_path!.split('/').pop() || candidate.cv_file_path!;
-                  const cvUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/recruitment/files/${cvFilename}`;
+                  const cvUrl = `${API_BASE_URL}/recruitment/files/${cvFilename}`;
                   const isDocx = cvFilename.toLowerCase().endsWith('.docx');
                   return (
                     <>

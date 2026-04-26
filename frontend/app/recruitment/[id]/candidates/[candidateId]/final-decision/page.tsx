@@ -5,6 +5,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Sidebar from "@/components/Sidebar";
 import TopBar from "@/components/Topbar";
+import { API_BASE_URL } from "@/lib/constants";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Evaluation = {
@@ -112,11 +113,11 @@ export default function FinalDecisionPage() {
 
   // Pre-fill if a decision already exists
   useEffect(() => {
-    fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/recruitment/candidates/${candidateId}`)
+    fetch(`${API_BASE_URL}/recruitment/candidates/${candidateId}`)
       .then((r) => r.json())
       .then((cand) => {
         const appId = cand.application_id;
-        return fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/recruitment/applications/${appId}/final-decision-view`);
+        return fetch(`${API_BASE_URL}/recruitment/applications/${appId}/final-decision-view`);
       })
       .then((r) => r.json())
       .then((d: FinalDecisionData) => {
@@ -143,7 +144,7 @@ export default function FinalDecisionPage() {
     setSaving(true);
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/recruitment/applications/${data.application_id}/final-decision`,
+        `${API_BASE_URL}/recruitment/applications/${data.application_id}/final-decision`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -160,7 +161,7 @@ export default function FinalDecisionPage() {
       // If panel head chose another round, notify backend to increment round
       if (selectedDecision === "Proceed to Next Round") {
         await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/recruitment/applications/${data.application_id}/next-round`,
+          `${API_BASE_URL}/recruitment/applications/${data.application_id}/next-round`,
           { method: "POST" }
         ).catch(() => {}); // best-effort — the decision is already saved
       }

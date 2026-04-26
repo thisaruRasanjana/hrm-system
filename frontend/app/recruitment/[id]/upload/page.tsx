@@ -1,4 +1,5 @@
 "use client";
+import { API_BASE_URL } from "@/lib/constants";
 
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
@@ -7,7 +8,7 @@ import Sidebar from "@/components/Sidebar";
 import TopBar from "@/components/Topbar";
 import { IconChevron } from "@/components/Icons";
 
-const API = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+const API = API_BASE_URL;
 
 type Vacancy = {
   id: number;

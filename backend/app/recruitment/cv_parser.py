@@ -3,10 +3,18 @@ CV Parser — Extracts candidate name, email, and phone from uploaded PDF/DOCX f
 
 Uses PyPDF2 for PDF text extraction and python-docx for DOCX.
 Falls back gracefully to filename-based name if parsing fails.
+
+Note: This module is a legacy regex-based parser. The primary extraction path
+is now the AI screener (ai_service/screener.py); this module is kept as a
+fallback for when the AI service is unavailable.
 """
 
-import re
+import logging
 import os
+import re
+from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 # Email regex: matches standard email addresses
 EMAIL_RE = re.compile(r'[\w.+-]+@[\w-]+\.[\w.-]+')
@@ -26,8 +34,8 @@ def _extract_text_from_pdf(file_path: str) -> str:
             if page_text:
                 text_parts.append(page_text)
         return "\n".join(text_parts)
-    except Exception as e:
-        print(f"PDF parse error for {file_path}: {e}")
+    except Exception as exc:
+        logger.warning("PDF parse error for '%s': %s", file_path, exc)
         return ""
 
 
@@ -37,8 +45,8 @@ def _extract_text_from_docx(file_path: str) -> str:
         from docx import Document
         doc = Document(file_path)
         return "\n".join(para.text for para in doc.paragraphs if para.text.strip())
-    except Exception as e:
-        print(f"DOCX parse error for {file_path}: {e}")
+    except Exception as exc:
+        logger.warning("DOCX parse error for '%s': %s", file_path, exc)
         return ""
 
 
@@ -62,22 +70,30 @@ def _extract_name(text: str, fallback_filename: str) -> str:
     return fallback_filename
 
 
-def _extract_email(text: str) -> str:
-    """Extract the first email address found in the text."""
+def _extract_email(text: str) -> Optional[str]:
+    """
+    Extract the first email address found in the text.
+    Returns None (not a placeholder string) when no email is found so callers
+    can reliably distinguish 'missing' from 'found'.
+    """
     match = EMAIL_RE.search(text)
-    return match.group(0) if match else "placeholder@email.com"
+    return match.group(0) if match else None
 
 
-def _extract_phone(text: str) -> str:
-    """Extract the first phone number found in the text."""
+def _extract_phone(text: str) -> Optional[str]:
+    """
+    Extract the first phone number found in the text.
+    Returns None when no valid phone number is found — never returns a
+    placeholder string, which could be mistaken for real data.
+    """
     match = PHONE_RE.search(text)
     if match:
         phone = match.group(0).strip()
-        # Only return if it looks like a real phone (at least 7 digits)
-        digits = re.sub(r'\D', '', phone)
-        if len(digits) >= 7:
+        # Require at least 7 digits to filter out false positives.
+        digit_count = len(re.sub(r"\D", "", phone))
+        if digit_count >= 7:
             return phone
-    return "0000000000"
+    return None
 
 
 def parse_cv(file_path: str) -> dict:
@@ -102,15 +118,16 @@ def parse_cv(file_path: str) -> dict:
         text = ""
 
     if not text.strip():
-        # No text extracted — use filename as fallback
+        # No text could be extracted — use the filename as a name fallback;
+        # return None for contact fields rather than placeholder strings.
         return {
             "full_name": filename_base,
-            "email": "placeholder@email.com",
-            "phone": "0000000000",
+            "email":     None,
+            "phone":     None,
         }
 
     return {
         "full_name": _extract_name(text, filename_base),
-        "email": _extract_email(text),
-        "phone": _extract_phone(text),
+        "email":     _extract_email(text),
+        "phone":     _extract_phone(text),
     }

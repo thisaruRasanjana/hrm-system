@@ -1,4 +1,5 @@
 "use client";
+import { API_BASE_URL } from "@/lib/constants";
 
 // Page-level SEO title is set dynamically in the component via document.title
 // since this is a client component. For SSR metadata, migrate to a server component.
@@ -127,7 +128,7 @@ function UploadZone({
 
 export default function PublicJobPage() {
   const { id } = useParams<{ id: string }>();
-  const API = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+  const API = API_BASE_URL;
 
   const [pageState, setPageState] = useState<PageState>("loading");
   const [vacancy, setVacancy] = useState<Vacancy | null>(null);

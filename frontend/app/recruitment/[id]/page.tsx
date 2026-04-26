@@ -6,6 +6,7 @@ import Link from "next/link";
 import Sidebar from "@/components/Sidebar";
 import TopBar from "@/components/Topbar";
 import { IconChevron } from "@/components/Icons";
+import { API_BASE_URL, VACANCY_STATUS, CANDIDATE_STATUS } from "@/lib/constants";
 
 type Vacancy = {
   id: number;
@@ -79,13 +80,13 @@ function DecisionBadge({ decision }: { decision: string | null }) {
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, string> = {
-    "Uploaded": "bg-gray-100 text-gray-500",
-    "Called": "bg-blue-100 text-blue-600",
-    "Second Round Pending": "bg-yellow-100 text-yellow-600",
-    "First Round": "bg-orange-100 text-orange-600",
-    "Second Round": "bg-purple-100 text-purple-600",
-    "Job Offered": "bg-green-100 text-green-700",
-    "Rejected": "bg-red-100 text-red-600",
+    [CANDIDATE_STATUS.UPLOADED]: "bg-gray-100 text-gray-500",
+    [CANDIDATE_STATUS.CALLED]: "bg-blue-100 text-blue-600",
+    [CANDIDATE_STATUS.SECOND_ROUND_PENDING]: "bg-yellow-100 text-yellow-600",
+    [CANDIDATE_STATUS.FIRST_ROUND]: "bg-orange-100 text-orange-600",
+    [CANDIDATE_STATUS.SECOND_ROUND]: "bg-purple-100 text-purple-600",
+    [CANDIDATE_STATUS.JOB_OFFERED]: "bg-green-100 text-green-700",
+    [CANDIDATE_STATUS.REJECTED]: "bg-red-100 text-red-600",
   };
   return (
     <span className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap ${map[status] ?? "bg-gray-100 text-gray-500"}`}>
@@ -115,7 +116,7 @@ export default function VacancyDetailPage() {
     if (!confirm("Are you sure you want to permanently delete this vacancy? This will also delete all applications and evaluations tied to it.")) return;
     
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/recruitment/vacancies/${vacancyId}`, {
+      const res = await fetch(`${API_BASE_URL}/recruitment/vacancies/${vacancyId}`, {
         method: "DELETE",
       });
       if (res.ok) {
@@ -147,12 +148,12 @@ export default function VacancyDetailPage() {
   useEffect(() => {
     if (!vacancyId) return;
 
-    fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/recruitment/vacancies/${vacancyId}`)
+    fetch(`${API_BASE_URL}/recruitment/vacancies/${vacancyId}`)
       .then((res) => res.json())
       .then((data) => setVacancy(data))
       .catch(console.error);
 
-    fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/recruitment/vacancies/${vacancyId}/candidates`)
+    fetch(`${API_BASE_URL}/recruitment/vacancies/${vacancyId}/candidates`)
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) setCandidates(data);
@@ -164,7 +165,7 @@ export default function VacancyDetailPage() {
   useEffect(() => {
     if (activeTab !== "evaluated") return;
     setEvaluatedLoading(true);
-    fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/recruitment/vacancies/${vacancyId}/evaluated-candidates`)
+    fetch(`${API_BASE_URL}/recruitment/vacancies/${vacancyId}/evaluated-candidates`)
       .then((r) => r.json())
       .then((d) => {
         setEvaluatedCandidates(Array.isArray(d) ? d : []);
@@ -192,12 +193,12 @@ export default function VacancyDetailPage() {
     setRerunning(true);
     try {
       await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/recruitment/vacancies/${vacancyId}/run-ai-screening`,
+        `${API_BASE_URL}/recruitment/vacancies/${vacancyId}/run-ai-screening`,
         { method: "POST" }
       );
       // Refresh candidate list to show updated scores
       const data = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/recruitment/vacancies/${vacancyId}/candidates`
+        `${API_BASE_URL}/recruitment/vacancies/${vacancyId}/candidates`
       ).then((r) => r.json());
       if (Array.isArray(data)) setCandidates(data);
     } catch (err) {
@@ -239,7 +240,7 @@ export default function VacancyDetailPage() {
                 </svg>
                 Delete
               </button>
-              {vacancy?.status === "Active" && (
+              {vacancy?.status === VACANCY_STATUS.ACTIVE && (
                 <button
                   onClick={copyShareLink}
                   className={`flex items-center gap-2 border px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${linkCopied
@@ -264,7 +265,7 @@ export default function VacancyDetailPage() {
                   )}
                 </button>
               )}
-              {vacancy?.status === "Active" && (
+              {vacancy?.status === VACANCY_STATUS.ACTIVE && (
                 <button
                   onClick={rerunAI}
                   disabled={rerunning}
@@ -273,7 +274,7 @@ export default function VacancyDetailPage() {
                   {rerunning ? "Re-scoring..." : "↺ Re-run AI Screening"}
                 </button>
               )}
-              {vacancy?.status === "Active" && (
+              {vacancy?.status === VACANCY_STATUS.ACTIVE && (
                 <Link
                   href={`/recruitment/${vacancyId}/upload`}
                   className="bg-orange-400 hover:bg-orange-500 text-white px-5 py-2.5 rounded-xl text-sm font-medium transition-colors"
