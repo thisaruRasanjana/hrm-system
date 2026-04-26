@@ -50,7 +50,7 @@ export default function ApprovalPage() {
       </div>
 
       {/* Pending Card */}
-      <div className="border border-orange-200 rounded-xl p-6 flex justify-between items-center">
+      <div className="bg-white border border-gray-100 shadow-sm rounded-xl p-6 flex justify-between items-center">
 
         <div>
           <p className="text-xs text-gray-400">PENDING REVIEW</p>
@@ -69,11 +69,11 @@ export default function ApprovalPage() {
       {/* Search */}
       <input
         placeholder="Search employee name..."
-        className="w-full border rounded-lg px-4 py-2 text-sm"
+        className="w-full border border-gray-100 shadow-sm rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 transition"
       />
 
       {/* Document List */}
-      <div className="bg-white rounded-xl border divide-y">
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm divide-y divide-gray-100 overflow-hidden">
 
         {documents.map((doc) => (
 

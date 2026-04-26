@@ -118,7 +118,7 @@ export default function HRRequestManagementPage() {
           <div className="flex gap-4 mb-8">
             <div
               onClick={() => setActiveTab("NEW")}
-              className={`flex-1 p-5 rounded-2xl bg-white border flex items-center justify-between cursor-pointer transition-all ${activeTab === "NEW" ? "border-[#F2924E] ring-1 ring-[#F2924E] shadow-sm" : "border-gray-200 hover:border-gray-300"
+              className={`flex-1 p-5 rounded-2xl bg-white border border-gray-100 flex items-center justify-between cursor-pointer transition-all ${activeTab === "NEW" ? "ring-1 ring-[#F2924E] shadow-lg" : "shadow-sm hover:shadow-md"
                 }`}
             >
               <div>
@@ -133,7 +133,7 @@ export default function HRRequestManagementPage() {
 
             <div
               onClick={() => setActiveTab("IN_PROGRESS")}
-              className={`flex-1 p-5 rounded-2xl bg-white border flex items-center justify-between cursor-pointer transition-all ${activeTab === "IN_PROGRESS" ? "border-gray-800 ring-1 ring-gray-800 shadow-sm" : "border-gray-200 hover:border-gray-300"
+              className={`flex-1 p-5 rounded-2xl bg-white border border-gray-100 flex items-center justify-between cursor-pointer transition-all ${activeTab === "IN_PROGRESS" ? "ring-1 ring-gray-800 shadow-lg" : "shadow-sm hover:shadow-md"
                 }`}
             >
               <div>
@@ -148,7 +148,7 @@ export default function HRRequestManagementPage() {
 
             <div
               onClick={() => setActiveTab("COMPLETED")}
-              className={`flex-1 p-5 rounded-2xl bg-white border flex items-center justify-between cursor-pointer transition-all ${activeTab === "COMPLETED" ? "border-gray-800 ring-1 ring-gray-800 shadow-sm" : "border-gray-200 hover:border-gray-300"
+              className={`flex-1 p-5 rounded-2xl bg-white border border-gray-100 flex items-center justify-between cursor-pointer transition-all ${activeTab === "COMPLETED" ? "ring-1 ring-gray-800 shadow-lg" : "shadow-sm hover:shadow-md"
                 }`}
             >
               <div>
@@ -170,18 +170,18 @@ export default function HRRequestManagementPage() {
                 placeholder="Search by ID or document type..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-11 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#F2924E]/50 focus:bg-white transition"
+                className="w-full pl-11 pr-4 py-3 bg-white border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#F2924E]/30 transition shadow-sm"
               />
             </div>
           </div>
 
           <div className="flex flex-col gap-3">
             {loading ? (
-              <div className="bg-white border text-gray-400 text-sm p-16 text-center rounded-2xl">
+              <div className="bg-white border border-gray-100 text-gray-400 text-sm p-16 text-center rounded-2xl shadow-sm">
                 Loading requests...
               </div>
             ) : displayedRequests.length === 0 ? (
-              <div className="bg-white border text-gray-400 text-sm p-16 text-center rounded-2xl">
+              <div className="bg-white border border-gray-100 text-gray-400 text-sm p-16 text-center rounded-2xl shadow-sm">
                 No requests found.
               </div>
             ) : (
@@ -193,7 +193,7 @@ export default function HRRequestManagementPage() {
                   <div
                     key={req.id}
                     onClick={() => setSelectedRequest(req)}
-                    className="bg-white border border-gray-200 rounded-2xl p-5 flex items-center justify-between cursor-pointer hover:border-gray-300 hover:shadow-sm transition"
+                    className="bg-white border border-gray-100 rounded-2xl p-6 flex items-center justify-between cursor-pointer shadow-sm hover:shadow-md transition-all duration-300"
                   >
                     <div className="flex gap-4 items-start">
                       <div className={`mt-2 w-1.5 h-1.5 rounded-full shrink-0 ${isNew ? 'bg-[#F2924E]' : 'bg-transparent'}`} />
@@ -240,7 +240,7 @@ export default function HRRequestManagementPage() {
             </div>
           </div>
 
-          <div className="bg-white border border-gray-200 shadow-sm rounded-2xl p-8 mb-4">
+          <div className="bg-white shadow-md border border-gray-100 rounded-2xl p-8 mb-4">
             <h3 className="text-[13px] font-bold text-gray-900 mb-6 tracking-wide">Requester Information</h3>
             <div className="flex">
               <div className="flex-1">
@@ -254,7 +254,7 @@ export default function HRRequestManagementPage() {
             </div>
           </div>
 
-          <div className="bg-white border border-gray-200 shadow-sm rounded-2xl p-8 mb-6">
+          <div className="bg-white shadow-md border border-gray-100 rounded-2xl p-8 mb-6">
             <h3 className="text-[13px] font-bold text-gray-900 mb-6 tracking-wide">Request Details</h3>
             <div className="mb-8">
               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">REASON</p>
@@ -280,51 +280,55 @@ export default function HRRequestManagementPage() {
             </div>
           </div>
 
-          <div className="bg-white border border-gray-200 shadow-sm rounded-2xl p-8 mb-8">
+          <div className="bg-white shadow-md border border-gray-100 rounded-2xl p-8 mb-8">
             <h3 className="text-[13px] font-bold text-gray-900 mb-5 tracking-wide">Actions</h3>
             <div className="flex flex-col gap-4 w-full">
-              {(selectedRequest.status === 'PENDING' || selectedRequest.status === 'NEW') && (
-                <button
-                  onClick={() => handleMarkInProgress(selectedRequest.id)}
-                  className="w-full py-4 bg-gray-100 hover:bg-gray-200 text-gray-800 text-[14px] font-bold rounded-xl transition"
-                >
-                  Mark as In Progress
-                </button>
-              )}
-              {(selectedRequest.status === 'PENDING' || selectedRequest.status === 'NEW' || selectedRequest.status === 'IN_PROGRESS') && (
-                <div className="flex items-center gap-4 w-full">
+              <div className="flex flex-row gap-2 items-center">
+                {(selectedRequest.status === 'PENDING' || selectedRequest.status === 'NEW') && (
                   <button
-                    onClick={() => setShowGenerateModal(true)}
-                    className="flex-1 py-4 bg-[#F2924E] hover:bg-[#e07d3a] text-white text-[14px] font-bold rounded-xl transition shadow-md hover:shadow-lg flex items-center justify-center gap-2"
+                    onClick={() => handleMarkInProgress(selectedRequest.id)}
+                    className="flex-1 bg-orange-50 hover:bg-orange-100 text-[#F2924E] border border-orange-100 py-2.5 text-sm rounded-lg transition shadow-sm font-bold flex items-center justify-center"
                   >
-                    <FileText size={16} /> Generate & Approve
+                    Mark In Progress
                   </button>
-                  <button
-                    onClick={() => setShowRejectModal(true)}
-                    className="flex-1 py-4 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-900 text-[14px] font-bold rounded-xl transition flex items-center justify-center gap-2"
-                  >
-                    <XCircle size={16} /> Reject
-                  </button>
-                </div>
-              )}
+                )}
+                {(selectedRequest.status === 'PENDING' || selectedRequest.status === 'NEW' || selectedRequest.status === 'IN_PROGRESS') && (
+                  <>
+                    <button
+                      onClick={() => setShowGenerateModal(true)}
+                      className="flex-1 bg-[#F2924E] hover:bg-[#e07d3a] text-white py-2.5 text-sm rounded-lg transition shadow-sm flex items-center justify-center gap-2 font-bold"
+                    >
+                      <FileText size={14} /> Generate
+                    </button>
+                    <button
+                      onClick={() => setShowRejectModal(true)}
+                      className="flex-1 bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 py-2.5 text-sm rounded-lg transition shadow-sm flex items-center justify-center gap-2 font-bold"
+                    >
+                      <XCircle size={14} /> Reject
+                    </button>
+                  </>
+                )}
+              </div>
+
               {selectedRequest.status === 'COMPLETED' && selectedRequest.generated_document_path && (
                 <div className="flex flex-col gap-3 bg-gray-50 border border-gray-100 rounded-xl p-4">
                   <div className="flex items-center gap-2">
-                    <CheckCircle size={16} className="text-green-600" />
+                    <CheckCircle size={16} className="text-gray-600" />
                     <span className="text-[13px] font-medium text-gray-700">Document generated successfully.</span>
                   </div>
                   <button
                     onClick={() => handleForceDownload(selectedRequest.generated_document_path!)}
-                    className="w-max bg-green-50 hover:bg-green-100 text-green-700 text-[12px] font-bold px-4 py-2 rounded-lg transition-all flex items-center gap-2"
+                    className="w-max bg-orange-50 hover:bg-orange-100 text-[#F2924E] text-[12px] font-bold px-4 py-2 rounded-lg transition-all flex items-center gap-2 border border-orange-100"
                   >
                     <Download size={14} /> Download Document
                   </button>
                 </div>
               )}
+
               {selectedRequest.status === 'REJECTED' && (
-                <div className="bg-red-50 border border-red-100 rounded-xl p-4">
-                  <p className="text-[10px] font-bold text-red-600 uppercase mb-1">Reason for Rejection</p>
-                  <p className="text-sm text-red-800 font-medium">{selectedRequest.rejection_reason || "No reason provided"}</p>
+                <div className="bg-gray-50 border border-gray-100 rounded-xl p-4">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Reason for Rejection</p>
+                  <p className="text-sm text-gray-700 font-medium">{selectedRequest.rejection_reason || "No reason provided"}</p>
                 </div>
               )}
             </div>

@@ -17,7 +17,7 @@ export default function DocumentTabsHR() {
   const pathname = usePathname();
 
   return (
-    <div className="inline-flex w-max bg-white p-1 rounded-full shadow-md border relative">
+    <div className="inline-flex w-max bg-white/80 backdrop-blur-md p-1.5 rounded-full shadow-xl border border-gray-100 relative">
       {tabs.map((tab) => {
         let active = false;
 

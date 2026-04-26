@@ -183,7 +183,7 @@ export default function GenerateDocumentModal({ request, onClose, onSuccess }: P
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-backdrop">
         <div className="bg-white rounded-[24px] shadow-2xl overflow-hidden flex flex-col w-[680px] max-h-[90vh] animate-modal">
           {/* Header */}
-          <div className="px-8 py-6 flex items-start justify-between border-b border-gray-100">
+          <div className="px-8 py-6 flex items-start justify-between">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 bg-[#F2924E] rounded-2xl flex items-center justify-center text-white shadow-sm flex-shrink-0">
                 <PenLine size={22} />
@@ -203,7 +203,7 @@ export default function GenerateDocumentModal({ request, onClose, onSuccess }: P
           {/* Content */}
           <div className="flex-1 overflow-y-auto px-8 py-8 flex flex-col gap-6">
             {/* No template warning */}
-            <div className="flex gap-3 bg-[#F2924E]/10 border border-[#F2924E]/30 rounded-xl p-4">
+            <div className="flex gap-3 bg-[#F2924E]/5 border border-[#F2924E]/20 rounded-xl p-4">
               <AlertCircle size={18} className="text-[#F2924E] shrink-0 mt-0.5" />
               <div>
                 <p className="text-[13px] font-bold text-gray-900 mb-0.5">No Template Available</p>
@@ -234,7 +234,7 @@ export default function GenerateDocumentModal({ request, onClose, onSuccess }: P
             <div>
               <p className="text-[13px] font-bold text-gray-900 mb-3">Letter Content</p>
               {/* Toolbar */}
-              <div className="flex flex-wrap items-center gap-1 px-3 py-2 border border-b-0 border-gray-200 rounded-t-2xl bg-gray-50">
+              <div className="flex flex-wrap items-center gap-1 px-3 py-2 border-b-0 border-gray-100 rounded-t-2xl bg-gray-50/50">
                 {([
                   ["bold",        <Bold size={14} />],
                   ["italic",      <Italic size={14} />],
@@ -296,7 +296,7 @@ export default function GenerateDocumentModal({ request, onClose, onSuccess }: P
                 contentEditable
                 suppressContentEditableWarning
                 data-placeholder="Start writing your custom letter here..."
-                className="w-full min-h-[280px] border border-gray-200 rounded-b-2xl px-5 py-4 text-[13px] text-gray-800 font-medium leading-relaxed focus:outline-none focus:ring-2 focus:ring-[#F2924E]/40 focus:border-[#F2924E]/50 bg-gray-50/50 transition [&:empty]:before:content-[attr(data-placeholder)] [&:empty]:before:text-gray-400"
+                className="w-full min-h-[280px] border border-gray-100 rounded-b-2xl px-5 py-4 text-[13px] text-gray-800 font-medium leading-relaxed focus:outline-none focus:ring-2 focus:ring-[#F2924E]/30 focus:border-[#F2924E]/40 bg-gray-50/30 transition [&:empty]:before:content-[attr(data-placeholder)] [&:empty]:before:text-gray-400"
                 style={{ whiteSpace: "pre-wrap" }}
               />
             </div>
@@ -309,7 +309,7 @@ export default function GenerateDocumentModal({ request, onClose, onSuccess }: P
           </div>
 
           {/* Footer */}
-          <div className="px-8 py-6 border-t border-gray-100 flex gap-4">
+          <div className="px-8 py-6 flex gap-4">
             <button onClick={onClose} className="flex-1 py-4 bg-gray-100 hover:bg-gray-200 text-gray-800 text-[14px] font-bold rounded-2xl transition">
               Cancel
             </button>
@@ -341,7 +341,7 @@ export default function GenerateDocumentModal({ request, onClose, onSuccess }: P
         }`}
       >
         {/* Header */}
-        <div className="px-8 py-6 flex items-start justify-between border-b border-gray-100">
+        <div className="px-8 py-6 flex items-start justify-between">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 bg-[#F2924E] rounded-2xl flex items-center justify-center text-white shadow-sm flex-shrink-0">
               <FileText size={24} />
@@ -387,7 +387,7 @@ export default function GenerateDocumentModal({ request, onClose, onSuccess }: P
                 <select
                   value={selectedTemplate}
                   onChange={(e) => handleTemplateChange(e.target.value)}
-                  className="w-full border border-gray-100 bg-white rounded-[16px] px-6 py-5 text-[15px] font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#F2924E]/50 focus:border-[#F2924E]/50 transition appearance-none cursor-pointer shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)]"
+                  className="w-full border-0 bg-gray-50/80 rounded-[16px] px-6 py-5 text-[15px] font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#F2924E]/30 transition appearance-none cursor-pointer shadow-sm"
                 >
                   {templates.map(t => {
                     const badge = TYPE_BADGES[t.template_type?.toUpperCase()] ?? { label: t.template_type, color: "" };
@@ -437,7 +437,7 @@ export default function GenerateDocumentModal({ request, onClose, onSuccess }: P
           {/* Document Preview Box */}
           {!isPdf && (
             !previewMode ? (
-              <div className="shrink-0 border border-gray-100 bg-white rounded-[32px] p-12 flex flex-col items-center justify-center text-center relative overflow-hidden transition-all shadow-sm min-h-[300px]">
+              <div className="shrink-0 bg-white rounded-[32px] p-12 flex flex-col items-center justify-center text-center relative overflow-hidden transition-all shadow-md min-h-[300px]">
                 <div className="px-8 py-4 bg-gray-50 border border-gray-100 rounded-full flex items-center justify-center mb-6">
                   {selectedType === "DOCX"
                     ? <FileCode size={32} className="text-green-500" />
@@ -465,15 +465,15 @@ export default function GenerateDocumentModal({ request, onClose, onSuccess }: P
                 </p>
               </div>
             ) : (
-              <div className="border border-gray-200 rounded-3xl p-6 shadow-sm flex flex-col h-full text-left">
-                <div className="flex justify-between items-center mb-6 border-b border-gray-100 pb-4">
+              <div className="bg-white rounded-3xl p-6 shadow-sm flex flex-col h-full text-left">
+                <div className="flex justify-between items-center mb-6 pb-4">
                   <h3 className="font-bold text-gray-900 text-[15px] flex items-center gap-2">
                     <FileText size={18} className="text-[#F2924E]" />
                     Document Preview
                   </h3>
                   <button
                     onClick={handleTogglePreview}
-                    className="text-gray-500 hover:text-gray-800 text-[13px] font-bold flex items-center gap-1.5 hover:bg-gray-100 border border-gray-200 px-4 py-2 rounded-xl transition shadow-sm"
+                    className="text-gray-500 hover:text-gray-800 text-[13px] font-bold flex items-center gap-1.5 hover:bg-gray-100 px-4 py-2 rounded-xl transition shadow-sm"
                   >
                     <EyeOff size={16} /> Hide Preview
                   </button>
@@ -495,7 +495,7 @@ export default function GenerateDocumentModal({ request, onClose, onSuccess }: P
         </div>
 
         {/* Footer */}
-        <div className="px-8 py-6 border-t border-gray-100 flex gap-4 mt-auto">
+        <div className="px-8 py-6 flex gap-4 mt-auto">
           <button
             onClick={onClose}
             className="flex-1 py-4 bg-gray-100 hover:bg-gray-200 text-gray-800 text-[14px] font-bold rounded-2xl transition"

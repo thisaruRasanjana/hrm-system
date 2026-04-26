@@ -91,12 +91,12 @@ export default function EmployeeDocumentsPage() {
       </div>
 
       {docTypes.length === 0 ? (
-        <div className="bg-white p-12 rounded-xl shadow-sm text-center">
+        <div className="bg-white p-12 rounded-xl shadow-sm border border-gray-100 text-center">
           <p className="text-gray-500 text-lg">No document types configured by HR yet</p>
         </div>
       ) : (
         <>
-          <div className="bg-white p-6 rounded-xl shadow-sm">
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
             <h3 className="font-semibold mb-2">Document Completion</h3>
             <p className="text-sm text-gray-500 mb-3">
               Mandatory Documents: <span className="font-medium text-[#F2924E]">{completed} of {mandatoryDocs.length} completed</span>
@@ -108,7 +108,7 @@ export default function EmployeeDocumentsPage() {
           </div>
 
           {mandatoryDocs.length > 0 && (
-            <div className="bg-white p-6 rounded-xl shadow-sm space-y-4">
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 space-y-4">
               <h2 className="text-lg font-semibold text-gray-800">Mandatory Documents</h2>
               {mandatoryDocs.map((doc) => (
                 <DocumentItem
@@ -128,7 +128,7 @@ export default function EmployeeDocumentsPage() {
           )}
 
           {optionalDocs.length > 0 && (
-            <div className="bg-white p-6 rounded-xl shadow-sm space-y-4">
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 space-y-4">
               <h2 className="font-semibold">Optional Documents</h2>
               {optionalDocs.map((doc) => (
                 <DocumentItem

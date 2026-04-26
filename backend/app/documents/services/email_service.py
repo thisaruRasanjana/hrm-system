@@ -15,10 +15,11 @@ from dotenv import load_dotenv
 load_dotenv()
 
 IMAP_SERVER = os.getenv("IMAP_SERVER", "imap.gmail.com")
+IMAP_SERVER = os.getenv("IMAP_SERVER", "imap.gmail.com")
 SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
-IMAP_USER = os.getenv("IMAP_USER", "sachintharcm@gmail.com")
-IMAP_PASSWORD = os.getenv("IMAP_PASSWORD", "ageasapgluchzmwn")
+IMAP_USER = os.getenv("IMAP_USER", "insharphrmstest@gmail.com")
+IMAP_PASSWORD = os.getenv("IMAP_PASSWORD", "dwqyzzeciikdgfpg")
 IMAP_TIMEOUT = 15  # seconds
 
 
@@ -84,6 +85,11 @@ REQUEST_KEYWORDS = [
     "request for document",
     "request for letter",
     "request letter",
+    "salary slip",
+    "payslip",
+    "salary statement",
+    "pay stub",
+    "job confirmation",
 ]
 
 def _decode_str(s):
@@ -103,18 +109,30 @@ def _decode_str(s):
     return result
 
 def _is_document_request(subject: str, body: str) -> bool:
-    """Return True only if subject or body contains a known document-request keyword."""
+    """Return True if subject or body contains known document-request keywords or flexible combinations."""
     combined = (subject + " " + body).lower()
-    return any(kw in combined for kw in REQUEST_KEYWORDS)
+    
+    # 1. Direct phrase match (existing behavior)
+    if any(kw in combined for kw in REQUEST_KEYWORDS):
+        return True
+        
+    # 2. Flexible match: (request/need/please) AND (document type)
+    doc_types = ["letter", "verification", "confirmation", "salary", "slip", "payslip", "employment", "reference", "experience", "document"]
+    actions = ["request", "need", "want", "please", "send", "provide"]
+    
+    has_action = any(a in combined for a in actions)
+    has_doc = any(d in combined for d in doc_types)
+    
+    return has_action and has_doc
 
 def _infer_document_type(subject: str, body: str) -> str:
     """Try to infer the type of document being requested from the email content."""
     combined = (subject + " " + body).lower()
-    if "salary" in combined:
+    if "salary" in combined or "payslip" in combined or "slip" in combined:
         return "Salary Confirmation"
     if "service" in combined or "experience" in combined:
         return "Service Letter"
-    if "employment" in combined or "work" in combined:
+    if "employment" in combined or "work" in combined or "job" in combined:
         return "Employment Confirmation"
     if "bank" in combined:
         return "Bank Letter"
@@ -144,6 +162,7 @@ def fetch_and_process_external_requests(db: Session):
         processed_count = 0
         skipped_count = 0
 
+        processed_ids = []
         for e_id in email_ids:
             res, msg_data = mail.fetch(e_id, '(RFC822)')
             for response_part in msg_data:
@@ -181,25 +200,39 @@ def fetch_and_process_external_requests(db: Session):
 
                     document_type = _infer_document_type(subject, body)
 
+                    # Auto-link to an existing employee if email matches
+                    employee = db.query(Employee).filter(Employee.email == requester_email).first()
+                    linked_employee_id = employee.id if employee else None
+
                     new_request = DocumentRequest(
-                        employee_id=None,
+                        employee_id=linked_employee_id,
                         document_type=document_type,
-                        purpose=body[:500] if body else subject,
+                        reason=subject if subject else "Document Request",
                         status=RequestStatus.PENDING,
                         source="EXTERNAL",
                         requester_email=requester_email
                     )
                     db.add(new_request)
+                    processed_ids.append(e_id)
                     processed_count += 1
-                    # Mark as read so it's not picked up on the next cycle
-                    mail.store(e_id, '+FLAGS', '\\Seen')
 
-        db.commit()
+        if processed_count > 0:
+            db.commit()
+            # ONLY mark as seen IF database commit was successful
+            for e_id in processed_ids:
+                mail.store(e_id, '+FLAGS', '\\Seen')
+            print(f"[Email Poller] Successfully committed {processed_count} requests to DB.")
+
         mail.close()
         mail.logout()
 
-        print(f"[Email Poller] Checked {len(email_ids)} unread emails → {processed_count} requests added, {skipped_count} skipped.")
+        if processed_count > 0 or skipped_count > 0:
+            print(f"[Email Poller] Checked {len(email_ids)} unread emails -> {processed_count} requests added, {skipped_count} skipped.")
+        
         return {"status": "success", "processed_emails": processed_count, "skipped": skipped_count}
 
     except Exception as e:
+        if db:
+            db.rollback()
+        print(f"[Email Poller] Error during processing: {e}")
         return {"status": "error", "message": str(e)}

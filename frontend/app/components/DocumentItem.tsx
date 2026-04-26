@@ -91,7 +91,7 @@ export default function DocumentItem({
   };
 
   return (
-    <div className="flex items-center justify-between border rounded-lg p-4">
+    <div className="flex items-center justify-between border border-gray-200 shadow-sm rounded-xl p-5 bg-white transition-all hover:shadow-md">
 
       {/* Document Info */}
       <div>

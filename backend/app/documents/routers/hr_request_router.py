@@ -48,7 +48,8 @@ def generate_document(
             db=db,
             request_id=request_id,
             template_id=data.template_id,
-            preview=data.preview
+            preview=data.preview,
+            override_reason=data.override_reason
         )
         return {
             "message": "Document generated successfully",
@@ -96,11 +97,12 @@ def send_custom_letter(request_id: UUID, data: dict, db: Session = Depends(get_d
 <html>
 <head>
   <meta charset="utf-8">
-  <style>
-    @page {{ margin: 60px; }}
-    body {{ font-family: 'Arial', sans-serif; font-size: 13px; line-height: 1.8; color: #333; }}
-    .letter-body {{ white-space: pre-wrap; word-break: break-word; }}
-  </style>
+    <style>
+      @page {{ margin: 1in; }}
+      body {{ font-family: 'Helvetica', 'Arial', sans-serif; font-size: 11pt; line-height: 1.4; color: #333; }}
+      p {{ margin: 0 0 12pt 0; }}
+      .letter-body {{ white-space: pre-wrap; word-break: break-word; text-align: justify; }}
+    </style>
 </head>
 <body>
   <div class="letter-body">{content}</div>

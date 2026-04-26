@@ -15,32 +15,34 @@ os.makedirs(GENERATED_DOCS_DIR, exist_ok=True)
 # ─────────────────────────────────────────────
 # Shared: build context dict from request + employee
 # ─────────────────────────────────────────────
-def _build_context(employee: Employee, doc_request: DocumentRequest) -> dict:
+def _build_context(employee: Employee, doc_request: DocumentRequest, override_reason: str = None) -> dict:
+    reason = override_reason if override_reason else doc_request.reason
     return {
         "employee_name": f"{employee.first_name} {employee.last_name}",
         "employee_id": str(employee.id),
-        "designation": getattr(employee, "designation", "Employee"),
-        "department": getattr(employee, "department", "Relevant Department"),
+        "designation": getattr(employee, "designation", ""),
+        "department": getattr(employee, "department", ""),
         "date": datetime.now().strftime("%B %d, %Y"),
-        "reason": doc_request.reason,
-        "purpose": doc_request.reason,  # Keep purpose for backward compatibility with templates
+        "reason": reason,
+        "purpose": reason,  # Keep purpose for backward compatibility with templates
         "document_type": doc_request.document_type,
     }
 
 
-def _build_external_context(doc_request: DocumentRequest) -> dict:
+def _build_external_context(doc_request: DocumentRequest, override_reason: str = None) -> dict:
     """Build a context dict for external email requests with no linked employee."""
+    reason = override_reason if override_reason else doc_request.reason
     # Try to derive a name from the requester email address (e.g. john.doe@org.com → John Doe)
     email_addr = doc_request.requester_email or "External Requester"
     name_part = email_addr.split("@")[0].replace(".", " ").replace("_", " ").title()
     return {
         "employee_name": name_part,
-        "employee_id": "N/A",
-        "designation": "N/A",
-        "department": "N/A",
+        "employee_id": "",
+        "designation": "",
+        "department": "",
         "date": datetime.now().strftime("%B %d, %Y"),
-        "reason": doc_request.reason,
-        "purpose": doc_request.reason,  # Keep purpose for backward compatibility
+        "reason": reason,
+        "purpose": reason,  # Keep purpose for backward compatibility
         "document_type": doc_request.document_type,
         "requester_email": email_addr,
     }
@@ -71,11 +73,14 @@ def _generate_from_html(template: DocumentTemplate, context: dict, preview: bool
 <html>
   <head>
     <style>
-      body {{ font-family: sans-serif; padding: 40px; line-height: 1.6; color: #333; }}
-      h1, h2, h3 {{ color: #111; }}
+      @page {{ margin: 1in; }}
+      body {{ font-family: 'Helvetica', 'Arial', sans-serif; font-size: 11pt; line-height: 1.4; color: #333; }}
+      h1, h2, h3 {{ color: #111; margin-top: 0; }}
+      p {{ margin: 0 0 12pt 0; }}
+      .letter-content {{ text-align: justify; }}
     </style>
   </head>
-  <body>{rendered_html}</body>
+  <body><div class="letter-content">{rendered_html}</div></body>
 </html>"""
 
     with open(html_path, "w", encoding="utf-8") as f:
@@ -189,12 +194,15 @@ def _generate_from_docx(template: DocumentTemplate, context: dict, preview: bool
 <html>
   <head>
     <style>
-      body {{ font-family: sans-serif; padding: 40px; line-height: 1.6; color: #333; }}
-      table {{ border-collapse: collapse; width: 100%; }}
-      th, td {{ border: 1px solid #ddd; padding: 8px; }}
+      @page {{ margin: 1in; }}
+      body {{ font-family: 'Helvetica', 'Arial', sans-serif; font-size: 11pt; line-height: 1.4; color: #333; }}
+      p {{ margin: 0 0 12pt 0; }}
+      table {{ border-collapse: collapse; width: 100%; margin-bottom: 15pt; }}
+      th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
+      .letter-content {{ text-align: justify; }}
     </style>
   </head>
-  <body>{raw_html}</body>
+  <body><div class="letter-content">{raw_html}</div></body>
 </html>"""
 
         with open(pdf_path, "wb") as pdf_file:
@@ -217,7 +225,8 @@ def generate_document_from_request(
     db: Session,
     request_id: uuid.UUID,
     template_id: int,
-    preview: bool = False
+    preview: bool = False,
+    override_reason: str = None
 ):
     # 1. Fetch all required records
     doc_request = db.query(DocumentRequest).filter(DocumentRequest.id == request_id).first()
@@ -236,10 +245,10 @@ def generate_document_from_request(
 
     # 2. Build shared context — use external fallback if no employee is linked
     if doc_request.employee_id and employee:
-        context = _build_context(employee, doc_request)
+        context = _build_context(employee, doc_request, override_reason)
     else:
         # External request: generate using the requester's email info as context
-        context = _build_external_context(doc_request)
+        context = _build_external_context(doc_request, override_reason)
 
     # 3. Route to the correct generator
     template_type = (template.template_type or "").upper()

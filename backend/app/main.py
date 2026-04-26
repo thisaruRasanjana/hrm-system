@@ -33,12 +33,16 @@ async def email_polling_loop():
         try:
             from app.documents.services import email_service
             db = SessionLocal()
-            result = email_service.fetch_and_process_external_requests(db)
+            # Run the synchronous email fetching in a separate thread to avoid blocking the event loop
+            result = await asyncio.to_thread(email_service.fetch_and_process_external_requests, db)
             db.close()
-            if result.get("processed_emails", 0) > 0:
+            
+            if result.get("status") == "error":
+                print(f"[Email Poller] Service Error: {result.get('message')}")
+            elif result.get("processed_emails", 0) > 0:
                 print(f"[Email Poller] Synced {result['processed_emails']} new external email request(s).")
         except Exception as e:
-            print(f"[Email Poller] Error: {e}")
+            print(f"[Email Poller] Loop Error: {e}")
         await asyncio.sleep(EMAIL_POLL_INTERVAL)
 
 def seed_default_data():
