@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Sidebar from "@/components/Sidebar";
 import TopBar from "@/components/Topbar";
@@ -96,6 +96,7 @@ function StatusBadge({ status }: { status: string }) {
 
 export default function VacancyDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const vacancyId = params.id as string;
 
   const [vacancy, setVacancy] = useState<Vacancy | null>(null);
@@ -108,6 +109,24 @@ export default function VacancyDetailPage() {
       setLinkCopied(true);
       setTimeout(() => setLinkCopied(false), 2000);
     });
+  };
+
+  const deleteVacancy = async () => {
+    if (!confirm("Are you sure you want to permanently delete this vacancy? This will also delete all applications and evaluations tied to it.")) return;
+    
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/recruitment/vacancies/${vacancyId}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        router.push("/recruitment");
+      } else {
+        alert("Failed to delete vacancy.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error deleting vacancy.");
+    }
   };
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All Status");
@@ -157,19 +176,8 @@ export default function VacancyDetailPage() {
       });
   }, [activeTab, vacancyId]);
 
-  // Statuses that mean the candidate is in or past an interview round
-  const EVALUATED_STATUSES = new Set([
-    "First Round",
-    "Second Round Pending",
-    "Second Round",
-    "Job Offered",
-    "Rejected",
-  ]);
-
   const sorted = candidates
     .filter((c) => {
-      // Exclude candidates that have been moved to an interview round
-      if (EVALUATED_STATUSES.has(c.status)) return false;
       const matchesSearch =
         search === "" || c.full_name.toLowerCase().includes(search.toLowerCase());
       const matchesStatus =
@@ -221,6 +229,16 @@ export default function VacancyDetailPage() {
             </h2>
 
             <div className="flex items-center gap-3">
+              <button
+                onClick={deleteVacancy}
+                className="border border-red-200 text-red-500 hover:bg-red-50 hover:border-red-300 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors flex items-center gap-2"
+                title="Delete Vacancy"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+                Delete
+              </button>
               {vacancy?.status === "Active" && (
                 <button
                   onClick={copyShareLink}

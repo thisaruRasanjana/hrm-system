@@ -92,6 +92,19 @@ def update_vacancy(db: Session, vacancy_id: int, data: schemas.VacancyUpdate):
     return vacancy
 
 
+def delete_vacancy(db: Session, vacancy_id: int):
+    vacancy = (
+        db.query(models.Vacancy)
+        .filter(models.Vacancy.id == vacancy_id)
+        .first()
+    )
+    if not vacancy:
+        return False
+    db.delete(vacancy)
+    db.commit()
+    return True
+
+
 # ── CV Upload & Background AI Processing ──────────────────────────────────────
 
 def process_cv_background(candidate_id: int, vacancy_id: int, file_path: str):

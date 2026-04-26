@@ -152,37 +152,76 @@ def screen_cv(
         )
 
     # ── Step 3: Build prompt ──────────────────────────────────────────────────
-    prompt = f"""You are an expert HR Recruitment AI. Evaluate the candidate's CV against the job vacancy below.
+    prompt = f"""You are a senior HR talent acquisition specialist with 15+ years of experience screening candidates across technical and non-technical roles. Your evaluations are objective, evidence-based, and calibrated to real hiring standards.
 
-Vacancy Details:
-  Job Title:        {title            or 'N/A'}
-  Experience Level: {experience_level or 'N/A'}
-  Job Description:  {description      or 'N/A'}
-  Requirements:     {requirements     or 'N/A'}
+════════════════════════════════════════
+VACANCY
+════════════════════════════════════════
+Job Title:        {title            or 'N/A'}
+Experience Level: {experience_level or 'N/A'}
+Job Description:  {description      or 'N/A'}
+Requirements:     {requirements     or 'N/A'}
 
-Candidate CV:
----
+════════════════════════════════════════
+CANDIDATE CV
+════════════════════════════════════════
 {cv_text[:8000]}
----
 
-Return a JSON object with exactly these fields:
+════════════════════════════════════════
+EVALUATION INSTRUCTIONS
+════════════════════════════════════════
+Before producing output, internally reason through the following dimensions:
+
+1. SKILLS MATCH
+   - Which required skills/technologies does the candidate explicitly demonstrate?
+   - Which are absent or only implied?
+   - Are any critical (must-have) requirements unmet?
+
+2. EXPERIENCE FIT
+   - Does total years and depth of experience match the seniority level?
+   - Penalise significantly if the candidate is clearly overqualified (>2 levels above)
+     or underqualified (<50% of the expected experience).
+   - Look for progression, leadership, and scope of responsibility where relevant.
+
+3. EDUCATION & CERTIFICATIONS
+   - Are academic qualifications relevant and at the expected level?
+   - Do certifications add genuine value for this role?
+
+4. ROLE-SPECIFIC SIGNALS
+   - For technical roles: concrete projects, measurable outcomes, tools used.
+   - For non-technical roles: domain knowledge, communication evidence, achievements.
+   - Quantified accomplishments (numbers, percentages, scale) are strong positive signals.
+
+5. RED FLAGS
+   - Unexplained employment gaps > 12 months.
+   - Frequent short tenures (< 1 year) across multiple jobs.
+   - CV that appears padded or vague without substance.
+   - Each red flag should reduce the score modestly (3–8 points each).
+
+SCORING CALIBRATION — be precise, do not cluster scores around round numbers:
+  85–100 : Exceptional match. Meets virtually all requirements; experience level is spot-on.
+  70–84  : Strong match. Meets most requirements; minor gaps that are easily bridgeable.
+  50–69  : Moderate match. Relevant background but meaningful gaps in skills or seniority.
+  25–49  : Weak match. Some transferable skills but falls short on core requirements.
+  0–24   : Poor match. Does not meet the fundamental requirements of the role.
+
+REASONING STYLE for ai_reasoning:
+  - Be specific: name the skills matched, the gaps found, and the seniority verdict.
+  - Do NOT use generic phrases like "the candidate shows potential."
+  - Tone: professional, direct, evidence-backed (as you would write in an ATS note).
+  - Exactly 2–3 sentences.
+
+════════════════════════════════════════
+OUTPUT
+════════════════════════════════════════
+Return ONLY a valid JSON object — no markdown fences, no commentary:
 {{
-  "full_name":    "<candidate full name from CV>",
+  "full_name":    "<candidate full name as written on the CV>",
   "email":        "<email address or null>",
   "phone":        "<phone number or null>",
-  "ai_score":     <float 0.0-100.0>,
-  "ai_reasoning": "<2-3 sentence professional HR justification>"
+  "ai_score":     <float 0.0–100.0>,
+  "ai_reasoning": "<2–3 sentence evidence-based justification>"
 }}
-
-Scoring guide:
-- 85-100: Excellent match — skills, experience level, and qualifications align very well
-- 65-84:  Good match — meets most requirements with minor gaps
-- 45-64:  Partial match — some relevant skills but significant gaps
-- 20-44:  Weak match — limited relevant experience or skills
-- 0-19:   Poor match — does not meet core requirements
-
-A candidate overqualified or underqualified for the seniority level should score lower.
-Return ONLY the JSON object. No markdown, no code blocks, no explanation.
 """
 
     # ── Step 4: Call Gemini ───────────────────────────────────────────────────
