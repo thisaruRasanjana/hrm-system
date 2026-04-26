@@ -5,6 +5,7 @@ import Link from "next/link";
 import Sidebar from "../../components/Sidebar";
 import TopBar from "../../components/Topbar";
 import { IconChevron } from "../../components/Icons";
+import { API_BASE_URL, VACANCY_STATUS } from "@/lib/constants";
 
 type Vacancy = {
   id: number;
@@ -16,9 +17,9 @@ type Vacancy = {
 
 function VacancyStatusBadge({ status }: { status: string }) {
   const map: Record<string, string> = {
-    "Draft": "bg-yellow-100 text-yellow-700",
-    "Active": "bg-orange-400 text-white",
-    "Closed": "bg-gray-200 text-gray-500",
+    [VACANCY_STATUS.DRAFT]: "bg-yellow-100 text-yellow-700",
+    [VACANCY_STATUS.ACTIVE]: "bg-orange-400 text-white",
+    [VACANCY_STATUS.CLOSED]: "bg-gray-200 text-gray-500",
   };
   return (
     <span className={`px-4 py-1.5 rounded-full text-xs font-medium ${map[status] ?? "bg-gray-200 text-gray-500"}`}>
@@ -58,7 +59,7 @@ export default function VacancyListPage() {
   const [deptFilter, setDeptFilter] = useState("All Departments");
 
   useEffect(() => {
-    fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/recruitment/vacancies`)
+    fetch(`${API_BASE_URL}/recruitment/vacancies`)
       .then((res) => res.json())
       .then((data) => setVacancies(data))
       .catch((err) => console.error("Failed to load vacancies:", err));

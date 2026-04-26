@@ -1,45 +1,69 @@
-from sqlalchemy.orm import Session
-from sqlalchemy import func
-from . import models, schemas
-from fastapi import UploadFile, HTTPException, BackgroundTasks
-from app.core.storage import save_file_locally
-from app.core.email import send_scheduling_email, send_job_offer_email, send_rejection_email
-from app.core.ai_client import screen_candidate as ai_screen
-from app.database.database import SessionLocal
+import logging
 from datetime import datetime
 
+from fastapi import BackgroundTasks, HTTPException, UploadFile
+from sqlalchemy import func
+from sqlalchemy.orm import Session
 
-# ── Candidate Status Constants ─────────────────────────────────────────────────
-# Defined here so status strings are never scattered across the codebase.
-STATUS_UPLOADED = "Uploaded"
-STATUS_CALLED = "Called"
-STATUS_FIRST_ROUND = "First Round"
+from app.core.ai_client import screen_candidate as ai_screen
+from app.core.email import (
+    send_job_offer_email,
+    send_rejection_email,
+    send_scheduling_email,
+)
+from app.core.storage import save_file_locally
+from app.database.database import SessionLocal
+from . import models, schemas
+
+logger = logging.getLogger(__name__)
+
+
+# ── Candidate / Application Status Constants ──────────────────────────────────
+# Centralised here so status strings are never scattered across the codebase.
+# Any change to the status vocabulary only requires editing this section.
+STATUS_UPLOADED             = "Uploaded"
+STATUS_CALLED               = "Called"
+STATUS_FIRST_ROUND          = "First Round"
 STATUS_SECOND_ROUND_PENDING = "Second Round Pending"
-STATUS_SECOND_ROUND = "Second Round"
-STATUS_JOB_OFFERED = "Job Offered"
-STATUS_REJECTED = "Rejected"
+STATUS_SECOND_ROUND         = "Second Round"
+STATUS_JOB_OFFERED          = "Job Offered"
+STATUS_REJECTED              = "Rejected"
+STATUS_ACTIVE               = "Active"   # Vacancy status required for CV uploads
 
-# Final decision options (must match frontend)
-DECISION_NEXT_ROUND = "Proceed to Next Round"
+# Final decision vocabulary — must match the frontend dropdown values.
+DECISION_NEXT_ROUND  = "Proceed to Next Round"
 DECISION_JOB_OFFERED = "Job Offered"
-DECISION_REJECTED = "Rejected"
+DECISION_REJECTED    = "Rejected"
 
-# Maps a final decision to the resulting application status
-DECISION_STATUS_MAP = {
-    DECISION_NEXT_ROUND: STATUS_SECOND_ROUND,
+# Maps each final decision to the resulting application status.
+DECISION_STATUS_MAP: dict[str, str] = {
+    DECISION_NEXT_ROUND:  STATUS_SECOND_ROUND,
     DECISION_JOB_OFFERED: STATUS_JOB_OFFERED,
-    DECISION_REJECTED: STATUS_REJECTED,
+    DECISION_REJECTED:    STATUS_REJECTED,
 }
+
+# Evaluation scoring: 5 dimensions × max 5 points each = 25 total.
+# Dividing by this constant and multiplying by 100 normalises to a 0–100 scale.
+EVALUATION_MAX_TOTAL: int = 25
 
 
 # ── Vacancy CRUD ───────────────────────────────────────────────────────────────
 
-def create_vacancy(db: Session, vacancy_data: schemas.VacancyCreate):
-    vacancy = models.Vacancy(**vacancy_data.dict())
-    db.add(vacancy)
-    db.commit()
-    db.refresh(vacancy)
-    return {**vacancy.__dict__, "applicants": 0}
+def create_vacancy(db: Session, vacancy_data: schemas.VacancyCreate) -> dict:
+    """
+    Persist a new vacancy and return it with an initial applicant count of 0.
+    Uses model_dump() (Pydantic v2) instead of the deprecated .dict().
+    """
+    try:
+        vacancy = models.Vacancy(**vacancy_data.model_dump())
+        db.add(vacancy)
+        db.commit()
+        db.refresh(vacancy)
+        return {**vacancy.__dict__, "applicants": 0}
+    except Exception as exc:
+        db.rollback()
+        logger.error("Failed to create vacancy: %s", exc)
+        raise HTTPException(status_code=500, detail="Failed to create vacancy.") from exc
 
 
 def get_all_vacancies(db: Session):
@@ -135,9 +159,13 @@ def process_cv_background(candidate_id: int, vacancy_id: int, file_path: str):
             candidate.ai_score = result.ai_score
             candidate.ai_reasoning = result.ai_reasoning
             db.commit()
-    except Exception as e:
+    except Exception as exc:
         db.rollback()
-        print(f"Background CV processing failed for candidate {candidate_id}: {e}")
+        logger.error(
+            "Background CV processing failed for candidate %d: %s",
+            candidate_id,
+            exc,
+        )
     finally:
         db.close()
 
@@ -150,11 +178,15 @@ def upload_cvs(
 ):
     vacancy = db.query(models.Vacancy).filter(models.Vacancy.id == vacancy_id).first()
     if not vacancy:
-        raise HTTPException(status_code=404, detail="Vacancy not found")
-    if vacancy.status != "Active":
+        raise HTTPException(status_code=404, detail="Vacancy not found.")
+    # Only Active vacancies accept new CVs — Draft and Closed are locked.
+    if vacancy.status != STATUS_ACTIVE:
         raise HTTPException(
             status_code=400,
-            detail=f"Cannot upload CVs to a vacancy in '{vacancy.status}' status. Must be 'Active'.",
+            detail=(
+                f"Cannot upload CVs to a vacancy in '{vacancy.status}' status. "
+                f"Set the vacancy to '{STATUS_ACTIVE}' first."
+            ),
         )
 
     successful = 0
@@ -210,9 +242,9 @@ def upload_cvs(
             )
             successful += 1
 
-        except Exception as e:
+        except Exception as exc:
             db.rollback()
-            print("UPLOAD ERROR:", e)
+            logger.error("CV upload error for file '%s': %s", file.filename, exc)
             failed += 1
 
     return {
@@ -426,8 +458,8 @@ async def send_scheduling_link(db: Session, application_id: int):
 
 # ── Candidate Updates ─────────────────────────────────────────────────────────
 
-def update_candidate_email(db: Session, candidate_id: int, email: str):
-    """Allow HR to manually set a candidate email when AI couldn't extract one."""
+def update_candidate_details(db: Session, candidate_id: int, data: schemas.CandidateUpdate):
+    """Allow HR to manually update candidate details."""
     candidate = (
         db.query(models.Candidate)
         .filter(models.Candidate.id == candidate_id)
@@ -435,7 +467,14 @@ def update_candidate_email(db: Session, candidate_id: int, email: str):
     )
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
-    candidate.email = email.strip()
+    
+    if data.full_name is not None:
+        candidate.full_name = data.full_name.strip()
+    if data.phone is not None:
+        candidate.phone = data.phone.strip()
+    if data.email is not None:
+        candidate.email = data.email.strip()
+        
     db.commit()
     db.refresh(candidate)
     return candidate
@@ -469,15 +508,15 @@ def create_evaluation(db: Session, application_id: int, data: schemas.Evaluation
                 detail="You have already submitted an evaluation for this round.",
             )
 
-    # Overall score: 5 criteria × max 5 points = 25 total → normalise to 100
-    total = (
+    # Normalise: sum of 5 dimensions (max EVALUATION_MAX_TOTAL) → 0–100 scale.
+    raw_total = (
         data.technical_skills
         + data.problem_solving
         + data.communication
         + data.cultural_fit
         + data.attitude
     )
-    overall_score = (total / 25.0) * 100.0
+    overall_score = (raw_total / EVALUATION_MAX_TOTAL) * 100.0
 
     evaluation = models.InterviewEvaluation(
         application_id=application_id,
@@ -652,9 +691,10 @@ async def submit_final_decision(db: Session, application_id: int, data: schemas.
                     job_title=vacancy.title,
                     interview_link=panel.interview_link,
                 )
-    except Exception as e:
-        print(f"OUTCOME EMAIL ERROR: {e}")
-        # Don't block the decision save — email failure is non-fatal
+    except Exception as exc:
+        # Email failure is non-fatal — the decision is already saved.
+        # Log the error so it can be investigated without breaking the workflow.
+        logger.error("Outcome email failed for application %d: %s", application_id, exc)
 
     return existing
 
@@ -764,8 +804,8 @@ def run_ai_screening(db: Session, vacancy_id: int):
             candidate.ai_score = result.ai_score
             candidate.ai_reasoning = result.ai_reasoning
             scored += 1
-        except Exception as e:
-            print(f"AI RE-SCORE ERROR for candidate {candidate.id}: {e}")
+        except Exception as exc:
+            logger.error("AI re-score failed for candidate %d: %s", candidate.id, exc)
 
     db.commit()
     return {"scored": scored, "total": len(applications)}

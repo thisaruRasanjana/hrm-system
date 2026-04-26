@@ -8,13 +8,14 @@ Only Active vacancies are exposed. Draft and Closed vacancies return 404
 so candidates never see internal or expired postings.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks, Form
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 from typing import Optional
 from datetime import datetime
 
 from app.database.deps import get_db
 from app.recruitment import models, schemas, service
+from app.recruitment.service import STATUS_ACTIVE
 from app.core.storage import save_file_locally
 
 router = APIRouter(prefix="/public", tags=["Public Job Portal"])
@@ -28,7 +29,7 @@ def get_public_job(vacancy_id: int, db: Session = Depends(get_db)):
     """
     vacancy = (
         db.query(models.Vacancy)
-        .filter(models.Vacancy.id == vacancy_id, models.Vacancy.status == "Active")
+        .filter(models.Vacancy.id == vacancy_id, models.Vacancy.status == STATUS_ACTIVE)
         .first()
     )
     if not vacancy:
@@ -55,10 +56,10 @@ def apply_for_job(
     - Creates a Candidate + Application record with status 'Uploaded'
     - Queues AI screening as a background task (same pipeline as internal uploads)
     """
-    # Guard: vacancy must be Active
+    # Guard: vacancy must be Active — only Active vacancies accept new applications.
     vacancy = (
         db.query(models.Vacancy)
-        .filter(models.Vacancy.id == vacancy_id, models.Vacancy.status == "Active")
+        .filter(models.Vacancy.id == vacancy_id, models.Vacancy.status == STATUS_ACTIVE)
         .first()
     )
     if not vacancy:
@@ -115,7 +116,15 @@ def apply_for_job(
         status=service.STATUS_UPLOADED,
     )
     db.add(application)
-    db.commit()
+
+    try:
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to save application. Please try again.",
+        ) from exc
 
     # Queue AI screening — same background pipeline as internal CV uploads
     background_tasks.add_task(

@@ -11,12 +11,19 @@ Runs independently on port 8001.
 The main HRM backend communicates with this service via HTTP (never via direct import).
 """
 
+import logging
+import os
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
 
 from screener import screen_cv, ScreenResult
+
+# Configure module-level logger — output integrates with uvicorn's log system.
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="HRM AI Screening Service",
@@ -59,11 +66,24 @@ def screen_candidate(req: ScreenRequest):
     Accepts the path to a locally saved CV file plus vacancy context.
     Returns extracted candidate info (name, email, phone) and an AI relevance score.
 
+    Raises:
+        400: cv_file_path is missing or blank.
+        404: The CV file does not exist at the given path.
+
     Note: In a containerised deployment, ensure both services mount the same
     storage volume, or switch cv_file_path for a pre-signed S3 URL.
     """
-    if not req.cv_file_path:
+    if not req.cv_file_path or not req.cv_file_path.strip():
         raise HTTPException(status_code=400, detail="cv_file_path is required.")
+
+    # Validate the file exists before calling the (expensive) AI screener.
+    if not os.path.exists(req.cv_file_path):
+        raise HTTPException(
+            status_code=404,
+            detail=f"CV file not found at path: {req.cv_file_path}",
+        )
+
+    logger.info("Screening CV: %s for vacancy: '%s'", req.cv_file_path, req.title)
 
     return screen_cv(
         cv_file_path=req.cv_file_path,

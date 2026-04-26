@@ -1,4 +1,5 @@
 "use client";
+import { API_BASE_URL } from "@/lib/constants";
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
@@ -185,7 +186,7 @@ export default function VacancyCreatePage() {
   });
 
   useEffect(() => {
-    fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000"}/employees/`)
+    fetch(`${API_BASE_URL}/employees/`)
       .then((r) => r.json())
       .then((d) => setUsers(Array.isArray(d) ? d : []))
       .catch(() => setUsers([]));
@@ -224,7 +225,7 @@ export default function VacancyCreatePage() {
     setSubmitting(true);
     try {
       const vacancyRes = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000"}/recruitment/vacancies`,
+        `${API_BASE_URL}/recruitment/vacancies`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -254,7 +255,7 @@ export default function VacancyCreatePage() {
 
       if (panel.panel_head_id) {
         const panelRes = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000"}/recruitment/vacancies/${vacancy.id}/panel`,
+          `${API_BASE_URL}/recruitment/vacancies/${vacancy.id}/panel`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },

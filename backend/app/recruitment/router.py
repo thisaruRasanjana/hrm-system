@@ -76,14 +76,14 @@ def get_candidate(candidate_id: int, db: Session = Depends(get_db)):
     return candidate
 
 
-@router.patch("/candidates/{candidate_id}/email")
-def update_candidate_email(
+@router.patch("/candidates/{candidate_id}/details")
+def update_candidate_details(
     candidate_id: int,
     data: schemas.CandidateUpdate,
     db: Session = Depends(get_db),
 ):
-    """Allow HR to manually set a candidate email when AI couldn't extract one."""
-    return service.update_candidate_email(db, candidate_id, data.email)
+    """Allow HR to manually update candidate details."""
+    return service.update_candidate_details(db, candidate_id, data)
 
 
 # ── File Serving (replaces public static mount) ───────────────────────────────

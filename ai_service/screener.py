@@ -12,6 +12,7 @@ Model configuration is read from ai_service/.env:
 Deliberately has ZERO imports from the main backend (app.*).
 """
 
+import logging
 import os
 import re
 import json
@@ -24,12 +25,14 @@ from pydantic import BaseModel, Field
 from google import genai
 from google.genai import types
 
+logger = logging.getLogger(__name__)
+
 # Load .env from the same directory as this file — safe regardless of CWD.
 load_dotenv(Path(__file__).parent / ".env", override=True)
 
 GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
 if not GEMINI_API_KEY:
-    print("[ai_service] WARNING: GEMINI_API_KEY not found in ai_service/.env")
+    logger.warning("[ai_service] GEMINI_API_KEY not found in ai_service/.env")
 
 # Both models must be from the gemini-2.x family for this SDK version.
 # They are configurable via ai_service/.env so no code change is needed
@@ -67,7 +70,7 @@ def _extract_text(file_path: str) -> str:
             reader = PdfReader(file_path)
             return "\n".join(page.extract_text() or "" for page in reader.pages)
         except Exception as e:
-            print(f"[ai_service] PyPDF2 error: {e}")
+            logger.warning("[ai_service] PyPDF2 error: %s", e)
             return ""
 
     elif ext == ".docx":
@@ -76,7 +79,7 @@ def _extract_text(file_path: str) -> str:
             doc = Document(file_path)
             return "\n".join(p.text for p in doc.paragraphs if p.text.strip())
         except Exception as e:
-            print(f"[ai_service] python-docx error: {e}")
+            logger.warning("[ai_service] python-docx error: %s", e)
             return ""
 
     return ""
@@ -225,7 +228,11 @@ Return ONLY a valid JSON object — no markdown fences, no commentary:
 """
 
     # ── Step 4: Call Gemini ───────────────────────────────────────────────────
-    client = genai.Client(api_key=GEMINI_API_KEY)
+    # Dynamically reload the .env in case the API key was updated while running
+    from dotenv import load_dotenv
+    load_dotenv(Path(__file__).parent / ".env", override=True)
+    current_api_key = os.getenv("GEMINI_API_KEY", "")
+    client = genai.Client(api_key=current_api_key)
     models_to_try = [GEMINI_MODEL, GEMINI_MODEL_FALLBACK]
 
     for model_name in models_to_try:
@@ -242,12 +249,12 @@ Return ONLY a valid JSON object — no markdown fences, no commentary:
                     ),
                 )
                 if not response.text:
-                    print(f"[ai_service] {model_name} returned empty response — skipping.")
+                    logger.warning("[ai_service] %s returned empty response — skipping.", model_name)
                     break
 
                 data = json.loads(response.text)
                 result = ScreenResult(**data)
-                print(f"[ai_service] ✓ Scored with {model_name}: {result.ai_score}")
+                logger.info("[ai_service] Scored with %s: %.1f", model_name, result.ai_score)
                 return result
 
             except Exception as e:
@@ -256,16 +263,19 @@ Return ONLY a valid JSON object — no markdown fences, no commentary:
                 is_not_found = "404" in err_str or "NOT_FOUND" in err_str
                 is_server    = "503" in err_str or "UNAVAILABLE" in err_str
 
-                print(f"[ai_service] {model_name} attempt {attempt} failed: {type(e).__name__}: {err_str[:150]}")
+                logger.debug(
+                    "[ai_service] %s attempt %d failed: %s: %s",
+                    model_name, attempt, type(e).__name__, str(e)[:150],
+                )
 
                 if is_quota:
-                    print(f"[ai_service] Quota exhausted on {model_name} — trying next model.")
+                    logger.warning("[ai_service] Quota exhausted on %s — trying next model.", model_name)
                     break
                 elif is_not_found:
-                    print(f"[ai_service] {model_name} not found in this API version — trying next model.")
+                    logger.warning("[ai_service] %s not found in this API version — trying next model.", model_name)
                     break
                 elif is_server and attempt < 2:
-                    print(f"[ai_service] Server error — retrying in 10s...")
+                    logger.warning("[ai_service] Server error on %s — retrying in 10s...", model_name)
                     time.sleep(10)
                 else:
                     break
