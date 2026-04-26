@@ -14,8 +14,12 @@ export default function LeaveTabs() {
     setActivePath(pathname);
   }, [pathname]);
 
-  // Sync read: ensures it doesn't drop to null during page transitions
-  const role = typeof window !== "undefined" ? localStorage.getItem("role") : null;
+  const [role, setRole] = useState<string | null>(null);
+
+  // Read role only on the client after mount to avoid SSR/hydration mismatch
+  useEffect(() => {
+    setRole(localStorage.getItem("role"));
+  }, []);
 
   const tabs = [
     { name: "Request Leave", path: "/apply-leave" },

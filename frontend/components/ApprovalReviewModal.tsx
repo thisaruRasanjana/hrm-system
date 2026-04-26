@@ -115,16 +115,20 @@ export default function ApprovalReviewModal({
               </div>
             </div>
 
-            <div className="min-w-[205px]">
+            <div className="flex-shrink-0">
               <p className="mb-2 text-center text-[14px] text-[#667085]">Current Balance</p>
-              <div className="flex gap-2">
-                <div className="rounded-md bg-[#FFF7ED] px-3 py-2 text-center">
-                  <p className="text-[14px] text-[#6B7280]">Annual Leaves</p>
-                  <p className="text-[16px] font-bold text-[#1F2937]">{request.balances.annual}</p>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-md bg-[#FFF7ED] px-3 py-1.5 text-center min-w-[100px]">
+                  <p className="text-[12px] text-[#6B7280]">Annual</p>
+                  <p className="text-[15px] font-bold text-[#1F2937]">{request.balances.annual}</p>
                 </div>
-                <div className="rounded-md bg-[#FFF7ED] px-3 py-2 text-center">
-                  <p className="text-[14px] text-[#6B7280]">Casual Leaves</p>
-                  <p className="text-[16px] font-bold text-[#1F2937]">{request.balances.casual}</p>
+                <div className="rounded-md bg-[#FFF7ED] px-3 py-1.5 text-center min-w-[100px]">
+                  <p className="text-[12px] text-[#6B7280]">Casual</p>
+                  <p className="text-[15px] font-bold text-[#1F2937]">{request.balances.casual}</p>
+                </div>
+                <div className="rounded-md bg-[#FFF7ED] px-3 py-1.5 text-center min-w-[100px]">
+                  <p className="text-[12px] text-[#6B7280]">Medical</p>
+                  <p className="text-[15px] font-bold text-[#1F2937]">{request.balances.medical}</p>
                 </div>
               </div>
             </div>

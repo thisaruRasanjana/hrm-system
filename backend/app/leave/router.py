@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 import os
 import shutil
 from uuid import uuid4
+from datetime import date
 from sqlalchemy.orm import Session
 
 from app.core.rbac import require_roles, get_current_user
@@ -34,6 +35,8 @@ from app.leave.service import (
     resubmit_leave_request,
     delete_leave_request,
     update_leave_request,
+    get_leave_balance,
+    get_employee_leave_summary,
 )
 
 router = APIRouter(prefix="/leave", tags=["Leave"])
@@ -41,9 +44,7 @@ router = APIRouter(prefix="/leave", tags=["Leave"])
 UPLOAD_DIR = "uploads/medical_docs"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-# -----------------------------
 # CREATE LEAVE (EMPLOYEE + HR)
-# -----------------------------
 @router.post("/requests", response_model=LeaveRequestOut)
 def submit_leave(
     payload: LeaveRequestCreate,
@@ -53,9 +54,7 @@ def submit_leave(
     return create_leave(db, current_user["id"], payload)
 
 
-# -----------------------------
 # UPDATE LEAVE (EMPLOYEE ONLY)
-# -----------------------------
 @router.put("/requests/{request_id}", response_model=LeaveRequestOut)
 def update_leave(
     request_id: int,
@@ -69,9 +68,7 @@ def update_leave(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-# -----------------------------
 # DELETE LEAVE (EMPLOYEE ONLY)
-# -----------------------------
 @router.delete("/requests/{request_id}")
 def delete_leave(
     request_id: int,
@@ -85,9 +82,7 @@ def delete_leave(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-# -----------------------------
 # MY LEAVES
-# -----------------------------
 @router.get("/requests/me", response_model=list[LeaveRequestOut])
 def get_my_leave(
     current_user: dict = Depends(require_roles(["employee", "hr"])),
@@ -96,9 +91,7 @@ def get_my_leave(
     return my_requests(db, current_user["id"])
 
 
-# -----------------------------
 # PENDING REQUESTS (HR ONLY)
-# -----------------------------
 @router.get("/requests/pending", response_model=list[LeaveRequestOut])
 def get_pending(
     current_user: dict = Depends(require_roles(["hr"])),
@@ -107,9 +100,7 @@ def get_pending(
     return get_pending_requests(db, current_user)
 
 
-# -----------------------------
 # GET SINGLE REQUEST
-# -----------------------------
 @router.get("/requests/{request_id}", response_model=LeaveRequestOut)
 def get_leave_request_details(
     request_id: int,
@@ -133,9 +124,7 @@ def get_leave_request_details(
     return req
 
 
-# -----------------------------
 # APPROVE REQUEST (HR ONLY)
-# -----------------------------
 @router.patch("/requests/{request_id}/approve", response_model=LeaveRequestOut)
 def approve_request(
     request_id: int,
@@ -159,9 +148,7 @@ def approve_request(
     )
 
 
-# -----------------------------
 # REJECT REQUEST (HR ONLY)
-# -----------------------------
 @router.patch("/requests/{request_id}/reject", response_model=LeaveRequestOut)
 def reject_request(
     request_id: int,
@@ -185,9 +172,7 @@ def reject_request(
     )
 
 
-# -----------------------------
 # REQUEST INFO (HR ONLY)
-# -----------------------------
 @router.patch("/requests/{request_id}/request-info", response_model=LeaveRequestOut)
 def request_info(
     request_id: int,
@@ -211,9 +196,7 @@ def request_info(
     )
 
 
-# -----------------------------
 # RESUBMIT REQUEST (EMPLOYEE ONLY)
-# -----------------------------
 @router.patch("/requests/{request_id}/resubmit", response_model=LeaveRequestOut)
 def resubmit_request(
     request_id: int,
@@ -234,9 +217,7 @@ def resubmit_request(
 
 
 
-# -----------------------------
 # UPDATE STATUS (HR ONLY)
-# -----------------------------
 @router.patch("/requests/{request_id}/status", response_model=LeaveRequestOut)
 def change_status(
     request_id: int,
@@ -266,12 +247,39 @@ def change_status(
     )
 
 
-# -----------------------------
 # LEAVE TYPES
-# -----------------------------
 @router.get("/types", response_model=list[LeaveTypeOut])
 def list_leave_types(db: Session = Depends(get_db)):
     return get_leave_types(db)
+
+
+# LEAVE BALANCE
+@router.get("/balance/me")
+def get_my_balance(
+    current_user: dict = Depends(require_roles(["employee", "hr"])),
+    db: Session = Depends(get_db),
+):
+    return get_leave_balance(db, current_user["id"])
+
+
+@router.get("/balance/{employee_id}")
+def get_employee_balance(
+    employee_id: int,
+    current_user: dict = Depends(require_roles(["hr"])),
+    db: Session = Depends(get_db),
+):
+    return get_leave_balance(db, employee_id)
+
+
+# LEAVE SUMMARY (for reports table)
+@router.get("/summary")
+def get_leave_summary_endpoint(
+    start_date: date,
+    end_date: date,
+    current_user: dict = Depends(require_roles(["hr"])),
+    db: Session = Depends(get_db),
+):
+    return get_employee_leave_summary(db, start_date, end_date)
 
 
 @router.post("/types", response_model=LeaveTypeOut)
@@ -279,9 +287,7 @@ def add_leave_type(payload: LeaveTypeCreate, db: Session = Depends(get_db)):
     return create_leave_type(db, payload.name, payload.description)
 
 
-# -----------------------------
 # UPLOAD FILE
-# -----------------------------
 @router.post("/upload")
 def upload_leave_attachment(file: UploadFile = File(...)):
     allowed_types = ["image/jpeg", "image/png", "application/pdf"]
@@ -298,9 +304,7 @@ def upload_leave_attachment(file: UploadFile = File(...)):
     return {"file_url": f"/uploads/medical_docs/{filename}"}
 
 
-# -----------------------------
 # LEAVE HISTORY
-# -----------------------------
 @router.get("/history/me", response_model=list[LeaveRequestOut])
 def get_my_leave_history_api(
     current_user: dict = Depends(require_roles(["employee", "hr"])),

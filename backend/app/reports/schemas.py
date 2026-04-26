@@ -1,6 +1,6 @@
 from pydantic import BaseModel
-from datetime import date
-from typing import Optional, List
+from datetime import date, datetime
+from typing import Optional, List, Dict
 
 
 class LeaveReportRow(BaseModel):
@@ -21,9 +21,11 @@ class LeaveReportRow(BaseModel):
     status: str
     reason: Optional[str] = None
     approved_by: Optional[int] = None
+    approved_by_name: Optional[str] = None
     approved_date: Optional[date] = None
     rejection_reason: Optional[str] = None
     manager_comment: Optional[str] = None
+    balance: Optional[float] = None
 
 
 class LeaveReportSummary(BaseModel):
@@ -35,6 +37,27 @@ class LeaveReportSummary(BaseModel):
     req_info_requests: int
 
 
+class LeaveReportMetadata(BaseModel):
+    title: str = "Employee Leave Summary Report"
+    company: str = "Insharp Technologies (Pvt) Ltd"
+    generated_at: datetime
+    generated_by: str
+    period_start: Optional[date] = None
+    period_end: Optional[date] = None
+
+
+class EmployeeFrequency(BaseModel):
+    employee_name: str
+    request_count: int
+
+
+class LeaveReportAnalytics(BaseModel):
+    leaves_per_month: Dict[str, float]
+    employee_frequency: List[EmployeeFrequency]
+
+
 class LeaveReportResponse(BaseModel):
+    metadata: LeaveReportMetadata
     summary: LeaveReportSummary
+    analytics: LeaveReportAnalytics
     records: List[LeaveReportRow]

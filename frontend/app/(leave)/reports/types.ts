@@ -26,6 +26,7 @@ export interface EmployeeReportRow {
   pending: number;
   remaining: number;
   lastLeave: string;
+  periodDays: number;
 }
 
 export interface AttendanceRecord {
@@ -46,6 +47,7 @@ export interface LeaveHistoryRecord {
   days: number;
   reason: string;
   status: string;
+  approver?: string;
 }
 
 export interface SummaryCardItem {

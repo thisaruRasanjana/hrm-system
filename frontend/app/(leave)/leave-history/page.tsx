@@ -7,7 +7,8 @@ import LeaveTabs from '@/components/LeaveTabs';
 import LeaveResubmitModal from '@/components/LeaveResubmitModal';
 import EditLeaveModal from '@/components/EditLeaveModal';
 import { Search, Pencil, Trash2 } from "lucide-react";
-import { API_BASE_URL, getAuthHeaders } from '../lib/api';
+import { API_BASE_URL, getAuthHeaders } from '@/app/lib/api';
+import { usePathname } from "next/navigation";
 
 interface LeaveRequest {
   leave_request_id: number;
@@ -24,6 +25,7 @@ interface LeaveRequest {
   rejection_reason?: string | null;
   manager_comment?: string | null;
   approved_by?: number | null;
+  approved_by_name?: string | null;
   approved_date?: string | null;
 }
 
@@ -49,7 +51,6 @@ const leaveTypeIdMap: Record<string, string> = {
   'Annual Leave': '1',
   'Medical Leave': '2',
   'Casual Leave': '3',
-  'Short Leave': '4',
 };
 
 export default function LeaveHistoryPage() {
@@ -62,6 +63,7 @@ export default function LeaveHistoryPage() {
   const [loading, setLoading] = useState(true);
   const [selectedRequestForInfo, setSelectedRequestForInfo] = useState<LeaveRequest | null>(null);
   const [selectedRequestForEdit, setSelectedRequestForEdit] = useState<LeaveRequest | null>(null);
+  const pathname = usePathname();
 
   const fetchLeaveHistory = React.useCallback(async () => {
     setLoading(true);
@@ -114,8 +116,10 @@ export default function LeaveHistoryPage() {
   }, [searchTerm, leaveType, status, sortBy, leaveTypeIdMap]);
 
   useEffect(() => {
-    fetchLeaveHistory();
-  }, [fetchLeaveHistory]);
+    if (pathname === "/leave-history") {
+      fetchLeaveHistory();
+    }
+  }, [fetchLeaveHistory, pathname]);
 
   const handleDelete = async (requestId: number) => {
     if (window.confirm("Are you sure you want to cancel and delete this pending request?")) {
@@ -181,9 +185,8 @@ export default function LeaveHistoryPage() {
                 >
                   <option>All type</option>
                   <option>Annual Leave</option>
-                  <option>Casual Leave</option>
                   <option>Medical Leave</option>
-                  <option>Short Leave</option>
+                  <option>Casual Leave</option>
                 </select>
 
                 <select
@@ -290,7 +293,7 @@ export default function LeaveHistoryPage() {
                             )}
                           </td>
                           <td className="px-6 py-4 text-sm text-gray-700">
-                            {request.approved_by ?? '-'}
+                            {request.approved_by_name ?? '-'}
                           </td>
                         </tr>
                       ))

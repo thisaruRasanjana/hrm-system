@@ -1,5 +1,15 @@
 'use client';
 
+/**
+ * ApprovalRequestCard.tsx
+ * -----------------------
+ * Displays a summary card for a single pending leave request in the HR
+ * approval queue. Clicking "Review" opens the full ApprovalReviewModal.
+ *
+ * Kept as a pure presentational component — no API calls or state here.
+ * The parent page owns the data and passes it via props.
+ */
+
 import React from 'react';
 import {
   Building2,
@@ -10,34 +20,39 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 
+/** Shape of a single pending leave request shown on the approval board. */
 export interface ApprovalRequest {
-  id: number;
-  employeeName: string;
-  employeeCode: string;
-  department: string;
-  role: string;
-  leaveType: string;
-  startDate: string;
-  endDate: string;
-  durationText: string;
-  hasAttachment: boolean;
+  id:             number;
+  employeeName:   string;
+  employeeCode:   string;
+  department:     string;
+  role:           string;
+  leaveType:      string;
+  startDate:      string;
+  endDate:        string;
+  durationText:   string;
+  hasAttachment:  boolean;
   attachmentUrls: string[];
-  appliedOn: string;
-  reason: string;
+  appliedOn:      string;
+  reason:         string;
   balances: {
-    annual: string;
-    casual: string;
+    annual:  string | number;
+    casual:  string | number;
+    medical: string | number;
   };
 }
 
 interface Props {
-  request: ApprovalRequest;
+  request:  ApprovalRequest;
   onReview: () => void;
 }
 
+/** A card displaying one employee's leave request with a Review button. */
 export default function ApprovalRequestCard({ request, onReview }: Props) {
   return (
     <div className="rounded-[18px] border border-[#E4E7EC] bg-white p-4 shadow-sm">
+
+      {/* ── Employee identity ──────────────────────────────────────── */}
       <div className="flex items-start gap-3">
         <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#F2F4F7]">
           <CircleUserRound size={22} className="text-[#667085]" />
@@ -51,7 +66,10 @@ export default function ApprovalRequestCard({ request, onReview }: Props) {
         </div>
       </div>
 
+      {/* ── Request details ────────────────────────────────────────── */}
       <div className="mt-4 space-y-3">
+
+        {/* Department & role */}
         <div className="flex items-start gap-2">
           <Building2 size={16} className="mt-0.5 text-[#667085]" />
           <div>
@@ -60,22 +78,25 @@ export default function ApprovalRequestCard({ request, onReview }: Props) {
           </div>
         </div>
 
+        {/* Leave type badge */}
         <div>
           <span className="inline-flex rounded-full bg-[#F2924E] px-3 py-1 text-[13px] font-medium text-white">
             {request.leaveType}
           </span>
         </div>
 
+        {/* Date range */}
         <div className="flex items-start gap-2">
           <CalendarDays size={16} className="mt-0.5 text-[#667085]" />
           <div>
             <p className="text-[14px] text-[#667085]">Date Range</p>
             <p className="text-[14px] text-[#344054]">
-              {request.startDate} - {request.endDate}
+              {request.startDate} &ndash; {request.endDate}
             </p>
           </div>
         </div>
 
+        {/* Duration */}
         <div className="flex items-start gap-2">
           <Clock3 size={16} className="mt-0.5 text-[#667085]" />
           <div>
@@ -84,6 +105,7 @@ export default function ApprovalRequestCard({ request, onReview }: Props) {
           </div>
         </div>
 
+        {/* Attachment indicator — only shown when documents are attached */}
         {request.hasAttachment && (
           <div className="flex items-center gap-2">
             <Paperclip size={16} className="text-[#667085]" />
@@ -92,9 +114,10 @@ export default function ApprovalRequestCard({ request, onReview }: Props) {
         )}
       </div>
 
+      {/* ── Review action ──────────────────────────────────────────── */}
       <button
         onClick={onReview}
-        className="mt-5 flex h-[42px] w-full items-center justify-center gap-2 rounded-[12px] bg-[#667085] text-[16px] font-medium text-white"
+        className="mt-5 flex h-[42px] w-full items-center justify-center gap-2 rounded-[12px] bg-[#667085] text-[16px] font-medium text-white hover:bg-[#4B5563] transition-colors duration-200"
       >
         <CheckCircle2 size={17} />
         Review

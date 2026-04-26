@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, notFound } from "next/navigation";
+import { API_BASE_URL, getAuthHeaders } from "@/app/lib/api";
 
 import Sidebar from "@/components/Sidebar";
 import TopBar from "@/components/TopBar";
@@ -26,13 +27,16 @@ export default function EmployeeReportDetailPage() {
 
   const [employee, setEmployee] = useState<any>(null);
   const [leaveRecords, setLeaveRecords] = useState<any[]>([]);
+  const [leaveBalance, setLeaveBalance] = useState<Array<{leave_type:string; allocated:number; used:number; remaining:number}>>([]);
   const [loading, setLoading] = useState(true);
 
-  // ✅ Fetch data from backend
+  // Fetch leave records + per-type balance in parallel
   useEffect(() => {
-    fetch(`http://127.0.0.1:8000/reports/leave?employee_id=${employeeId}`)
-      .then((res) => res.json())
-      .then((data) => {
+    Promise.all([
+      fetch(`${API_BASE_URL}/reports/leave?employee_id=${employeeId}`, { headers: getAuthHeaders() }).then(r => r.json()),
+      fetch(`${API_BASE_URL}/reports/employee-balance/${employeeId}`, { headers: getAuthHeaders() }).then(r => r.ok ? r.json() : []),
+    ])
+      .then(([data, balance]) => {
         if (!data.records || data.records.length === 0) {
           notFound();
           return;
@@ -40,7 +44,6 @@ export default function EmployeeReportDetailPage() {
 
         const first = data.records[0];
 
-        // ✅ Set employee info
         setEmployee({
           id: employeeId,
           name: first.employee_name || "N/A",
@@ -55,22 +58,20 @@ export default function EmployeeReportDetailPage() {
           totalViolations: 0,
         });
 
-        // ✅ Set leave records
-        const mappedLeaves = data.records.map((r: any) => ({
+        setLeaveRecords(data.records.map((r: any) => ({
           type: r.leave_type_name,
           startDate: r.start_date,
           endDate: r.end_date,
           days: r.total_days,
           reason: r.reason,
           status: r.status,
-        }));
+          approver: r.approved_by_name,
+        })));
 
-        setLeaveRecords(mappedLeaves);
+        setLeaveBalance(Array.isArray(balance) ? balance : []);
         setLoading(false);
       })
-      .catch(() => {
-        notFound();
-      });
+      .catch(() => { notFound(); });
   }, [employeeId]);
 
   // ⚠️ Placeholder (until backend ready)
@@ -127,8 +128,7 @@ export default function EmployeeReportDetailPage() {
           <EmployeeReportStats
             employee={employee}
             activeTab={activeTab}
-            period={period}
-            setPeriod={setPeriod}
+            leaveBalance={leaveBalance}
           />
 
           <EmployeeDetailTabs

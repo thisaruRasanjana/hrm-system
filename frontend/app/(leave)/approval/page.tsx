@@ -2,17 +2,17 @@
 
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import Sidebar from '../../components/Sidebar';
-import TopBar from '../../components/TopBar';
-import LeaveTabs from '../../components/LeaveTabs';
+import Sidebar from '@/components/Sidebar';
+import TopBar from '@/components/TopBar';
+import LeaveTabs from '@/components/LeaveTabs';
 import ApprovalRequestCard, {
   ApprovalRequest,
-} from '../../components/ApprovalRequestCard';
+} from '@/components/ApprovalRequestCard';
 import ApprovalReviewModal, {
   ModalMode,
-} from '../../components/ApprovalReviewModal';
+} from '@/components/ApprovalReviewModal';
 import { Search, ChevronDown, CheckCircle2, XCircle } from 'lucide-react';
-import { API_BASE_URL, getAuthHeaders } from '../lib/api';
+import { API_BASE_URL, getAuthHeaders } from '@/app/lib/api';
 
 type BackendLeaveRequest = {
   leave_request_id: number;
@@ -30,15 +30,19 @@ type BackendLeaveRequest = {
   manager_comment?: string | null;
   approved_by?: number | null;
   approved_date?: string | null;
+  employee_name?: string | null;
+  employee_code?: string | null;
+  department?: string | null;
+  role?: string | null;
 };
 
 type PendingRequestsResponse =
   | BackendLeaveRequest[]
   | {
-      items?: BackendLeaveRequest[];
-      data?: BackendLeaveRequest[];
-      results?: BackendLeaveRequest[];
-    };
+    items?: BackendLeaveRequest[];
+    data?: BackendLeaveRequest[];
+    results?: BackendLeaveRequest[];
+  };
 
 function formatDate(dateString: string) {
   if (!dateString) return '--';
@@ -57,14 +61,14 @@ function formatDate(dateString: string) {
   });
 }
 
-function mapBackendToFrontend(item: BackendLeaveRequest): ApprovalRequest {
+function mapBackendToFrontend(item: BackendLeaveRequest, balances?: Record<string, number>): ApprovalRequest {
   const urls = Array.isArray(item.attachment_urls) ? item.attachment_urls : [];
   return {
     id: item.leave_request_id,
-    employeeName: `Employee ${item.employee_id}`,
-    employeeCode: `EMP_${String(item.employee_id).padStart(2, '0')}`,
-    department: 'Department',
-    role: 'Employee',
+    employeeName: item.employee_name || `Employee ${item.employee_id}`,
+    employeeCode: item.employee_code || `EMP_${String(item.employee_id).padStart(2, '0')}`,
+    department: item.department || 'Department',
+    role: item.role || 'Employee',
     leaveType: item.leave_type_name || `Leave Type ${item.leave_type_id}`,
     startDate: formatDate(item.start_date),
     endDate: formatDate(item.end_date),
@@ -74,8 +78,9 @@ function mapBackendToFrontend(item: BackendLeaveRequest): ApprovalRequest {
     appliedOn: item.start_date,
     reason: item.reason || 'No reason provided',
     balances: {
-      annual: '--',
-      casual: '--',
+      annual: balances?.['Annual Leave'] ?? '--',
+      casual: balances?.['Casual Leave'] ?? '--',
+      medical: balances?.['Medical Leave'] ?? '--',
     },
   };
 }
@@ -158,7 +163,7 @@ export default function ApprovalPage() {
 
       const payload: PendingRequestsResponse = await response.json();
       const items = extractRequestList(payload);
-      setRequests(items.map(mapBackendToFrontend));
+      setRequests(items.map((item) => mapBackendToFrontend(item)));
     } catch (error) {
       console.error('loadPendingRequests error:', error);
       setRequests([]);
@@ -222,19 +227,34 @@ export default function ApprovalPage() {
 
   const openReview = async (request: ApprovalRequest) => {
     try {
+      // 1. Get request details
       const response = await fetch(`${API_BASE_URL}/leave/requests/${request.id}`, {
         method: 'GET',
         headers: getAuthHeaders(),
         cache: 'no-store',
       });
-
       if (!response.ok) {
         const errorMessage = await parseErrorResponse(response);
         throw new Error(errorMessage || 'Failed to load leave request details');
       }
-
       const data: BackendLeaveRequest = await response.json();
-      setSelectedRequest(mapBackendToFrontend(data));
+
+      // 2. Get employee balances
+      let balances: Record<string, number> | undefined = undefined;
+      try {
+        const balRes = await fetch(`${API_BASE_URL}/leave/balance/${data.employee_id}`, {
+          method: 'GET',
+          headers: getAuthHeaders(),
+          cache: 'no-store',
+        });
+        if (balRes.ok) {
+          balances = await balRes.json();
+        }
+      } catch (err) {
+        console.error('Failed to fetch employee balance:', err);
+      }
+
+      setSelectedRequest(mapBackendToFrontend(data, balances));
       setModalMode('review');
     } catch (error) {
       console.error('openReview error:', error);
@@ -474,11 +494,10 @@ export default function ApprovalPage() {
 
           {actionMessage && (
             <div
-              className={`mt-5 flex items-center gap-3 rounded-[14px] border px-4 py-3 text-[15px] font-medium ${
-                messageType === 'success'
+              className={`mt-5 flex items-center gap-3 rounded-[14px] border px-4 py-3 text-[15px] font-medium ${messageType === 'success'
                   ? 'border-green-200 bg-green-50 text-green-700'
                   : 'border-red-200 bg-red-50 text-red-700'
-              }`}
+                }`}
             >
               {messageType === 'success' ? <CheckCircle2 size={18} /> : <XCircle size={18} />}
               <span>{actionMessage}</span>

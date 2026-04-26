@@ -151,9 +151,9 @@ export default function LeaveDatePicker({ onChange, value }: Props) {
       {/* Trigger */}
       <div
         onClick={() => setOpen((o) => !o)}
-        className={`flex items-center justify-between w-full border border-gray-200 shadow-sm rounded-lg px-4 py-2.5 bg-white cursor-pointer hover:border-[#F2924E] transition-colors ${open ? 'ring-2 ring-orange-50 border-[#F2924E]' : ''}`}
+        className={`flex items-center justify-between w-full border-none shadow-sm rounded-lg px-3 py-2 bg-white cursor-pointer transition-colors ${open ? 'ring-2 ring-orange-50' : ''}`}
       >
-        <span className={`text-sm ${displayText ? "text-slate-700" : "text-slate-400"}`}>
+        <span className={`text-sm ${displayText ? "text-[#6C6C70]" : "text-slate-400"}`}>
           {displayText || "Pick the date :"}
         </span>
         {/* Calendar icon */}

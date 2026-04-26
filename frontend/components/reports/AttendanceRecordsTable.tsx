@@ -1,5 +1,5 @@
 import React from "react";
-import { AttendanceRecord } from "@/app/reports/types";
+import { AttendanceRecord } from "@/app/(leave)/reports/types";
 
 interface Props {
   records: AttendanceRecord[];

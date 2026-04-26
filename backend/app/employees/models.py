@@ -1,6 +1,7 @@
 from sqlalchemy import Column, String, Integer, Date, Enum, Text
 from app.database.base import Base
 import enum
+from sqlalchemy.dialects.postgresql import ARRAY
 
 
 class EmployeeStatus(enum.Enum):
@@ -22,8 +23,8 @@ class Employee(Base):
     designation = Column(String(100), nullable=False)
     joined_date = Column(Date, nullable=True)
     status = Column(Enum(EmployeeStatus), default=EmployeeStatus.active)
-
     date_of_birth = Column(Date, nullable=True)
     gender = Column(String(20), nullable=True)
     marital_status = Column(String(20), nullable=True)
     nationality = Column(String(100), nullable=True)
+    roles = Column(ARRAY(String), default=["employee"])

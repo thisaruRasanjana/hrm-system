@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { DetailTab } from "@/app/reports/types";
+import { DetailTab } from "@/app/(leave)/reports/types";
 
 interface Props {
   activeTab: DetailTab;

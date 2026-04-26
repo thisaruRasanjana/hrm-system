@@ -1,111 +1,78 @@
 import React from "react";
-import { ArrowDownRight, ArrowUpRight } from "lucide-react";
-import { EmployeeDetail } from "@/app/reports/types";
+import { EmployeeDetail } from "@/app/(leave)/reports/types";
+
+type LeaveBalanceItem = {
+  leave_type: string;
+  allocated: number;
+  used: number;
+  remaining: number;
+};
 
 interface Props {
   employee: EmployeeDetail;
   activeTab: "attendance" | "leave" | "violations";
-  period: "weekly" | "monthly" | "annually";
-  setPeriod: (value: "weekly" | "monthly" | "annually") => void;
+  leaveBalance?: LeaveBalanceItem[];
 }
 
-export default function EmployeeReportStats({ employee, period, setPeriod }: Props) {
-  const cards = [
-    {
-      label: "Attendance Rate",
-      value: `${employee.attendanceRate}%`,
-      note: "Critical - Below Standards",
-      noteColor: "text-red-500",
-      icon: <ArrowDownRight className="h-4 w-4 text-red-500" />,
-    },
-    {
-      label: "Absent Days",
-      value: employee.absentDays,
-      note: "Out of 22 working days",
-      noteColor: "text-gray-500",
-      icon: null,
-    },
-    {
-      label: "Late Arrivals",
-      value: employee.lateArrivals,
-      note: "Exceeded limit",
-      noteColor: "text-red-500",
-      icon: null,
-    },
-    {
-      label: "Total Violations",
-      value: employee.totalViolations,
-      note:
-        employee.totalViolations > 0
-          ? `${employee.totalViolations} High-severity`
-          : "No violations",
-      noteColor: employee.totalViolations > 0 ? "text-red-500" : "text-gray-500",
-      icon: employee.totalViolations > 0 ? (
-        <ArrowUpRight className="h-4 w-4 text-red-500" />
-      ) : null,
-    },
-  ];
+const LEAVE_COLORS: Record<string, { bg: string; bar: string; label: string }> = {
+  "Annual Leave":  { bg: "bg-orange-50",  bar: "bg-orange-400", label: "text-orange-600" },
+  "Medical Leave": { bg: "bg-blue-50",    bar: "bg-blue-400",   label: "text-blue-600"   },
+  "Casual Leave":  { bg: "bg-green-50",   bar: "bg-green-400",  label: "text-green-600"  },
+};
 
+const DEFAULT_COLOR = { bg: "bg-gray-50", bar: "bg-gray-400", label: "text-gray-600" };
+
+export default function EmployeeReportStats({ leaveBalance = [] }: Props) {
   return (
-    <div className="mt-4">
-      {/* Report Tabs */}
-      <div className="flex gap-6 border-b border-gray-200 pb-0">
-        <button
-          onClick={() => setPeriod("weekly")}
-          className={`pb-3 text-sm font-medium transition-colors ${
-            period === "weekly"
-              ? "border-b-2 border-[#F2924E] text-gray-900"
-              : "text-gray-600 hover:text-gray-900"
-          }`}
-        >
-          Weekly Report
-        </button>
-        <button
-          onClick={() => setPeriod("monthly")}
-          className={`pb-3 text-sm font-medium transition-colors ${
-            period === "monthly"
-              ? "border-b-2 border-[#F2924E] text-gray-900"
-              : "text-gray-600 hover:text-gray-900"
-          }`}
-        >
-          Monthly Report
-        </button>
-        <button
-          onClick={() => setPeriod("annually")}
-          className={`pb-3 text-sm font-medium transition-colors ${
-            period === "annually"
-              ? "border-b-2 border-[#F2924E] text-gray-900"
-              : "text-gray-600 hover:text-gray-900"
-          }`}
-        >
-          Annual Report
-        </button>
-      </div>
+    <div className="mt-6">
+      <h3 className="mb-4 text-xs font-semibold uppercase tracking-wide text-gray-500">
+        Leave Balance Summary
+      </h3>
 
-      {/* Stats Cards */}
-      <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-      {cards.map((card) => (
-        <div
-          key={card.label}
-          className="rounded-[20px] border border-gray-200 bg-white p-5 shadow-sm"
-        >
-          <div className="flex items-start justify-between gap-3">
-            <p className="text-sm font-semibold text-gray-600">
-              {card.label}
-            </p>
-            {card.icon ? (
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-red-50">
-                {card.icon}
-              </span>
-            ) : (
-              <span className="h-8 w-8" />
-            )}
-          </div>
-          <h3 className="mt-4 text-3xl font-bold text-gray-900">{card.value}</h3>
-          <p className={`mt-3 text-sm ${card.noteColor}`}>{card.note}</p>
+      {leaveBalance.length === 0 ? (
+        <p className="text-sm text-gray-400">No leave balance data available.</p>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          {leaveBalance.map((item) => {
+            const color = LEAVE_COLORS[item.leave_type] ?? DEFAULT_COLOR;
+            const usedPct =
+              item.allocated > 0
+                ? Math.min(100, Math.round((item.used / item.allocated) * 100))
+                : 0;
+
+            return (
+              <div
+                key={item.leave_type}
+                className={`rounded-2xl border border-gray-100 ${color.bg} p-5 shadow-sm`}
+              >
+                <p className={`text-xs font-semibold uppercase tracking-wide ${color.label}`}>
+                  {item.leave_type}
+                </p>
+
+                <div className="mt-3 flex items-end justify-between">
+                  <div>
+                    <p className="text-3xl font-bold text-gray-900">{item.remaining}</p>
+                    <p className="mt-0.5 text-xs text-gray-500">days remaining</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-medium text-gray-700">{item.used} used</p>
+                    <p className="text-xs text-gray-400">of {item.allocated} allocated</p>
+                  </div>
+                </div>
+
+                {/* Progress bar */}
+                <div className="mt-4 h-1.5 w-full rounded-full bg-white/70">
+                  <div
+                    className={`h-1.5 rounded-full ${color.bar} transition-all`}
+                    style={{ width: `${usedPct}%` }}
+                  />
+                </div>
+                <p className="mt-1 text-right text-xs text-gray-400">{usedPct}% used</p>
+              </div>
+            );
+          })}
         </div>
-      ))}
-      </div>
+      )}
     </div>
   );
 }
