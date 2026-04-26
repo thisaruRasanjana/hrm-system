@@ -117,7 +117,11 @@ def login_2fa(data: dict, response: Response, db: Session = Depends(get_db)):
 
 @router.post("/refresh")
 def refresh_token(request: Request, response: Response, db: Session = Depends(get_db)):
+    import logging
+    logger = logging.getLogger("uvicorn")
+    logger.info("REFRESH ENDPOINT HIT")
     refresh_token = request.cookies.get("refresh_token")
+    logger.info(f"REFRESH: raw_cookie={refresh_token[:20] if refresh_token else 'NONE'}...")
 
     if not refresh_token:
         raise HTTPException(status_code=401, detail="Refresh token missing")
@@ -127,6 +131,7 @@ def refresh_token(request: Request, response: Response, db: Session = Depends(ge
         user_id = payload.get("sub")
         
         user = db.query(User).filter(User.id == int(user_id)).first()
+        
         if not user or user.refresh_token != refresh_token:
             raise HTTPException(status_code=401, detail="Invalid refresh token")
             
@@ -142,7 +147,8 @@ def refresh_token(request: Request, response: Response, db: Session = Depends(ge
             samesite="lax", max_age=60 * 60 * 24 * REFRESH_TOKEN_EXPIRE_DAYS, path="/"
         )
         return {"access_token": new_access, "token_type": "bearer"}
-    except JWTError:
+    except JWTError as e:
+        logger.error(f"REFRESH: JWT Decode Error: {str(e)}")
         raise HTTPException(status_code=401, detail="Invalid refresh token")
 
 

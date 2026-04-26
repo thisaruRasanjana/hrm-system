@@ -4,7 +4,7 @@
  * TOKEN STORAGE: sessionStorage (NOT localStorage)
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+const API_BASE_URL = "/api";
 if (!API_BASE_URL) {
   throw new Error("NEXT_PUBLIC_API_BASE_URL is not set in .env.local");
 }
@@ -50,7 +50,7 @@ function isTokenExpiringSoon(token: string): boolean {
   }
 }
 
-async function refreshAccessToken(): Promise<string> {
+export async function refreshAccessToken(): Promise<string> {
   const res = await fetch(`${API_BASE_URL}/auth/refresh`, {
     method: "POST",
     credentials: "include",
@@ -61,6 +61,32 @@ async function refreshAccessToken(): Promise<string> {
   return data.access_token;
 }
 
+/**
+ * handleRefreshFlow ensures only one refresh request happens at a time.
+ * All concurrent calls will wait for the same promise.
+ */
+async function handleRefreshFlow(): Promise<string> {
+  if (isRefreshing) {
+    return new Promise((resolve) => subscribeTokenRefresh(resolve));
+  }
+
+  isRefreshing = true;
+  try {
+    const newToken = await refreshAccessToken();
+    isRefreshing = false;
+    onRefreshed(newToken);
+    return newToken;
+  } catch (err) {
+    isRefreshing = false;
+    removeToken();
+    if (typeof window !== "undefined" && window.location.pathname !== "/login") {
+      window.location.href = "/login";
+    }
+    throw err;
+  }
+}
+
+
 // ── Core fetch with auto-refresh + FastAPI error parsing ────────────
 
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
@@ -68,12 +94,10 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   let token = getToken();
 
   // Proactive refresh
-  if (token && isTokenExpiringSoon(token) && !isRefreshing) {
+  if (token && isTokenExpiringSoon(token)) {
     try {
-      token = await refreshAccessToken();
+      token = await handleRefreshFlow();
     } catch {
-      removeToken();
-      window.location.href = "/login";
       throw new Error("Session expired");
     }
   }
@@ -95,30 +119,15 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
   // 401 → silent token refresh then retry
   if (response.status === 401) {
-    if (!isRefreshing) {
-      isRefreshing = true;
-      try {
-        const newToken = await refreshAccessToken();
-        isRefreshing = false;
-        onRefreshed(newToken);
-      } catch (err) {
-        isRefreshing = false;
-        removeToken();
-        window.location.href = "/login";
-        throw err;
-      }
-    }
-
-    return new Promise((resolve) => {
-      subscribeTokenRefresh((newToken: string) => {
-        resolve(
-          request<T>(endpoint, {
-            ...options,
-            headers: { ...headers, Authorization: `Bearer ${newToken}` },
-          })
-        );
+    try {
+      const newToken = await handleRefreshFlow();
+      return request<T>(endpoint, {
+        ...options,
+        headers: { ...headers, Authorization: `Bearer ${newToken}` },
       });
-    });
+    } catch (err) {
+      throw err;
+    }
   }
 
   if (!response.ok) {
@@ -163,20 +172,32 @@ export async function apiFetch(url: string, options: RequestInit = {}): Promise<
   let token = getToken();
 
   // Proactive refresh
-  if (token && isTokenExpiringSoon(token) && !isRefreshing) {
+  if (token && isTokenExpiringSoon(token)) {
     try {
-      token = await refreshAccessToken();
+      token = await handleRefreshFlow();
     } catch {
-      removeToken();
-      window.location.href = "/login";
       throw new Error("Session expired");
     }
   }
 
-  const headers = {
+  let headers: Record<string, string> = {
     "Content-Type": "application/json",
-    ...(options.headers || {}),
+    ...(options.headers as Record<string, string> || {}),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
-  return fetch(`${API_BASE_URL}${url}`, { ...options, headers, credentials: "include" });
+
+  let response = await fetch(`${API_BASE_URL}${url}`, { ...options, headers, credentials: "include" });
+
+  // 401 Interceptor and Retry
+  if (response.status === 401) {
+    try {
+      const newToken = await handleRefreshFlow();
+      const newHeaders = { ...headers, Authorization: `Bearer ${newToken}` };
+      return fetch(`${API_BASE_URL}${url}`, { ...options, headers: newHeaders, credentials: "include" });
+    } catch (err) {
+      throw err;
+    }
+  }
+
+  return response;
 }
