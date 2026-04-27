@@ -33,9 +33,8 @@ export default function DocumentTabsHR() {
           <Link
             key={tab.path}
             href={tab.path}
-            className={`relative px-6 py-2 rounded-full text-sm font-medium transition-colors duration-300 z-10 ${
-              active ? "text-white" : "text-gray-600 hover:text-gray-800"
-            }`}
+            className={`relative px-6 py-2 rounded-full text-sm font-medium transition-colors duration-300 z-10 ${active ? "text-white" : "text-gray-600 hover:text-gray-800"
+              }`}
           >
             {active && (
               <motion.div
