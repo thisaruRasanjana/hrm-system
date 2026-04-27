@@ -59,7 +59,7 @@ export default function HRRequestManagementPage() {
   const handleMarkInProgress = async (id: string) => {
     try {
       await fetch(`http://localhost:8000/hr-document-requests/${id}/status`, {
-        method: "PUT",
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "IN_PROGRESS" })
       });
@@ -94,9 +94,9 @@ export default function HRRequestManagementPage() {
 
   const displayedRequests = (
     activeTab === "ALL" ? requests :
-    activeTab === "NEW" ? newRequests :
-      activeTab === "IN_PROGRESS" ? inProgressRequests :
-        completedRequests
+      activeTab === "NEW" ? newRequests :
+        activeTab === "IN_PROGRESS" ? inProgressRequests :
+          completedRequests
   ).filter(r =>
     (r.employee_id && r.employee_id.toString().includes(searchQuery)) ||
     (r.document_type && r.document_type.toLowerCase().includes(searchQuery.toLowerCase()))
