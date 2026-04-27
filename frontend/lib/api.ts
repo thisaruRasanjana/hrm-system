@@ -119,14 +119,20 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
   // 401 → silent token refresh then retry
   if (response.status === 401) {
-    try {
-      const newToken = await handleRefreshFlow();
-      return request<T>(endpoint, {
-        ...options,
-        headers: { ...headers, Authorization: `Bearer ${newToken}` },
-      });
-    } catch (err) {
-      throw err;
+    // Don't attempt refresh on login endpoint — 401 means wrong credentials
+    if (url.includes('/auth/login')) {
+      // Return response so the downstream error handler can parse the detail
+      // We don't return early here because `request` needs to throw the parsed error
+    } else {
+      try {
+        const newToken = await handleRefreshFlow();
+        return request<T>(endpoint, {
+          ...options,
+          headers: { ...headers, Authorization: `Bearer ${newToken}` },
+        });
+      } catch (err) {
+        throw err;
+      }
     }
   }
 
@@ -156,7 +162,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   }
 
   const text = await response.text();
-  return text ? JSON.parse(text) : { success: true };
+  return (text ? JSON.parse(text) : { success: true }) as T;
 }
 
 export const api = {
@@ -190,6 +196,10 @@ export async function apiFetch(url: string, options: RequestInit = {}): Promise<
 
   // 401 Interceptor and Retry
   if (response.status === 401) {
+    // Don't attempt refresh on login endpoint — 401 means wrong credentials
+    if (url.includes('/auth/login')) {
+      return response;
+    }
     try {
       const newToken = await handleRefreshFlow();
       const newHeaders = { ...headers, Authorization: `Bearer ${newToken}` };

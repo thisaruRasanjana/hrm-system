@@ -6,6 +6,9 @@ import { formatDistanceToNow } from "date-fns";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/context/auth-context";
 
+/** Maximum number of characters shown in the message list preview snippet. */
+const MESSAGE_PREVIEW_LENGTH = 60;
+
 export interface Message {
   id: number;
   sender_id: number;
@@ -51,6 +54,7 @@ export default function MessagesPanel({ isOpen, onClose }: MessagesPanelProps) {
   const [activeTab, setActiveTab] = useState<TabType>("inbox");
   const [departments, setDepartments] = useState<string[]>([]);
 
+  /** Fetches messages for the active tab (inbox / sent / trash) from the backend. */
   const fetchMessages = async () => {
     try {
       const res = await apiFetch(`/messages/${activeTab}`);
@@ -58,6 +62,10 @@ export default function MessagesPanel({ isOpen, onClose }: MessagesPanelProps) {
     } catch (err) { console.error("Failed to fetch messages:", err); }
   };
 
+  /**
+   * Fetches the list of roles/departments from the backend to populate
+   * the "To (Target Group)" dropdown in the compose view.
+   */
   const fetchDepartments = async () => {
     try {
       const res = await apiFetch("/roles/");
@@ -78,6 +86,11 @@ export default function MessagesPanel({ isOpen, onClose }: MessagesPanelProps) {
   }, [isOpen, activeTab, canSend]);
 
   // ── Send ─────────────────────────────────────────────────────────────────────
+  /**
+   * Submits a new message to the backend.
+   * Resets the compose form fields on success and transitions to the
+   * sent_success confirmation view, then refreshes the sent tab in the background.
+   */
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!subject.trim() || !content.trim()) return;
@@ -100,6 +113,10 @@ export default function MessagesPanel({ isOpen, onClose }: MessagesPanelProps) {
     finally { setIsSending(false); }
   };
 
+  /**
+   * Soft-deletes a message (moves it to trash) via a PUT request.
+   * If the message is currently open in the read view, returns to the list view.
+   */
   const handleSoftDelete = async (id: number) => {
     try {
       await apiFetch(`/messages/${id}/delete`, { method: "PUT" });
@@ -109,6 +126,7 @@ export default function MessagesPanel({ isOpen, onClose }: MessagesPanelProps) {
     } catch (err) { console.error(err); }
   };
 
+  /** Restores a soft-deleted message from the trash back to its original folder. */
   const handleRestore = async (id: number) => {
     try {
       await apiFetch(`/messages/${id}/restore`, { method: "PUT" });
@@ -117,6 +135,7 @@ export default function MessagesPanel({ isOpen, onClose }: MessagesPanelProps) {
     } catch (err) { console.error(err); }
   };
 
+  /** Permanently deletes a message that is already in the trash. */
   const handlePermanentDelete = async (id: number) => {
     try {
       await apiFetch(`/messages/${id}/permanent`, { method: "DELETE" });
@@ -125,6 +144,11 @@ export default function MessagesPanel({ isOpen, onClose }: MessagesPanelProps) {
     } catch (err) { console.error(err); }
   };
 
+  /**
+   * Opens a message in the read view.
+   * If the message is unread and in the inbox, marks it as read on the backend
+   * and optimistically updates local state to avoid a full list refetch.
+   */
   const handleMarkRead = async (msg: Message) => {
     if (msg.is_read || activeTab !== "inbox") {
       setSelectedMessage(msg);
@@ -139,10 +163,11 @@ export default function MessagesPanel({ isOpen, onClose }: MessagesPanelProps) {
     } catch (err) { console.error(err); }
   };
 
+  /** Toggles the checkbox selection state of a single message row. */
   const toggleSelection = (id: number) => {
-    const s = new Set(selectedIds);
-    s.has(id) ? s.delete(id) : s.add(id);
-    setSelectedIds(s);
+    const updatedSelection = new Set(selectedIds);
+    updatedSelection.has(id) ? updatedSelection.delete(id) : updatedSelection.add(id);
+    setSelectedIds(updatedSelection);
   };
 
   const visibleMessages = messages.filter((msg) => {
@@ -155,6 +180,10 @@ export default function MessagesPanel({ isOpen, onClose }: MessagesPanelProps) {
     );
   });
 
+  /**
+   * Selects all visible (filtered) messages if none or some are selected;
+   * deselects all if every visible message is already selected.
+   */
   const toggleSelectAll = () => {
     if (selectedIds.size === visibleMessages.length && visibleMessages.length > 0) {
       setSelectedIds(new Set());
@@ -163,10 +192,16 @@ export default function MessagesPanel({ isOpen, onClose }: MessagesPanelProps) {
     }
   };
 
+  /** Extracts up to 2 uppercase initials from a full name string. Returns "??" if empty. */
   const initials = (name: string) =>
     name.split(" ").map((n) => n[0]).join("").substring(0, 2).toUpperCase() || "??";
 
   // Label for sent tab: show recipient group instead of "Me"
+  /**
+   * Returns the display label for the sender/recipient column.
+   * In the sent tab, maps the target_group key to a human-readable group name.
+   * In all other tabs, returns the sender's full name.
+   */
   const recipientLabel = (msg: Message) => {
     if (activeTab !== "sent") return msg.sender_name;
     const map: Record<string, string> = {
@@ -178,6 +213,11 @@ export default function MessagesPanel({ isOpen, onClose }: MessagesPanelProps) {
     return `→ ${map[msg.target_group] || msg.target_group}`;
   };
 
+  /**
+   * Returns the 2–3 character initials for the avatar in the message list.
+   * Uses group abbreviations (ALL, HR) in the sent tab;
+   * falls back to sender name initials in other tabs.
+   */
   const recipientInitials = (msg: Message) => {
     if (activeTab !== "sent") return initials(msg.sender_name);
     const tg = msg.target_group;
@@ -363,7 +403,7 @@ export default function MessagesPanel({ isOpen, onClose }: MessagesPanelProps) {
                       <p className={`text-sm truncate ${isUnread ? "font-semibold text-gray-700" : "text-gray-500"}`}>
                         {msg.subject}
                       </p>
-                      <p className="text-xs text-gray-400 truncate mt-0.5">{msg.content.substring(0, 60)}...</p>
+                      <p className="text-xs text-gray-400 truncate mt-0.5">{msg.content.substring(0, MESSAGE_PREVIEW_LENGTH)}...</p>
                     </div>
 
                     {/* Unread dot */}
@@ -468,6 +508,10 @@ export default function MessagesPanel({ isOpen, onClose }: MessagesPanelProps) {
   );
 }
 
+/**
+ * Reusable tab button used inside the MessagesPanel header.
+ * Highlights the active tab with a bottom border and full-white text.
+ */
 function TabButton({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
   return (
     <button onClick={onClick} className={`pb-2 text-sm font-semibold transition border-b-2 ${active ? "border-white text-white" : "border-transparent text-white/70 hover:text-white"}`}>

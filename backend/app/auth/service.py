@@ -12,6 +12,10 @@ from app.core.jwt import create_access_token, create_refresh_token
 # ── User lookup helpers ───────────────────────────────────────────────────────
 
 def get_user_by_username(db: Session, username: str) -> Optional[User]:
+    """
+    Look up an active (non-deleted) user by exact username.
+    Returns None if the user does not exist or has been soft-deleted.
+    """
     return db.query(User).filter(
         User.username == username,
         (User.is_deleted == False) | (User.is_deleted == None)
@@ -19,6 +23,10 @@ def get_user_by_username(db: Session, username: str) -> Optional[User]:
 
 
 def get_user_by_email(db: Session, email: str) -> Optional[User]:
+    """
+    Look up an active (non-deleted) user by email address (case-insensitive).
+    Returns None if the user does not exist or has been soft-deleted.
+    """
     return db.query(User).filter(
         User.email.ilike(email),
         (User.is_deleted == False) | (User.is_deleted == None)
@@ -26,6 +34,10 @@ def get_user_by_email(db: Session, email: str) -> Optional[User]:
 
 
 def get_user_by_id(db: Session, user_id: int) -> Optional[User]:
+    """
+    Look up an active (non-deleted) user by primary key.
+    Returns None if the user does not exist or has been soft-deleted.
+    """
     return db.query(User).filter(
         User.id == user_id,
         (User.is_deleted == False) | (User.is_deleted == None)
