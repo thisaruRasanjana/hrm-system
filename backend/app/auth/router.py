@@ -58,10 +58,7 @@ def login(data: LoginRequest, request: Request, response: Response, db: Session 
             detail="Invalid credentials"
         )
 
-    user = (
-        db.query(User).filter(User.email.ilike(identifier)).first()
-        or db.query(User).filter(User.username == identifier).first()
-    )
+    user = token["user"]
 
     if user and user.two_factor_enabled:
         temp_token = create_access_token({"sub": str(user.id), "type": "2fa"})

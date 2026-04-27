@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
-import { apiFetch, getToken, removeToken, setToken, refreshAccessToken } from "@/lib/api";
+import { apiFetch, getToken, removeToken, setToken, handleRefreshFlow } from "@/lib/api";
 
 // ── Module-level constants ──────────────────────────────────────────────────────
 /** How often the background token refresh fires (minutes). */
@@ -94,12 +94,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (token) {
         try {
           lastRefreshTimeRef.current = now;
-          await refreshAccessToken();
+          await handleRefreshFlow();
         } catch (e) {
           console.error("Background token refresh failed:", e);
-          removeToken();
-          setUser(null);
-          window.location.href = "/login";
         }
       }
     }, TOKEN_REFRESH_INTERVAL_MINUTES * 60 * 1000);

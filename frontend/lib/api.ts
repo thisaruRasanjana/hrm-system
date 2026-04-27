@@ -55,7 +55,12 @@ export async function refreshAccessToken(): Promise<string> {
     method: "POST",
     credentials: "include",
   });
-  if (!res.ok) throw new Error("Refresh failed");
+  if (!res.ok) {
+    if (res.status === 401 || res.status === 403) {
+      throw new Error("Unauthorized");
+    }
+    throw new Error("Refresh failed");
+  }
   const data = await res.json();
   setToken(data.access_token);
   return data.access_token;
@@ -65,7 +70,7 @@ export async function refreshAccessToken(): Promise<string> {
  * handleRefreshFlow ensures only one refresh request happens at a time.
  * All concurrent calls will wait for the same promise.
  */
-async function handleRefreshFlow(): Promise<string> {
+export async function handleRefreshFlow(): Promise<string> {
   if (isRefreshing) {
     return new Promise((resolve) => subscribeTokenRefresh(resolve));
   }
@@ -76,11 +81,13 @@ async function handleRefreshFlow(): Promise<string> {
     isRefreshing = false;
     onRefreshed(newToken);
     return newToken;
-  } catch (err) {
+  } catch (err: any) {
     isRefreshing = false;
-    removeToken();
-    if (typeof window !== "undefined" && window.location.pathname !== "/login") {
-      window.location.href = "/login";
+    if (err.message === "Unauthorized") {
+      removeToken();
+      if (typeof window !== "undefined" && window.location.pathname !== "/login") {
+        window.location.href = "/login";
+      }
     }
     throw err;
   }
