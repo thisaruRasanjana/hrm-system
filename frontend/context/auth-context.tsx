@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, useCallback } from "react";
+import { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
 import { apiFetch, getToken, removeToken, setToken, refreshAccessToken } from "@/lib/api";
 
 export interface User {
@@ -57,14 +57,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const lastRefreshTimeRef = useRef<number>(Date.now());
+
   useEffect(() => { 
     fetchUser(); 
+  }, [fetchUser]);
 
+  useEffect(() => {
     // Silent background refresh every 13 minutes (780,000 ms)
     const interval = setInterval(async () => {
+      const now = Date.now();
+      
+      // Guard: Do not allow another refresh if one happened in the last 10 minutes
+      if (now - lastRefreshTimeRef.current < 10 * 60 * 1000) {
+        return;
+      }
+
       const token = getToken();
       if (token) {
         try {
+          lastRefreshTimeRef.current = now;
           await refreshAccessToken();
         } catch (e) {
           console.error("Background token refresh failed:", e);
@@ -76,7 +88,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }, 13 * 60 * 1000);
 
     return () => clearInterval(interval);
-  }, [fetchUser]);
+  }, []);
 
   const login = async (token: string) => {
     setLoading(true);
