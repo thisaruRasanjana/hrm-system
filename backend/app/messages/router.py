@@ -19,6 +19,12 @@ def send_message(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    """
+    Send a new message to a target group (All, All Employees, HR, or a department).
+    Requires the 'messaging.send' permission.
+    Creates a Message record and one MessageRecipient row per recipient,
+    skipping the sender themselves.
+    """
     # Dynamic Permission Check
     permissions = get_user_permissions(current_user, db)
     if "messaging.send" not in permissions:
@@ -85,6 +91,11 @@ def get_inbox(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    """
+    Return all non-deleted inbox messages for the current user,
+    ordered newest first. Joins Message, MessageRecipient, and sender User
+    to build the full response shape.
+    """
     results = (
         db.query(models.Message, models.MessageRecipient, User)
         .join(models.MessageRecipient, models.Message.id == models.MessageRecipient.message_id)
@@ -121,6 +132,11 @@ def get_sent(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    """
+    Return all non-deleted sent messages for the current user.
+    Only accessible to users with the 'messaging.send' permission,
+    since only those users can originate messages.
+    """
     # Only users with messaging.send permission have a sent box
     permissions = get_user_permissions(current_user, db)
     if "messaging.send" not in permissions:
@@ -163,6 +179,10 @@ def get_trash(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    """
+    Return all soft-deleted (but not permanently deleted) messages for the current user.
+    Combines inbox trash and sent trash into a single list sorted by date descending.
+    """
     # Inbox trash
     inbox_trash = (
         db.query(models.Message, models.MessageRecipient, User)
@@ -226,6 +246,12 @@ def delete_message(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    """
+    Soft-delete a message by moving it to trash.
+    Handles both inbox messages (sets MessageRecipient.is_deleted)
+    and sent messages (sets Message.sender_deleted).
+    Returns 404 if the message is not found for the current user.
+    """
     # Check if in inbox
     recipient_rec = db.query(models.MessageRecipient).filter(
         models.MessageRecipient.message_id == message_id,
@@ -259,6 +285,10 @@ def restore_message(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    """
+    Restore a soft-deleted message from trash back to its original folder.
+    Clears is_deleted / sender_deleted flags accordingly.
+    """
     recipient_rec = db.query(models.MessageRecipient).filter(
         models.MessageRecipient.message_id == message_id,
         models.MessageRecipient.recipient_id == current_user.id
@@ -287,6 +317,12 @@ def permanent_delete(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    """
+    Permanently delete a message that is already in the trash.
+    Sets is_permanent_deleted / sender_permanent_deleted so it no longer
+    appears in trash queries. The message row itself is kept for audit purposes.
+    Returns 404 if the message is not found in the user's trash.
+    """
     # Inbox permanent delete
     recipient_rec = db.query(models.MessageRecipient).filter(
         models.MessageRecipient.message_id == message_id,
@@ -321,6 +357,11 @@ def mark_read(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    """
+    Mark an inbox message as read for the current user.
+    Updates the MessageRecipient.is_read flag.
+    Returns 404 if the message is not found in the user's inbox.
+    """
     recipient_rec = db.query(models.MessageRecipient).filter(
         models.MessageRecipient.message_id == message_id,
         models.MessageRecipient.recipient_id == current_user.id

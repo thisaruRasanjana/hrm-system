@@ -27,10 +27,21 @@ security = HTTPBearer()
 # ── Environment Configuration ────────────────────────────────────────────────
 OTP_EXPIRE_SECONDS = int(os.getenv("OTP_EXPIRE_SECONDS", "300"))
 
+# ── Module-level constants ─────────────────────────────────────────────────────
+MIN_PASSWORD_LENGTH = 8     # Minimum number of characters for a valid password
+OTP_MIN_VALUE = 100_000     # Smallest 6-digit OTP value
+OTP_MAX_VALUE = 999_999     # Largest 6-digit OTP value
+
 # ---------------- LOGIN ----------------
 
 @router.post("/login")
 def login(data: LoginRequest, request: Request, response: Response, db: Session = Depends(get_db)):
+    """
+    Authenticate a user with email/username and password.
+    If 2FA is enabled, returns a short-lived temp_token instead of a full session.
+    On success, sets the refresh token as an HttpOnly cookie and returns the access token.
+    Failed attempts are recorded in the audit log.
+    """
     client_ip = request.client.host if request.client else "Unknown"
 
     identifier = data.email or data.username
@@ -82,6 +93,11 @@ def login(data: LoginRequest, request: Request, response: Response, db: Session 
 
 @router.post("/login/2fa")
 def login_2fa(data: dict, response: Response, db: Session = Depends(get_db)):
+    """
+    Complete the second step of two-factor authentication.
+    Validates the TOTP code against the user's stored secret.
+    On success, issues full access and refresh tokens, setting the cookie.
+    """
     temp_token = data.get("temp_token")
     code = data.get("code")
 
@@ -117,6 +133,11 @@ def login_2fa(data: dict, response: Response, db: Session = Depends(get_db)):
 
 @router.post("/refresh")
 def refresh_token(request: Request, response: Response, db: Session = Depends(get_db)):
+    """
+    Issue a new access token using the HttpOnly refresh token cookie.
+    Rotates the refresh token on every call (one-time-use) and persists
+    the new value to the database to prevent token reuse.
+    """
     refresh_token = request.cookies.get("refresh_token")
 
     if not refresh_token:
@@ -151,6 +172,10 @@ def refresh_token(request: Request, response: Response, db: Session = Depends(ge
 
 @router.post("/logout")
 def logout(request: Request, response: Response, db: Session = Depends(get_db)):
+    """
+    Log the user out by invalidating their refresh token in the database
+    and clearing the HttpOnly cookie. Records a LOGOUT audit event.
+    """
     refresh_token = request.cookies.get("refresh_token")
     client_ip = request.client.host if request.client else "Unknown"
     
@@ -175,6 +200,11 @@ def logout(request: Request, response: Response, db: Session = Depends(get_db)):
 
 @router.post("/send-otp")
 def send_otp(data: dict, db: Session = Depends(get_db)):
+    """
+    Generate a 6-digit OTP for the given email and send it via email.
+    Any existing OTP records for that email are deleted first to prevent reuse.
+    The OTP expires after OTP_EXPIRE_SECONDS (default 300 s / 5 min).
+    """
     email = data.get("email")
     if not email:
         raise HTTPException(status_code=400, detail="Email required")
@@ -185,7 +215,7 @@ def send_otp(data: dict, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="User not found")
 
     # Generate OTP
-    otp = str(random.randint(100000, 999999))
+    otp = str(random.randint(OTP_MIN_VALUE, OTP_MAX_VALUE))
     expires_at = datetime.utcnow() + timedelta(seconds=OTP_EXPIRE_SECONDS)
 
     # Save to DB (cleanup old ones for this email first)
@@ -202,6 +232,11 @@ def send_otp(data: dict, db: Session = Depends(get_db)):
 
 @router.post("/verify-otp")
 def verify_otp(data: dict, db: Session = Depends(get_db)):
+    """
+    Verify the OTP submitted by the user against the stored record.
+    Marks the record as verified so the reset-password endpoint can proceed.
+    Returns 400 if the OTP is incorrect or has expired.
+    """
     email = data.get("email")
     otp = data.get("otp")
     if not email or not otp:
@@ -227,6 +262,11 @@ def verify_otp(data: dict, db: Session = Depends(get_db)):
 
 @router.post("/reset-password")
 def reset_password(data: dict, db: Session = Depends(get_db)):
+    """
+    Reset the user's password after a successful OTP verification.
+    Requires a verified (and non-expired) OTP record for the email.
+    The OTP record is deleted after a successful password update.
+    """
     email = data.get("email")
     new_password = data.get("password")
     if not email or not new_password:
@@ -260,6 +300,11 @@ def get_me(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    """
+    Return the authenticated user's full profile including resolved permissions.
+    Sensitive fields (password_hash, refresh_token, totp_secret) are excluded.
+    If the user has an associated employee record, those fields are merged in.
+    """
     permissions = get_user_permissions(current_user, db)
 
     user_dict = {
@@ -298,6 +343,11 @@ def update_profile(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    """
+    Update the current user's own profile fields (name, phone, address, etc.).
+    Empty-string date fields are coerced to None to avoid DB type errors.
+    Changes are also synced to the linked Employee record if one exists.
+    """
     user = current_user
     update_data = data.model_dump(exclude_unset=True)
     
@@ -338,6 +388,11 @@ def upload_profile_image(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    """
+    Upload a new profile image for the current user.
+    Saves the file to uploads/profiles/<user_id>.<ext> and stores
+    the public URL on the user record.
+    """
     import shutil
     from pathlib import Path
 
@@ -362,10 +417,15 @@ def change_password(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    """
+    Change the authenticated user's password.
+    Verifies the current password before accepting the new one.
+    Enforces a minimum length of 8 characters.
+    """
     if not verify_password(data.current_password, current_user.password_hash):
         raise HTTPException(status_code=400, detail="Incorrect current password")
-    if len(data.new_password) < 8:
-        raise HTTPException(status_code=400, detail="New password must be at least 8 characters")
+    if len(data.new_password) < MIN_PASSWORD_LENGTH:
+        raise HTTPException(status_code=400, detail=f"New password must be at least {MIN_PASSWORD_LENGTH} characters")
 
     current_user.password_hash = hash_password(data.new_password)
     db.commit()
@@ -377,6 +437,11 @@ def setup_two_factor(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    """
+    Generate (or retrieve existing) TOTP secret for 2FA enrollment.
+    Returns the secret key and a base64-encoded QR code PNG for the
+    authenticator app to scan.
+    """
     import pyotp
     import urllib.parse
 
@@ -404,6 +469,10 @@ def verify_and_enable_two_factor(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    """
+    Confirm that the user's authenticator app is correctly configured
+    by verifying a live TOTP code, then enable 2FA on the account.
+    """
     code = data.get("code")
     import pyotp
     if not current_user.totp_secret or not pyotp.TOTP(current_user.totp_secret).verify(code):
@@ -420,6 +489,10 @@ def disable_two_factor(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    """
+    Disable two-factor authentication for the current user.
+    Clears the stored TOTP secret so 2FA cannot be used until re-enrolled.
+    """
     current_user.two_factor_enabled = False
     current_user.totp_secret = None
     db.commit()
@@ -433,6 +506,10 @@ def update_notifications(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    """
+    Update the current user's notification preferences and quiet-hour window.
+    Stored directly on the user record for use by the notification system.
+    """
     current_user.notification_preferences = data.notification_preferences
     current_user.quiet_hours_start = data.quiet_hours_start
     current_user.quiet_hours_end = data.quiet_hours_end

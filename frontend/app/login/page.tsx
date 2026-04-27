@@ -9,6 +9,9 @@ import { Eye, EyeOff } from "lucide-react";
 
 const DASHBOARD_URL = process.env.NEXT_PUBLIC_DASHBOARD_URL ?? "/dashboard";
 
+/** Number of digits in a TOTP / OTP verification code. */
+const OTP_CODE_LENGTH = 6;
+
 export default function LoginPage() {
   const router = useRouter();
   const { login } = useAuth();
@@ -23,6 +26,11 @@ export default function LoginPage() {
   const [otpCode, setOtpCode] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
 
+  /**
+   * Fetches the current user's profile after a successful login
+   * and redirects them to the dashboard URL appropriate for their role.
+   * Falls back to DASHBOARD_URL if the /auth/me call fails.
+   */
   const performRedirect = async () => {
     try {
       const res = await apiFetch("/auth/me");
@@ -43,6 +51,12 @@ export default function LoginPage() {
     }
   };
 
+  /**
+   * Handles the standard login form submission.
+   * Sends email/password to the backend; if 2FA is required the form
+   * switches to the OTP entry view instead of completing the session.
+   * On success, stores the access token and redirects the user.
+   */
   const handleLogin = async (e: any) => {
     e.preventDefault();
     setLoading(true);
@@ -79,6 +93,11 @@ export default function LoginPage() {
     setLoading(false);
   };
 
+  /**
+   * Handles the two-factor authentication form submission.
+   * Sends the temp_token (from the initial login response) along with
+   * the user's TOTP code to complete authentication and start a session.
+   */
   const handle2FASubmit = async (e: any) => {
     e.preventDefault();
     setLoading(true);
@@ -212,7 +231,7 @@ export default function LoginPage() {
             value={otpCode}
             onChange={(e)=>setOtpCode(e.target.value)}
             required
-            maxLength={6}
+            maxLength={OTP_CODE_LENGTH}
           />
 
           <button
