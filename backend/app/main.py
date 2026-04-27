@@ -62,6 +62,7 @@ app = FastAPI(
     version="2.0.0",
     description="Role-based HRM System — permissions managed via /roles/",
     lifespan=lifespan,
+    redirect_slashes=False,
 )
 
 # ── CORS ───────────────────────────────────────────────────────────────────────
