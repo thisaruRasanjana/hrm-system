@@ -133,7 +133,10 @@ def seed_roles(db: Session) -> None:
         if r.role_name not in system_role_names:
             # We don't necessarily want to delete them if users are assigned, 
             # but we'll clear their permissions to indicate they are legacy
-            r.description = f"LEGACY: {r.description}"
+            desc = r.description or ""
+            while desc.startswith("LEGACY: "):
+                desc = desc[8:]
+            r.description = f"LEGACY: {desc}"[:255]
             r.permissions = []
 
     db.flush()
