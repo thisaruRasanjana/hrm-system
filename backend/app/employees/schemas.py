@@ -16,7 +16,7 @@ class EmployeeBase(BaseModel):
     email: str
     phone: Optional[str] = None
     address: Optional[str] = None
-    department_id: Optional[int] = None   # Optional in base for out/legacy
+    department_id: Optional[int] = None
     designation: Optional[str] = None
     joined_date: Optional[date] = None
     status: EmployeeStatus = EmployeeStatus.active
@@ -35,8 +35,8 @@ class EmployeeBase(BaseModel):
 
 
 class EmployeeCreate(EmployeeBase):
-    department_id: int  # Required for creation
-    role_id: int  # Required for unified creation
+    department_id: int
+    role_id: int
 
 
 class EmployeeUpdate(BaseModel):
@@ -90,11 +90,21 @@ class EmployeeOut(EmployeeBase):
         """Resolve role from the linked user's roles relationship."""
         if hasattr(data, "user") and data.user:
             user = data.user
-            # Prefer many-to-many roles list
             if hasattr(user, "roles") and user.roles:
                 top_role = user.roles[0]
                 data.__dict__["role"] = {"id": top_role.id, "role_name": top_role.role_name}
             elif hasattr(user, "role_id") and user.role_id:
-                # Fallback: construct partial RoleInfo from flat fields
                 data.__dict__["role"] = {"id": user.role_id, "role_name": user.role or "Unknown"}
         return data
+
+
+# ── Recruitment-compatible minimal schemas (used by recruitment module) ─────────
+
+class EmployeePanelOption(BaseModel):
+    """Minimal employee view for interview panel dropdowns."""
+    id: int
+    first_name: str
+    last_name: str
+    designation: Optional[str] = None
+
+    model_config = {"from_attributes": True}

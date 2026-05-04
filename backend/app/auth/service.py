@@ -51,11 +51,19 @@ def authenticate_user(db: Session, identifier: str, password: str) -> Optional[d
     Authenticate via email OR username (case-insensitive).
     Returns a token dict on success, None on failure.
     """
+    from sqlalchemy.orm import joinedload
+
     identifier = identifier.strip()
-    user = db.query(User).filter(
-        ((User.email.ilike(identifier)) | (User.username.ilike(identifier))),
-        ((User.is_deleted == False) | (User.is_deleted == None))
-    ).first()
+    from app.roles.models import Role
+    user = (
+        db.query(User)
+        .options(joinedload(User.roles).joinedload(Role.permissions))
+        .filter(
+            ((User.email.ilike(identifier)) | (User.username.ilike(identifier))),
+            ((User.is_deleted == False) | (User.is_deleted == None))
+        )
+        .first()
+    )
 
     if not user:
         return None
@@ -82,18 +90,42 @@ def authenticate_user(db: Session, identifier: str, password: str) -> Optional[d
 
 def get_user_permissions(db: Session, user_id: int) -> List[str]:
     """Return a flat list of permission_name strings for a user (across all roles)."""
-    user = get_user_by_id(db, user_id)
+    from sqlalchemy.orm import joinedload
+    from app.roles.models import Role
+
+    user = (
+        db.query(User)
+        .options(joinedload(User.roles).joinedload(Role.permissions))
+        .filter(
+            User.id == user_id,
+            (User.is_deleted == False) | (User.is_deleted == None)
+        )
+        .first()
+    )
     if not user:
         return []
-        
+
     # Super Admin Bypass
     if getattr(user, "is_superadmin", False):
         from app.roles.models import Permission
         all_perms = db.query(Permission).all()
         return [p.permission_name for p in all_perms]
-        
+
     perms: set[str] = set()
     for role in user.roles:
         for perm in role.permissions:
             perms.add(perm.permission_name)
+
+    # Fallback — scalar role_id column
+    if not perms and user.role_id:
+        role = (
+            db.query(Role)
+            .options(joinedload(Role.permissions))
+            .filter(Role.id == user.role_id)
+            .first()
+        )
+        if role:
+            for perm in role.permissions:
+                perms.add(perm.permission_name)
+
     return list(perms)

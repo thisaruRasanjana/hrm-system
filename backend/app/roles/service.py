@@ -87,8 +87,16 @@ def update_role(db: Session, role_id: int, payload: RoleUpdate) -> Role:
 
 def assign_roles_to_user(db: Session, payload: AssignRoleRequest) -> dict:
     from app.auth.models import User  # local import — avoids circular dependency
+    from sqlalchemy.orm import joinedload
 
-    user = db.query(User).filter(User.id == payload.user_id).first()
+    from app.roles.models import Role
+    # Eager-load the user's existing roles so SQLAlchemy can diff the join table correctly
+    user = (
+        db.query(User)
+        .options(joinedload(User.roles).joinedload(Role.permissions))
+        .filter(User.id == payload.user_id)
+        .first()
+    )
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -105,10 +113,17 @@ def assign_roles_to_user(db: Session, payload: AssignRoleRequest) -> dict:
     else:
         user.role_id = None
         user.role = None
-    
+
     db.commit()
-    db.refresh(user)
-    return {"user_id": user.id, "assigned_role_ids": [r.id for r in roles], "role_name": roles[0].role_name if roles else None}
+
+    # Re-fetch with eager loads so the returned object is fully populated
+    user = (
+        db.query(User)
+        .options(joinedload(User.roles).joinedload(Role.permissions))
+        .filter(User.id == payload.user_id)
+        .first()
+    )
+    return {"user_id": user.id, "assigned_role_ids": [r.id for r in user.roles], "role_name": user.roles[0].role_name if user.roles else None}
 
 
 # ---------------------------------------------------------------------------
