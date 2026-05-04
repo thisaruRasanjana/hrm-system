@@ -19,8 +19,36 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin w-8 h-8 border-4 border-[#F2924E] border-t-transparent rounded-full" />
+      <div className="flex flex-col gap-6">
+        {/* Header skeleton */}
+        <div className="flex items-start justify-between">
+          <div className="space-y-2">
+            <div className="skeleton-shimmer h-7 w-56 rounded-lg" aria-hidden="true" />
+            <div className="skeleton-shimmer h-4 w-44 rounded" aria-hidden="true" />
+          </div>
+          <div className="skeleton-shimmer h-6 w-6 rounded" aria-hidden="true" />
+        </div>
+        {/* Widget grid skeleton */}
+        <div className="grid grid-cols-12 gap-4" style={{ gridAutoRows: "120px" }} aria-hidden="true">
+          {[
+            "col-span-4 row-span-3",
+            "col-span-4 row-span-3",
+            "col-span-4 row-span-3",
+            "col-span-4 row-span-3",
+            "col-span-4 row-span-3",
+            "col-span-4 row-span-3",
+            "col-span-4 row-span-3",
+            "col-span-4 row-span-3",
+          ].map((span, i) => (
+            <div key={i} className={`${span} bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col gap-3 overflow-hidden`}>
+              <div className="flex items-center justify-between">
+                <div className="skeleton-shimmer h-4 w-28 rounded" />
+                <div className="skeleton-shimmer h-6 w-6 rounded-full" />
+              </div>
+              <div className="skeleton-shimmer flex-1 rounded-xl" />
+            </div>
+          ))}
+        </div>
       </div>
     );
   }

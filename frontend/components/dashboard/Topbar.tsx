@@ -9,7 +9,7 @@ import { apiFetch } from "@/lib/api";
 
 export default function Topbar() {
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { user, logout, loading: authLoading } = useAuth();
   const [messagesOpen, setMessagesOpen] = useState(false);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   const [unreadNotifs, setUnreadNotifs] = useState(0);
@@ -96,7 +96,9 @@ export default function Topbar() {
 
         <div className="relative" ref={dropdownRef}>
           <div onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)} className="cursor-pointer">
-            {profileImage ? (
+            {authLoading ? (
+              <div className="skeleton-shimmer w-9 h-9 rounded-full" aria-hidden="true" />
+            ) : profileImage ? (
               <img 
                 src={profileImage} 
                 alt="Profile" 

@@ -43,6 +43,38 @@ from app.departments.seed import seed_departments
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
+    
+    from sqlalchemy import text
+    try:
+        with engine.begin() as conn:
+            # Add missing columns
+            conn.execute(text("ALTER TABLE messages ADD COLUMN IF NOT EXISTS sender_permanent_deleted BOOLEAN DEFAULT FALSE"))
+
+            # Create message_groups table for custom superadmin groups
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS message_groups (
+                    id SERIAL PRIMARY KEY,
+                    name VARCHAR(100) UNIQUE NOT NULL,
+                    created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                    created_at TIMESTAMPTZ DEFAULT now()
+                )
+            """))
+
+            # Drop deprecated columns that cause NotNullViolations during inserts
+            conn.execute(text("ALTER TABLE employees DROP COLUMN IF EXISTS is_active"))
+            conn.execute(text("ALTER TABLE employees DROP COLUMN IF EXISTS department"))
+            conn.execute(text("ALTER TABLE employees DROP COLUMN IF EXISTS date_joined"))
+            conn.execute(text("ALTER TABLE employees DROP COLUMN IF EXISTS job_title"))
+            conn.execute(text("ALTER TABLE employees DROP COLUMN IF EXISTS employee_number"))
+
+            # Migrate data
+            conn.execute(text("UPDATE employees SET email = REPLACE(email, '@hrm.local', '@hrm.com') WHERE email LIKE '%@hrm.local'"))
+            conn.execute(text("UPDATE users SET email = REPLACE(email, '@hrm.local', '@hrm.com') WHERE email LIKE '%@hrm.local'"))
+            conn.execute(text("UPDATE employees SET status = 'active' WHERE status IS NULL OR status NOT IN ('active', 'inactive')"))
+    except Exception as e:
+        print(f"Warning: Failed to auto-patch DB: {e}")
+
+        
     db = SessionLocal()
     try:
         seed_departments(db)

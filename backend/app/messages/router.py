@@ -12,6 +12,58 @@ from app.messages import models, schemas
 router = APIRouter()
 
 
+# ── GET message groups ──────────────────────────────────────────────────────────
+@router.get("/groups")
+def list_groups(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Return all custom message groups (available to any authenticated user for the compose dropdown)."""
+    groups = db.query(models.MessageGroup).order_by(models.MessageGroup.name).all()
+    return [{"id": g.id, "name": g.name} for g in groups]
+
+
+# ── POST create group (superadmin only) ─────────────────────────────────────────
+@router.post("/groups")
+def create_group(
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Create a new custom message group. Requires superadmin."""
+    if not getattr(current_user, "is_superadmin", False):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Superadmin only")
+    name = (payload.get("name") or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Group name is required")
+    existing = db.query(models.MessageGroup).filter(models.MessageGroup.name == name).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="A group with that name already exists")
+    group = models.MessageGroup(name=name, created_by=current_user.id)
+    db.add(group)
+    db.commit()
+    db.refresh(group)
+    return {"id": group.id, "name": group.name}
+
+
+# ── DELETE group (superadmin only) ──────────────────────────────────────────────
+@router.delete("/groups/{group_id}")
+def delete_group(
+    group_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Delete a custom message group. Requires superadmin."""
+    if not getattr(current_user, "is_superadmin", False):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Superadmin only")
+    group = db.query(models.MessageGroup).filter(models.MessageGroup.id == group_id).first()
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+    db.delete(group)
+    db.commit()
+    return {"deleted": True}
+
+
 # ── POST send message ───────────────────────────────────────────────────────────
 @router.post("/", response_model=schemas.MessageResponse)
 def send_message(

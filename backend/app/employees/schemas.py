@@ -1,6 +1,6 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, model_validator
 from datetime import date
-from typing import Optional
+from typing import Optional, Any
 from enum import Enum
 
 
@@ -10,14 +10,14 @@ class EmployeeStatus(str, Enum):
 
 
 class EmployeeBase(BaseModel):
-    employee_id: str
+    employee_id: Optional[str] = None
     first_name: str
     last_name: str
-    email: EmailStr
-    phone: str
+    email: str
+    phone: Optional[str] = None
     address: Optional[str] = None
     department_id: Optional[int] = None   # Optional in base for out/legacy
-    designation: str
+    designation: Optional[str] = None
     joined_date: Optional[date] = None
     status: EmployeeStatus = EmployeeStatus.active
     date_of_birth: Optional[date] = None
@@ -43,7 +43,7 @@ class EmployeeUpdate(BaseModel):
     employee_id: Optional[str] = None
     first_name: Optional[str] = None
     last_name: Optional[str] = None
-    email: Optional[EmailStr] = None
+    email: Optional[str] = None
     phone: Optional[str] = None
     address: Optional[str] = None
     department_id: Optional[int] = None
@@ -83,3 +83,18 @@ class EmployeeOut(EmployeeBase):
     department_rel: Optional[DepartmentInfo] = None
 
     model_config = {"from_attributes": True}
+
+    @model_validator(mode="before")
+    @classmethod
+    def resolve_role(cls, data: Any) -> Any:
+        """Resolve role from the linked user's roles relationship."""
+        if hasattr(data, "user") and data.user:
+            user = data.user
+            # Prefer many-to-many roles list
+            if hasattr(user, "roles") and user.roles:
+                top_role = user.roles[0]
+                data.__dict__["role"] = {"id": top_role.id, "role_name": top_role.role_name}
+            elif hasattr(user, "role_id") and user.role_id:
+                # Fallback: construct partial RoleInfo from flat fields
+                data.__dict__["role"] = {"id": user.role_id, "role_name": user.role or "Unknown"}
+        return data

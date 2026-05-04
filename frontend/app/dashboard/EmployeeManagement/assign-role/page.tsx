@@ -222,7 +222,47 @@ function AssignRoleContent() {
     </div>
   );
 
-  if (loading) return <div className="p-10 text-center text-gray-400">Loading roles and permissions...</div>;
+  if (loading) return (
+    <div className="max-w-[1000px] mx-auto pb-20 pt-2 space-y-6" aria-hidden="true">
+      {/* Header skeleton */}
+      <div className="mb-8 space-y-2">
+        <div className="skeleton-shimmer h-3.5 w-12 rounded" />
+        <div className="skeleton-shimmer h-8 w-64 rounded-lg mt-2" />
+        <div className="skeleton-shimmer h-4 w-48 rounded" />
+      </div>
+      {/* Step bar skeleton */}
+      <div className="flex items-center gap-4 mb-10 px-4">
+        <div className="skeleton-shimmer w-8 h-8 rounded-full" />
+        <div className="skeleton-shimmer h-3.5 w-28 rounded" />
+        <div className="skeleton-shimmer w-16 h-[2px] rounded" />
+        <div className="skeleton-shimmer w-8 h-8 rounded-full" />
+        <div className="skeleton-shimmer h-3.5 w-36 rounded" />
+      </div>
+      {/* Option cards skeleton */}
+      <div className="bg-white rounded-xl border border-gray-200 p-8 shadow-sm">
+        <div className="skeleton-shimmer h-3.5 w-36 rounded mb-6" />
+        <div className="grid grid-cols-2 gap-4">
+          <div className="skeleton-shimmer h-20 rounded-xl" />
+          <div className="skeleton-shimmer h-20 rounded-xl" />
+        </div>
+      </div>
+      {/* Permissions skeleton */}
+      <div className="bg-white rounded-xl border border-gray-200 p-8 shadow-sm">
+        <div className="skeleton-shimmer h-4 w-24 rounded mb-4" />
+        <div className="skeleton-shimmer h-12 w-72 rounded-lg mb-8" />
+        {[1, 2].map(n => (
+          <div key={n} className="bg-gray-50 rounded-xl p-6 mb-4">
+            <div className="skeleton-shimmer h-3.5 w-28 rounded mb-4" />
+            <div className="grid grid-cols-3 gap-3">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="skeleton-shimmer h-11 rounded-lg" />
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 
   return (
     <div className="max-w-[1000px] mx-auto pb-20 pt-2">
@@ -442,7 +482,13 @@ function AssignRoleContent() {
 
 export default function AssignRolePage() {
   return (
-    <React.Suspense fallback={<div className="p-10 text-center text-gray-400">Loading RBAC details...</div>}>
+    <React.Suspense fallback={
+      <div className="max-w-[1000px] mx-auto pb-20 pt-2 space-y-6" aria-hidden="true">
+        <div className="skeleton-shimmer h-8 w-64 rounded-lg" />
+        <div className="skeleton-shimmer h-40 rounded-xl" />
+        <div className="skeleton-shimmer h-64 rounded-xl" />
+      </div>
+    }>
       <AssignRoleContent />
     </React.Suspense>
   );
