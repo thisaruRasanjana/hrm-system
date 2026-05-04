@@ -130,9 +130,30 @@ export default function EmployeeManagementPage() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {loading ? (
-                <tr>
-                  <td colSpan={6} className="px-6 py-10 text-center text-gray-400">Loading employees...</td>
-                </tr>
+                <>
+                  {Array.from({ length: 7 }).map((_, ri) => (
+                    <tr key={ri} aria-hidden="true">
+                      {/* Employee ID */}
+                      <td className="px-6 py-5"><div className="skeleton-shimmer h-3.5 w-20 rounded" /></td>
+                      {/* Name */}
+                      <td className="px-6 py-5"><div className="skeleton-shimmer h-3.5 w-32 rounded" /></td>
+                      {/* Department */}
+                      <td className="px-6 py-5"><div className="skeleton-shimmer h-3.5 w-24 rounded" /></td>
+                      {/* Designation */}
+                      <td className="px-6 py-5"><div className="skeleton-shimmer h-3.5 w-28 rounded" /></td>
+                      {/* Status badge */}
+                      <td className="px-6 py-5"><div className="skeleton-shimmer h-5 w-16 rounded-full" /></td>
+                      {/* Actions */}
+                      <td className="px-6 py-5">
+                        <div className="flex items-center justify-end gap-4">
+                          <div className="skeleton-shimmer h-4 w-4 rounded" />
+                          <div className="skeleton-shimmer h-4 w-4 rounded" />
+                          <div className="skeleton-shimmer h-4 w-4 rounded" />
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </>
               ) : filteredEmployees.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-6 py-10 text-center text-gray-400">No employees found</td>

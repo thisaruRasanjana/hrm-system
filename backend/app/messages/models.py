@@ -10,7 +10,7 @@ class Message(Base):
     sender_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     subject = Column(String, nullable=True)
     content = Column(Text, nullable=False)
-    target_group = Column(String, nullable=True)  # "All Employees", "HR", or specific department
+    target_group = Column(String, nullable=True)
     sender_deleted = Column(Boolean, default=False)
     sender_permanent_deleted = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
@@ -23,6 +23,17 @@ class MessageRecipient(Base):
     message_id = Column(Integer, ForeignKey("messages.id"), nullable=False)
     recipient_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     is_read = Column(Boolean, default=False)
-    is_deleted = Column(Boolean, default=False)   # moved to trash
+    is_deleted = Column(Boolean, default=False)
     is_permanent_deleted = Column(Boolean, default=False)
     deleted_at = Column(DateTime, nullable=True)
+
+
+class MessageGroup(Base):
+    """Custom messaging groups created by superadmin."""
+    __tablename__ = "message_groups"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), unique=True, nullable=False)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+

@@ -72,7 +72,7 @@ def login(data: LoginRequest, request: Request, response: Response, db: Session 
         value=refresh_token,
         httponly=True,
         secure=False,
-        samesite="none",
+        samesite="lax",
         max_age=60 * 60 * 24 * REFRESH_TOKEN_EXPIRE_DAYS,
         path="/"
     )
@@ -121,7 +121,7 @@ def login_2fa(data: dict, response: Response, db: Session = Depends(get_db)):
 
     response.set_cookie(
         key="refresh_token", value=refresh_token, httponly=True, secure=False,
-        samesite="none", max_age=60 * 60 * 24 * REFRESH_TOKEN_EXPIRE_DAYS, path="/"
+        samesite="lax", max_age=60 * 60 * 24 * REFRESH_TOKEN_EXPIRE_DAYS, path="/"
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
@@ -158,7 +158,7 @@ def refresh_token(request: Request, response: Response, db: Session = Depends(ge
 
         response.set_cookie(
             key="refresh_token", value=new_refresh, httponly=True, secure=False,
-            samesite="none", max_age=60 * 60 * 24 * REFRESH_TOKEN_EXPIRE_DAYS, path="/"
+            samesite="lax", max_age=60 * 60 * 24 * REFRESH_TOKEN_EXPIRE_DAYS, path="/"
         )
         return {"access_token": new_access, "token_type": "bearer"}
     except JWTError:
@@ -189,7 +189,7 @@ def logout(request: Request, response: Response, db: Session = Depends(get_db)):
         except JWTError:
             pass
             
-    response.delete_cookie(key="refresh_token", path="/", httponly=True, secure=False, samesite="none")
+    response.delete_cookie(key="refresh_token", path="/", httponly=True, secure=False, samesite="lax")
     return {"message": "Logged out successfully"}
 
 

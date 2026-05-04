@@ -19,10 +19,16 @@ if config.config_file_name is not None:
 # add your model's MetaData object here
 # for 'autogenerate' support
 from app.database.base import Base
-import app.departments.models   # noqa: F401 — registers Department
-import app.auth.models          # noqa: F401 — registers User
-import app.roles.models         # noqa: F401 — registers Permission, Role, role_permissions, user_roles
-import app.employees.models     # noqa: F401 — registers Employee
+import pkgutil
+import importlib
+import app
+
+for _, module_name, ispkg in pkgutil.walk_packages(app.__path__, app.__name__ + '.'):
+    if module_name.endswith('.models'):
+        try:
+            importlib.import_module(module_name)
+        except Exception as e:
+            print(f"Warning: could not import {module_name}: {e}")
 
 target_metadata = Base.metadata
 

@@ -101,13 +101,14 @@ def assign_roles_to_user(db: Session, payload: AssignRoleRequest) -> dict:
     user.roles = roles
     if roles:
         user.role_id = roles[0].id
-        user.role = roles[0].role_name.lower()
+        user.role = roles[0].role_name  # keep original casing for display
     else:
         user.role_id = None
         user.role = None
     
     db.commit()
-    return {"user_id": user.id, "assigned_role_ids": [r.id for r in roles]}
+    db.refresh(user)
+    return {"user_id": user.id, "assigned_role_ids": [r.id for r in roles], "role_name": roles[0].role_name if roles else None}
 
 
 # ---------------------------------------------------------------------------

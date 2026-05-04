@@ -15,12 +15,19 @@ logger = logging.getLogger(__name__)
 
 def get_employees(db: Session, skip: int = 0, limit: int = 100):
     from sqlalchemy.orm import joinedload
-    return db.query(Employee).options(joinedload(Employee.department_rel)).filter(
+    return db.query(Employee).options(
+        joinedload(Employee.department_rel),
+        joinedload(Employee.user).joinedload(User.roles)
+    ).filter(
         (Employee.is_deleted == False) | (Employee.is_deleted == None)
     ).offset(skip).limit(limit).all()
 
 def get_employee_by_id(db: Session, employee_id: int):
-    return db.query(Employee).filter(
+    from sqlalchemy.orm import joinedload
+    return db.query(Employee).options(
+        joinedload(Employee.department_rel),
+        joinedload(Employee.user).joinedload(User.roles)
+    ).filter(
         Employee.id == employee_id,
         (Employee.is_deleted == False) | (Employee.is_deleted == None)
     ).first()

@@ -234,7 +234,14 @@ export default function CalendarWidget({ permissions }: Props) {
           <div className="flex items-center gap-1 text-[10px] text-gray-400">
             <span className="w-2 h-2 rounded-full bg-blue-400 inline-block" /> Event
           </div>
-          {canEdit && <span className="text-[10px] text-[#F2924E] ml-auto">+ Add holiday</span>}
+          {canEdit && (
+            <button
+              onClick={openAddHoliday}
+              className="text-[10px] text-[#F2924E] ml-auto hover:underline font-semibold transition"
+            >
+              + Add holiday
+            </button>
+          )}
         </div>
       </div>
 
