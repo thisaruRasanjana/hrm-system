@@ -32,7 +32,7 @@ export default function Sidebar() {
       icon: Shield,
       permission: "role:view"
     },
-    { name: "Recruitment", path: "/dashboard/recruitment", icon: Users, permission: "recruitment:view" },
+    { name: "Recruitment", path: "/recruitment", icon: Users, permission: "recruitment:view" },
     { name: "Leave", path: "/dashboard/leave", icon: Calendar, permission: "leave:request" },
     { name: "Document", path: "/dashboard/documents", icon: FileText, permission: "document:request_own" },
     { name: "Settings", path: "/dashboard/settings", icon: Settings }

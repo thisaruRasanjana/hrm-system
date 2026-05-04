@@ -23,8 +23,8 @@ export default function RootLayout({
     <html lang="en">
       <body className={arimo.className}>
         <AuthProvider>
-          <div className="flex h-screen bg-[#F8F9FA] overflow-hidden font-sans">
-            <main className="flex-1 flex flex-col min-w-0 h-full w-full">
+          <div className="flex min-h-screen bg-[#F8F9FA] font-sans">
+            <main className="flex-1 flex flex-col min-w-0 w-full">
               {children}
             </main>
           </div>

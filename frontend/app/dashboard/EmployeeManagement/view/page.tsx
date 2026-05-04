@@ -12,7 +12,7 @@ import {
   IconBank,
   IconShieldCheck,
   IconRibbon
-} from "@/components/icons";
+} from "@/components/Icons";
 import { api } from "@/lib/api";
 
 // Reusable component for stacked data fields (Label on top, Value on bottom)

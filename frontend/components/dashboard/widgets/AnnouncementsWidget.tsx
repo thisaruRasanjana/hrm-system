@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { Bell, Plus, Pencil, Trash2, X, Check } from "lucide-react";
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
+import ModalPortal from "@/components/ModalPortal";
 
 interface Announcement {
   id: number;
@@ -140,10 +141,8 @@ export default function AnnouncementsWidget({ permissions }: Props) {
       </div>
 
       {/* Modal */}
-      {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setModalOpen(false)}>
-          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
-          <div className="relative bg-white rounded-2xl shadow-2xl w-[480px] p-8 z-10" onClick={(e) => e.stopPropagation()}>
+      <ModalPortal open={modalOpen} onClose={() => setModalOpen(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-[480px] p-8">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-lg font-semibold text-gray-900">{editItem ? "Edit Announcement" : "New Announcement"}</h2>
               <button onClick={() => setModalOpen(false)} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
@@ -165,8 +164,7 @@ export default function AnnouncementsWidget({ permissions }: Props) {
               </button>
             </div>
           </div>
-        </div>
-      )}
+      </ModalPortal>
     </>
   );
 }

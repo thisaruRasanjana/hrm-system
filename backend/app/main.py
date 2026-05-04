@@ -4,36 +4,48 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.staticfiles import StaticFiles
 import os
+import logging
 
 from app.database.database import engine, SessionLocal
 from app.database.base import Base
 
+logger = logging.getLogger(__name__)
+
 # ── Import all models ──
-import app.roles.models        # noqa: F401
-import app.auth.models         # noqa: F401
-import app.departments.models  # noqa: F401
-import app.employees.models    # noqa: F401
-import app.time_tracking.models # noqa: F401
-import app.messages.models      # noqa: F401
-import app.announcements.models # noqa: F401
-import app.events.models        # noqa: F401
-import app.notifications.models # noqa: F401
+import app.roles.models             # noqa: F401
+import app.auth.models              # noqa: F401
+import app.departments.models       # noqa: F401
+import app.employees.models         # noqa: F401
+import app.time_tracking.models     # noqa: F401
+import app.messages.models          # noqa: F401
+import app.announcements.models     # noqa: F401
+import app.events.models            # noqa: F401
+import app.notifications.models     # noqa: F401
 import app.calendar_holidays.models # noqa: F401
-import app.dashboard.models    # noqa: F401
+import app.dashboard.models         # noqa: F401
 
 # ── Routers ────────────────────────────────────────────────────────────────────
-from app.auth.router        import router as auth_router
-from app.roles.router       import router as roles_router
-from app.employees.router   import router as employee_router
-from app.leave.router       import router as leave_router
-from app.departments.router import router as departments_router
-from app.dashboard.router   import router as dashboard_router
-from app.messages.router    import router as messages_router
+from app.auth.router          import router as auth_router
+from app.roles.router         import router as roles_router
+from app.employees.router     import router as employee_router
+from app.leave.router         import router as leave_router
+from app.departments.router   import router as departments_router
+from app.dashboard.router     import router as dashboard_router
+from app.messages.router      import router as messages_router
 from app.announcements.router import router as announcements_router
-from app.events.router      import router as events_router
+from app.events.router        import router as events_router
 from app.calendar_holidays.router import router as holidays_router
 from app.notifications.router import router as notifications_router
 from app.time_tracking.router import router as time_tracking_router
+
+# ── Recruitment routers (from recruitment branch) ──────────────────────────────
+try:
+    from app.recruitment.router        import router as recruitment_router
+    from app.recruitment.public_router import router as public_router
+    _recruitment_available = True
+except ImportError:
+    _recruitment_available = False
+    logger.warning("Recruitment module not found — skipping.")
 
 # ── Seed helpers ───────────────────────────────────────────────────────────────
 from app.roles.seed       import seed_roles
@@ -43,7 +55,7 @@ from app.departments.seed import seed_departments
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
-    
+
     from sqlalchemy import text
     try:
         with engine.begin() as conn:
@@ -74,7 +86,6 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"Warning: Failed to auto-patch DB: {e}")
 
-        
     db = SessionLocal()
     try:
         seed_departments(db)
@@ -121,6 +132,10 @@ app.include_router(events_router,        prefix="/events",        tags=["Events"
 app.include_router(holidays_router,      prefix="/holidays",      tags=["Holidays"])
 app.include_router(notifications_router, prefix="/notifications", tags=["Notifications"])
 app.include_router(time_tracking_router, prefix="/time-tracking", tags=["Time Tracking"])
+
+if _recruitment_available:
+    app.include_router(recruitment_router)
+    app.include_router(public_router)
 
 # ── Static file uploads ────────────────────────────────────────────────────────
 os.makedirs("uploads/profiles", exist_ok=True)

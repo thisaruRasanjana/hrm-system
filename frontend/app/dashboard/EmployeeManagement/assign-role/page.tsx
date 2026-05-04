@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { IconArrowLeft, IconChevron } from "@/components/icons";
+import { IconArrowLeft, IconChevron } from "@/components/Icons";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/auth-context";
 

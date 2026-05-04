@@ -9,15 +9,15 @@ import {
   IconLeave,
   IconDocument,
   IconSettings,
-} from "./icons";
+} from "./Icons";
 
 const NAV_ITEMS = [
-  { label: "Dashboard",           icon: <IconDashboard />,   href: "/dashboard" },
-  { label: "Employee\nManagement", icon: <IconEmployees />,  href: "/" },
-  { label: "Recruitment",         icon: <IconRecruitment />, href: "/recruitment" },
-  { label: "Leave",               icon: <IconLeave />,       href: "/leave" },
-  { label: "Document",            icon: <IconDocument />,    href: "/document" },
-  { label: "Settings",            icon: <IconSettings />,    href: "/settings" },
+  { label: "Dashboard",            icon: <IconDashboard />,   href: "/dashboard" },
+  { label: "Employee\nManagement", icon: <IconEmployees />,   href: "/" },
+  { label: "Recruitment",          icon: <IconRecruitment />, href: "/recruitment" },
+  { label: "Leave",                icon: <IconLeave />,       href: "/leave" },
+  { label: "Document",             icon: <IconDocument />,    href: "/document" },
+  { label: "Settings",             icon: <IconSettings />,    href: "/settings" },
 ];
 
 export default function Sidebar() {
@@ -66,7 +66,7 @@ export default function Sidebar() {
 
       {/* Footer */}
       <div className="px-5 py-4 text-[11px] text-gray-400 border-t border-gray-200">
-        © 2026 HRSM
+        © 2026 HRMS
       </div>
     </aside>
   );

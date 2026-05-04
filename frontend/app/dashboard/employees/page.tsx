@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { IconSearch, IconChevron, IconEye, IconEdit, IconTrash } from "@/components/icons";
+import { IconSearch, IconChevron, IconEye, IconEdit, IconTrash } from "@/components/Icons";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/auth-context";
 

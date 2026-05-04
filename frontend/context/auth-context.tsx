@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
+import { usePathname } from "next/navigation";
 import { apiFetch, getToken, removeToken, setToken, handleRefreshFlow, refreshAccessToken } from "@/lib/api";
 
 // ── Module-level constants ──────────────────────────────────────────────────────
@@ -42,6 +43,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const pathname = usePathname();
 
   /**
    * Fetches the current user's profile from /auth/me.
@@ -114,6 +116,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => { 
     fetchUser(); 
   }, [fetchUser]);
+
+  /** Re-fetch user on every route change to ensure permissions are instantly up-to-date. */
+  useEffect(() => {
+    // Only re-fetch if we are already authenticated (don't force a fetch for guests)
+    if (getToken()) {
+      fetchUser();
+    }
+  }, [pathname, fetchUser]);
 
   /**
    * Silently refreshes the access token every 13 minutes via the HttpOnly
