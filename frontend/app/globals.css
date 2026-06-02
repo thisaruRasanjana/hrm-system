@@ -207,9 +207,6 @@ body {
 .rich-content em { font-style: italic; }
 .rich-content u { text-decoration: underline; }
 .rich-content s { text-decoration: line-through; }
-  background-color: #f3f4f6;
-  font-family: system-ui, -apple-system, sans-serif;
-}
 
 
 /* =========================
