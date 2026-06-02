@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { getToken } from "@/lib/api";
 
 interface Props {
   id?: string;
@@ -57,20 +58,17 @@ export default function DocumentItem({
     const file = e.target.files[0];
 
     const formData = new FormData();
-    formData.append("employee_id", "6"); // Hardcoded as requested
     formData.append("document_type_id", String(documentTypeId));
     formData.append("is_mandatory", String(isMandatory));
     formData.append("file", file);
 
+    const token = getToken();
     try {
-
-      const response = await fetch(
-        uploadEndpoint,
-        {
-          method: "POST",
-          body: formData,
-        }
-      );
+      const response = await fetch(uploadEndpoint, {
+        method: "POST",
+        headers: token ? { "Authorization": `Bearer ${token}` } : {},
+        body: formData,
+      });
 
       if (!response.ok) throw new Error("Upload failed");
 

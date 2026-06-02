@@ -5,6 +5,7 @@ import DocumentTabsHR from "../../components/DocumentTabsHR";
 import { Search, Clock, FileText, CheckCircle, XCircle, ArrowLeft, AlertCircle, User, Mail, Calendar, Download } from "lucide-react";
 import GenerateDocumentModal from "../../components/GenerateDocumentModal";
 import RejectRequestModal from "../../components/RejectRequestModal";
+import { getToken } from "@/lib/api";
 
 type RequestType = {
   id: string;
@@ -33,10 +34,14 @@ export default function HRRequestManagementPage() {
 
   const fetchRequests = async () => {
     setLoading(true);
+    const token = getToken();
+    const authHeader: Record<string, string> = token ? { "Authorization": `Bearer ${token}` } : {};
     try {
-      const res = await fetch(`http://localhost:8000/document-requests/`);
-      const data = await res.json();
-      const safeData = Array.isArray(data) ? data : [];
+      const res = await fetch(`http://localhost:8000/hr-document-requests/`, { headers: authHeader });
+      const json = await res.json();
+      const data = json?.data ?? json;
+      const safeData_raw = data;
+      const safeData = Array.isArray(safeData_raw) ? safeData_raw : [];
       setRequests(safeData);
 
       if (selectedRequest) {
@@ -57,10 +62,11 @@ export default function HRRequestManagementPage() {
   }, []);
 
   const handleMarkInProgress = async (id: string) => {
+    const token = getToken();
     try {
       await fetch(`http://localhost:8000/hr-document-requests/${id}/status`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(token ? { "Authorization": `Bearer ${token}` } : {}) },
         body: JSON.stringify({ status: "IN_PROGRESS" })
       });
       fetchRequests();
@@ -70,8 +76,11 @@ export default function HRRequestManagementPage() {
   };
 
   const handleForceDownload = async (path: string) => {
+    const token = getToken();
     try {
-      const response = await fetch(`http://localhost:8000/${path}`);
+      const response = await fetch(`http://localhost:8000/${path}`, {
+        headers: token ? { "Authorization": `Bearer ${token}` } : {},
+      });
       if (!response.ok) throw new Error("File not found");
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);

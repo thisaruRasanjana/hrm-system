@@ -4,19 +4,19 @@
  * Share with entire team.
  */
 
-// Widget permissions
-export const WIDGET_TIME_TRACKING_VIEW      = "widget.time_tracking.view";
-export const WIDGET_LEAVE_BALANCE_VIEW      = "widget.leave_balance.view";
-export const WIDGET_NOTIFICATIONS_VIEW      = "widget.notifications.view";
-export const WIDGET_WEEKLY_HOURS_VIEW       = "widget.weekly_hours.view";
-export const WIDGET_CALENDAR_VIEW           = "widget.calendar.view";
-export const WIDGET_CALENDAR_EDIT           = "widget.calendar.edit";           // add/edit holidays
-export const WIDGET_APPROVAL_VIEW_APPROVALS = "widget.approval_summary.view_approvals";
-export const WIDGET_APPROVAL_VIEW_REQUESTS  = "widget.approval_summary.view_requests";
-export const WIDGET_ANNOUNCEMENTS_VIEW      = "widget.announcements.view";
-export const WIDGET_ANNOUNCEMENTS_MANAGE    = "widget.announcements.manage";    // add/edit/delete
-export const WIDGET_EVENTS_VIEW             = "widget.upcoming_events.view";
-export const WIDGET_EVENTS_MANAGE           = "widget.upcoming_events.manage";  // add/edit/delete
+// Widget permissions — must match strings in the permissions table exactly
+export const WIDGET_TIME_TRACKING_VIEW      = "dashboard:view_time_tracking";
+export const WIDGET_LEAVE_BALANCE_VIEW      = "dashboard:view_leave_balance";
+export const WIDGET_NOTIFICATIONS_VIEW      = "dashboard:view_notifications";
+export const WIDGET_WEEKLY_HOURS_VIEW       = "dashboard:view_weekly_hours";
+export const WIDGET_CALENDAR_VIEW           = "dashboard:view_calendar";
+export const WIDGET_CALENDAR_EDIT           = "dashboard:edit_calendar";
+export const WIDGET_APPROVAL_VIEW_APPROVALS = "dashboard:view_approvals";
+export const WIDGET_APPROVAL_VIEW_REQUESTS  = "dashboard:view_requests";
+export const WIDGET_ANNOUNCEMENTS_VIEW      = "dashboard:view_announcements";
+export const WIDGET_ANNOUNCEMENTS_MANAGE    = "dashboard:manage_announcements";
+export const WIDGET_EVENTS_VIEW             = "dashboard:view_events";
+export const WIDGET_EVENTS_MANAGE           = "dashboard:manage_events";
 
 // Messaging
 export const MESSAGING_SEND = "messaging.send";

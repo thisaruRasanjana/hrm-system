@@ -5,6 +5,7 @@ import DocumentReviewModal from "../../components/DocumentReviewModal";
 import StatusBadge from "../../components/statusBadge";
 import DocumentTabs from "../../components/DocumentTabsHR";
 import { Clock } from "lucide-react";
+import { getToken } from "@/lib/api";
 
 type Document = {
   id: string;
@@ -26,12 +27,9 @@ export default function ApprovalPage() {
   }, []);
 
   async function fetchDocuments() {
-    const employeeDbId =
-      typeof window !== "undefined"
-        ? (localStorage.getItem("employeeDbId") ?? "8")
-        : "8";
+    const token = getToken();
     const res = await fetch("http://localhost:8000/documents/review/pending", {
-      headers: { "X-Employee-ID": employeeDbId },
+      headers: token ? { "Authorization": `Bearer ${token}` } : {},
     });
     const data = await res.json();
     setDocuments(Array.isArray(data) ? data : []);

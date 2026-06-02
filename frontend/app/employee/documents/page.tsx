@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import DocumentItem from "../../components/DocumentItem";
 import DocumentTabsEmployee from "../../components/DocumentTabsEmployee";
 import { hasPermission } from "../../components/AuthGuard";
+import { getToken } from "@/lib/api";
 
 type UploadedDocument = {
   id: string;
@@ -28,20 +29,15 @@ export default function EmployeeDocumentsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [canUpload, setCanUpload] = useState(true);
 
-  // Integer DB id written by AuthGuard on login; fall back to seeded test employee
-  const employeeDbId = "6"; // Hardcoded for demo as requested
-
   useEffect(() => {
-    // For demo purposes, we'll assume employee has upload permission or just leave it true
-    setCanUpload(true); 
-    
+    setCanUpload(true);
+    const token = getToken();
+    const authHeader: Record<string, string> = token ? { "Authorization": `Bearer ${token}` } : {};
+
     setIsLoading(true);
-    // Fetch both active document types and employee's uploaded documents
     Promise.all([
-      fetch("http://localhost:8000/api/document-types/active/").then(res => res.json()),
-      fetch(`http://localhost:8000/documents/my-documents?employee_id=${employeeDbId}`, {
-        headers: { "X-Employee-ID": employeeDbId },
-      }).then(res => res.json())
+      fetch("http://localhost:8000/api/document-types/active/", { headers: authHeader }).then(res => res.json()),
+      fetch("http://localhost:8000/documents/my-documents", { headers: authHeader }).then(res => res.json())
     ])
     .then(([types, uploads]) => {
       setDocTypes(Array.isArray(types) ? types : []);
@@ -49,7 +45,7 @@ export default function EmployeeDocumentsPage() {
     })
     .catch((err) => console.error("Error fetching documents:", err))
     .finally(() => setIsLoading(false));
-  }, [employeeDbId]);
+  }, []);
 
   const mergedDocuments: MergedDocument[] = docTypes.map((type) => {
     const uploaded = uploadedDocs.find((doc) => doc.document_type === type.name);
@@ -120,7 +116,6 @@ export default function EmployeeDocumentsPage() {
                   status={doc.status}
                   isMandatory={true}
                   rejectionReason={doc.rejection_reason}
-                  employeeId={employeeDbId}
                   uploadEndpoint="http://localhost:8000/documents/upload"
                 />
               ))}
@@ -139,7 +134,6 @@ export default function EmployeeDocumentsPage() {
                   description="Optional document"
                   status={doc.status}
                   isMandatory={false}
-                  employeeId={employeeDbId}
                   uploadEndpoint="http://localhost:8000/documents/upload"
                 />
               ))}

@@ -15,7 +15,7 @@ import { useAuth } from "@/context/auth-context";
 
 const NAV_ITEMS = [
   { label: "Dashboard",            icon: <IconDashboard />,   href: "/dashboard" },
-  { label: "Employee\nManagement", icon: <IconEmployees />,   href: "/" },
+  { label: "Employee\nManagement", icon: <IconEmployees />,   href: "/dashboard/employees" },
   { label: "Recruitment",          icon: <IconRecruitment />, href: "/recruitment" },
   { label: "Leave",                icon: <IconLeave />,       href: "/leave" },
   { label: "Settings",             icon: <IconSettings />,    href: "/settings" },

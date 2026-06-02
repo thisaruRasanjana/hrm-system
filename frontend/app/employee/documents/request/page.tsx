@@ -4,6 +4,7 @@ import { FileText, X, Download, Clock, CheckCircle, XCircle, Eye } from "lucide-
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import DocumentTabsEmployee from "../../../components/DocumentTabsEmployee";
+import { getToken } from "@/lib/api";
 
 type Request = {
   id: string;
@@ -24,7 +25,10 @@ export default function EmployeeRequestDocumentPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
-  const employeeDbId = "6"; // Hardcoded for demo
+  const authHeader = (): Record<string, string> => {
+    const token = getToken();
+    return token ? { "Authorization": `Bearer ${token}` } : {};
+  };
 
   const documentTypes = [
     "Service Letter",
@@ -36,7 +40,8 @@ export default function EmployeeRequestDocumentPage() {
   const fetchRequests = async () => {
     try {
       const res = await fetch(
-        `http://localhost:8000/document-requests/${employeeDbId}`
+        `http://localhost:8000/document-requests/my`,
+        { headers: authHeader() }
       );
       const data = await res.json();
       setRequests(Array.isArray(data) ? data : []);
@@ -61,11 +66,8 @@ export default function EmployeeRequestDocumentPage() {
     try {
       const res = await fetch("http://localhost:8000/document-requests/", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json", ...authHeader() },
         body: JSON.stringify({
-          employee_id: parseInt(employeeDbId),
           document_type: documentType,
           reason: reason,
         }),
@@ -88,7 +90,7 @@ export default function EmployeeRequestDocumentPage() {
 
   const handleDownload = async (path: string) => {
     try {
-      const response = await fetch(`http://localhost:8000/${path}`);
+      const response = await fetch(`http://localhost:8000/${path}`, { headers: authHeader() });
       if (!response.ok) throw new Error("File not found");
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
