@@ -6,7 +6,7 @@ import DocumentTabsHR from "../../components/DocumentTabsHR";
 import TemplateAddModal from "../../components/TemplateAddModal";
 import TemplateEditModal from "../../components/TemplateEditModal";
 import TemplatePreviewModal from "../../components/TemplatePreviewModal";
-import { getToken } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 
 type Template = {
   id: number;
@@ -29,12 +29,9 @@ export default function TemplatesManagementPage() {
   const [deleting, setDeleting] = useState(false);
 
   const fetchTemplates = async () => {
-    const token = getToken();
     setLoading(true);
     try {
-      const res = await fetch("http://localhost:8000/document-templates/", {
-        headers: token ? { "Authorization": `Bearer ${token}` } : {},
-      });
+      const res = await apiFetch("/document-templates/");
       const data = await res.json();
       setTemplates(Array.isArray(data) ? data : []);
     } catch (err) {
@@ -50,13 +47,9 @@ export default function TemplatesManagementPage() {
 
   const handleDelete = async () => {
     if (deleteId === null) return;
-    const token = getToken();
     setDeleting(true);
     try {
-      await fetch(`http://localhost:8000/document-templates/${deleteId}`, {
-        method: "DELETE",
-        headers: token ? { "Authorization": `Bearer ${token}` } : {},
-      });
+      await apiFetch(`/document-templates/${deleteId}`, { method: "DELETE" });
       setDeleteId(null);
       fetchTemplates();
     } catch (err) {

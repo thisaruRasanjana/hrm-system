@@ -3,7 +3,7 @@
 import { useState } from "react";
 import RichTextEditor from "./RichTextEditor";
 import { X, FileText, Upload } from "lucide-react";
-import { getToken } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 
 type Props = {
   onClose: () => void;
@@ -66,10 +66,8 @@ export default function TemplateAddModal({ onClose, onSuccess }: Props) {
     if (templateType === "FILE" && file) formData.append("file", file);
 
     try {
-      const token = getToken();
-      const res = await fetch("http://localhost:8000/document-templates/", {
+      const res = await apiFetch("/document-templates/", {
         method: "POST",
-        headers: token ? { "Authorization": `Bearer ${token}` } : {},
         body: formData,
       });
 

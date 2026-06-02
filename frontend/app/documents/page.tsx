@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useAuth } from "@/context/auth-context";
+import { apiFetch } from "@/lib/api";
 import DocumentItem from "../components/DocumentItem";
 import DocumentTabsHR from "../components/DocumentTabsHR";
-import { hasPermission } from "../components/AuthGuard";
-import { getToken } from "@/lib/api";
 
 type UploadedDocument = {
   id: string;
@@ -24,20 +24,17 @@ type MergedDocument = {
 };
 
 export default function HRDocumentsPage() {
+  const { user, hasPermission } = useAuth();
   const [uploadedDocs, setUploadedDocs] = useState<UploadedDocument[]>([]);
   const [docTypes, setDocTypes] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [canUpload, setCanUpload] = useState(true);
 
   useEffect(() => {
-    setCanUpload(hasPermission("document:upload"));
-    const token = getToken();
-    const authHeader: Record<string, string> = token ? { "Authorization": `Bearer ${token}` } : {};
-
+    if (!user) return;
     setIsLoading(true);
     Promise.all([
-      fetch("http://localhost:8000/api/document-types/active/", { headers: authHeader }).then(res => res.json()),
-      fetch("http://localhost:8000/documents/my-documents", { headers: authHeader }).then(res => res.json())
+      apiFetch("/api/document-types/active/").then(r => r.json()),
+      apiFetch("/documents/my-documents").then(r => r.json()),
     ])
     .then(([types, uploads]) => {
       setDocTypes(Array.isArray(types) ? types : []);
@@ -45,7 +42,7 @@ export default function HRDocumentsPage() {
     })
     .catch((err) => console.error("Error fetching documents:", err))
     .finally(() => setIsLoading(false));
-  }, []);
+  }, [user]);
 
   const mergedDocuments: MergedDocument[] = docTypes.map((type) => {
     const uploaded = uploadedDocs.find((doc) => doc.document_type === type.name);
@@ -91,7 +88,7 @@ export default function HRDocumentsPage() {
         <p className="text-sm text-gray-500">Upload required documents to complete your employee profile.</p>
       </div>
 
-      {!canUpload && (
+      {!hasPermission("document:upload") && (
         <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded-lg text-sm">
           You have read-only access to documents.
         </div>
@@ -127,7 +124,6 @@ export default function HRDocumentsPage() {
                   status={doc.status}
                   isMandatory={true}
                   rejectionReason={doc.rejection_reason}
-                  uploadEndpoint="http://localhost:8000/documents/upload"
                 />
               ))}
             </div>
@@ -145,7 +141,6 @@ export default function HRDocumentsPage() {
                   description="Optional document"
                   status={doc.status}
                   isMandatory={false}
-                  uploadEndpoint="http://localhost:8000/documents/upload"
                 />
               ))}
             </div>

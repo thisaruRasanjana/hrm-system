@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { X, CheckCircle, XCircle, Clock, AlertCircle } from "lucide-react";
-import { getToken } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 
 type Props = {
   document: any;
@@ -24,12 +24,8 @@ export default function DocumentReviewModal({
   const approveDocument = async () => {
     setLoading(true);
     setError("");
-    const token = getToken();
     try {
-      const res = await fetch(
-        `http://localhost:8000/documents/review/${document.id}/approve`,
-        { method: "PATCH", headers: token ? { "Authorization": `Bearer ${token}` } : {} }
-      );
+      const res = await apiFetch(`/documents/review/${document.id}/approve`, { method: "PATCH" });
       if (!res.ok) throw new Error("Approval failed");
       
       refresh();
@@ -49,16 +45,12 @@ export default function DocumentReviewModal({
 
     setLoading(true);
     setError("");
-    const token = getToken();
     try {
-      const res = await fetch(
-        `http://localhost:8000/documents/review/${document.id}/reject`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json", ...(token ? { "Authorization": `Bearer ${token}` } : {}) },
-          body: JSON.stringify({ reason }),
-        }
-      );
+      const res = await apiFetch(`/documents/review/${document.id}/reject`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason }),
+      });
       if (!res.ok) throw new Error("Rejection failed");
 
       refresh();
