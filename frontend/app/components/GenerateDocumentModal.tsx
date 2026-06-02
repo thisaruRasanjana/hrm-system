@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { X, FileText, Send, RefreshCw, Eye, EyeOff, FileCode, Info, PenLine, AlertCircle,
   Bold, Italic, Underline as UnderlineIcon, Strikethrough, AlignLeft, AlignCenter, AlignRight, List, ListOrdered } from "lucide-react";
+import { getToken } from "@/lib/api";
 
 type Props = {
   request: any;
@@ -53,7 +54,10 @@ export default function GenerateDocumentModal({ request, onClose, onSuccess }: P
   useEffect(() => {
     // Fetch ONLY templates whose category matches this request's document_type
     const category = encodeURIComponent(request.document_type || "");
-    fetch(`http://localhost:8000/document-templates/?category=${category}`)
+    const token = getToken();
+    fetch(`http://localhost:8000/document-templates/?category=${category}`, {
+      headers: token ? { "Authorization": `Bearer ${token}` } : {},
+    })
       .then((res) => res.json())
       .then((data) => {
         setTemplates(data);
@@ -88,9 +92,10 @@ export default function GenerateDocumentModal({ request, onClose, onSuccess }: P
     setError("");
 
     try {
+      const token = getToken();
       const res = await fetch(`http://localhost:8000/hr-document-requests/${request.id}/generate`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(token ? { "Authorization": `Bearer ${token}` } : {}) },
         body: JSON.stringify({
           template_id: parseInt(selectedTemplate),
           preview: true,
@@ -125,9 +130,10 @@ export default function GenerateDocumentModal({ request, onClose, onSuccess }: P
     setError("");
 
     try {
+      const token = getToken();
       const res = await fetch(`http://localhost:8000/hr-document-requests/${request.id}/generate`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(token ? { "Authorization": `Bearer ${token}` } : {}) },
         body: JSON.stringify({
           template_id: parseInt(selectedTemplate),
           preview: false,
@@ -155,9 +161,10 @@ export default function GenerateDocumentModal({ request, onClose, onSuccess }: P
     setLoadingCustomSend(true);
     setError("");
     try {
+      const token = getToken();
       const res = await fetch(`http://localhost:8000/hr-document-requests/${request.id}/custom-letter`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(token ? { "Authorization": `Bearer ${token}` } : {}) },
         body: JSON.stringify({ content }),
       });
       const data = await res.json();

@@ -6,6 +6,7 @@ import DocumentTabsHR from "../../components/DocumentTabsHR";
 import TemplateAddModal from "../../components/TemplateAddModal";
 import TemplateEditModal from "../../components/TemplateEditModal";
 import TemplatePreviewModal from "../../components/TemplatePreviewModal";
+import { getToken } from "@/lib/api";
 
 type Template = {
   id: number;
@@ -27,16 +28,12 @@ export default function TemplatesManagementPage() {
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  const employeeDbId =
-    typeof window !== "undefined"
-      ? (localStorage.getItem("employeeDbId") ?? "8")
-      : "8";
-
   const fetchTemplates = async () => {
+    const token = getToken();
     setLoading(true);
     try {
       const res = await fetch("http://localhost:8000/document-templates/", {
-        headers: { "X-Employee-ID": employeeDbId },
+        headers: token ? { "Authorization": `Bearer ${token}` } : {},
       });
       const data = await res.json();
       setTemplates(Array.isArray(data) ? data : []);
@@ -53,11 +50,12 @@ export default function TemplatesManagementPage() {
 
   const handleDelete = async () => {
     if (deleteId === null) return;
+    const token = getToken();
     setDeleting(true);
     try {
       await fetch(`http://localhost:8000/document-templates/${deleteId}`, {
         method: "DELETE",
-        headers: { "X-Employee-ID": employeeDbId },
+        headers: token ? { "Authorization": `Bearer ${token}` } : {},
       });
       setDeleteId(null);
       fetchTemplates();

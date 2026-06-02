@@ -6,6 +6,7 @@ import {
   PlusCircle, Trash2, Pencil, Check, X, ToggleLeft, ToggleRight, FileType,
 } from "lucide-react";
 import ConfirmModal from "../../components/ConfirmModal";
+import { getToken } from "@/lib/api";
 
 type DocType = {
   id: string;
@@ -41,14 +42,14 @@ export default function DocumentTypesPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const employeeDbId =
-    typeof window !== "undefined"
-      ? (localStorage.getItem("employeeDbId") ?? "8")
-      : "8";
+  const authHeader = (): Record<string, string> => {
+    const token = getToken();
+    return token ? { "Authorization": `Bearer ${token}` } : {};
+  };
 
   const fetchTypes = () => {
     setLoading(true);
-    fetch(`${API}/`, { headers: { "X-Employee-ID": employeeDbId } })
+    fetch(`${API}/`, { headers: authHeader() })
       .then((r) => r.json())
       .then((data) => setTypes(Array.isArray(data) ? data : []))
       .catch(console.error)
@@ -65,7 +66,7 @@ export default function DocumentTypesPage() {
     try {
       const res = await fetch(`${API}/`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "X-Employee-ID": employeeDbId },
+        headers: { "Content-Type": "application/json", ...authHeader() },
         body: JSON.stringify({ name: name.trim(), description: description.trim() || null, is_mandatory: isMandatory }),
       });
       if (!res.ok) {
@@ -84,7 +85,7 @@ export default function DocumentTypesPage() {
   const toggleActive = async (type: DocType) => {
     await fetch(`${API}/${type.id}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json", "X-Employee-ID": employeeDbId },
+      headers: { "Content-Type": "application/json", ...authHeader() },
       body: JSON.stringify({ is_active: !type.is_active }),
     });
     fetchTypes();
@@ -99,7 +100,7 @@ export default function DocumentTypesPage() {
     if (!deletingId) return;
     setIsDeleting(true);
     try {
-      await fetch(`${API}/${deletingId}`, { method: "DELETE", headers: { "X-Employee-ID": employeeDbId } });
+      await fetch(`${API}/${deletingId}`, { method: "DELETE", headers: { ...authHeader() } });
       fetchTypes();
       setShowDeleteConfirm(false);
       setDeletingId(null);
@@ -125,7 +126,7 @@ export default function DocumentTypesPage() {
     try {
       const res = await fetch(`${API}/${id}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json", "X-Employee-ID": employeeDbId },
+        headers: { "Content-Type": "application/json", ...authHeader() },
         body: JSON.stringify({ name: editName.trim(), description: editDescription.trim() || null, is_mandatory: editMandatory }),
       });
       if (!res.ok) {

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { X, CheckCircle, XCircle, Clock, AlertCircle } from "lucide-react";
+import { getToken } from "@/lib/api";
 
 type Props = {
   document: any;
@@ -23,10 +24,11 @@ export default function DocumentReviewModal({
   const approveDocument = async () => {
     setLoading(true);
     setError("");
+    const token = getToken();
     try {
       const res = await fetch(
         `http://localhost:8000/documents/review/${document.id}/approve`,
-        { method: "PATCH" }
+        { method: "PATCH", headers: token ? { "Authorization": `Bearer ${token}` } : {} }
       );
       if (!res.ok) throw new Error("Approval failed");
       
@@ -47,12 +49,13 @@ export default function DocumentReviewModal({
 
     setLoading(true);
     setError("");
+    const token = getToken();
     try {
       const res = await fetch(
         `http://localhost:8000/documents/review/${document.id}/reject`,
         {
           method: "PATCH",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...(token ? { "Authorization": `Bearer ${token}` } : {}) },
           body: JSON.stringify({ reason }),
         }
       );
