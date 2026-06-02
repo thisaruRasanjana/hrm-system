@@ -6,7 +6,6 @@ from app.database.database import get_db
 from app.documents.schemas import approval_schema
 from app.documents.services import approval_service
 from app.auth.dependencies import require_permission
-from app.documents.constants import DEMO_REVIEWER_ID
 
 router = APIRouter(
     prefix="/documents/review",
@@ -16,7 +15,8 @@ router = APIRouter(
 
 @router.get("/pending", response_model=list[approval_schema.DocumentApprovalResponse])
 def get_pending_documents(
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user = Depends(require_permission("document:approve"))
 ):
     return approval_service.get_pending_documents(db)
 
@@ -24,15 +24,19 @@ def get_pending_documents(
 @router.patch("/{document_id}/approve", response_model=approval_schema.DocumentApprovalResponse)
 def approve_document(
     document_id: UUID,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user = Depends(require_permission("document:approve"))
 ):
-    return approval_service.approve_document(db, document_id, DEMO_REVIEWER_ID)
+    reviewer_id = current_user.employee.id if current_user.employee else current_user.id
+    return approval_service.approve_document(db, document_id, reviewer_id)
 
 
 @router.patch("/{document_id}/reject", response_model=approval_schema.DocumentApprovalResponse)
 def reject_document(
     document_id: UUID,
     request: approval_schema.RejectDocumentRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user = Depends(require_permission("document:approve"))
 ):
-    return approval_service.reject_document(db, document_id, DEMO_REVIEWER_ID, request.reason)
+    reviewer_id = current_user.employee.id if current_user.employee else current_user.id
+    return approval_service.reject_document(db, document_id, reviewer_id, request.reason)

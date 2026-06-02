@@ -1,43 +1,131 @@
+"""
+auth/service.py — Authentication logic only.
+Role/Permission management has moved to roles/service.py.
+"""
+from typing import Optional, List
+from datetime import timedelta
 from sqlalchemy.orm import Session
-from app.auth import models, schemas
-from app.employees.models import Employee
+from app.auth.models import User
+from app.core.security import verify_password
+from app.core.jwt import create_access_token, create_refresh_token
 
-def get_roles(db: Session):
-    return db.query(models.Role).all()
+# ── User lookup helpers ───────────────────────────────────────────────────────
 
-def get_permissions(db: Session):
-    return db.query(models.Permission).all()
+def get_user_by_username(db: Session, username: str) -> Optional[User]:
+    """
+    Look up an active (non-deleted) user by exact username.
+    Returns None if the user does not exist or has been soft-deleted.
+    """
+    return db.query(User).filter(
+        User.username == username,
+        (User.is_deleted == False) | (User.is_deleted == None)
+    ).first()
 
-def create_role(db: Session, role_in: schemas.RoleCreate):
-    permissions = db.query(models.Permission).filter(models.Permission.name.in_(role_in.permissions)).all()
-    db_role = models.Role(
-        name=role_in.name,
-        description=role_in.description,
-        is_system=role_in.is_system,
-        permissions=permissions
+
+def get_user_by_email(db: Session, email: str) -> Optional[User]:
+    """
+    Look up an active (non-deleted) user by email address (case-insensitive).
+    Returns None if the user does not exist or has been soft-deleted.
+    """
+    return db.query(User).filter(
+        User.email.ilike(email),
+        (User.is_deleted == False) | (User.is_deleted == None)
+    ).first()
+
+
+def get_user_by_id(db: Session, user_id: int) -> Optional[User]:
+    """
+    Look up an active (non-deleted) user by primary key.
+    Returns None if the user does not exist or has been soft-deleted.
+    """
+    return db.query(User).filter(
+        User.id == user_id,
+        (User.is_deleted == False) | (User.is_deleted == None)
+    ).first()
+
+
+# ── Authentication ────────────────────────────────────────────────────────────
+
+def authenticate_user(db: Session, identifier: str, password: str) -> Optional[dict]:
+    """
+    Authenticate via email OR username (case-insensitive).
+    Returns a token dict on success, None on failure.
+    """
+    from sqlalchemy.orm import joinedload
+
+    identifier = identifier.strip()
+    from app.roles.models import Role
+    user = (
+        db.query(User)
+        .options(joinedload(User.roles).joinedload(Role.permissions))
+        .filter(
+            ((User.email.ilike(identifier)) | (User.username.ilike(identifier))),
+            ((User.is_deleted == False) | (User.is_deleted == None))
+        )
+        .first()
     )
-    db.add(db_role)
-    db.commit()
-    db.refresh(db_role)
-    return db_role
 
-def assign_role(db: Session, assignment: schemas.RoleAssignment):
-    employee = db.query(Employee).filter(Employee.id == assignment.employee_id).first()
-    if not employee:
+    if not user:
         return None
-    employee.role_id = assignment.role_id
-    db.commit()
-    db.refresh(employee)
-    return employee
 
-def update_role(db: Session, role_id: int, role_update: schemas.RoleUpdate):
-    db_role = db.query(models.Role).filter(models.Role.id == role_id).first()
-    if not db_role:
+    if not verify_password(password, user.password_hash):
         return None
-    
-    # Resolve permission names to permission objects
-    permissions = db.query(models.Permission).filter(models.Permission.name.in_(role_update.permissions)).all()
-    db_role.permissions = permissions
+
+    access_token = create_access_token({"sub": str(user.id)})
+    refresh_token = create_refresh_token({"sub": str(user.id)})
+
+    # Persist refresh token
+    user.refresh_token = refresh_token
     db.commit()
-    db.refresh(db_role)
-    return db_role
+
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_type": "bearer",
+        "user": user,
+    }
+
+
+# ── Permissions ───────────────────────────────────────────────────────────────
+
+def get_user_permissions(db: Session, user_id: int) -> List[str]:
+    """Return a flat list of permission_name strings for a user (across all roles)."""
+    from sqlalchemy.orm import joinedload
+    from app.roles.models import Role
+
+    user = (
+        db.query(User)
+        .options(joinedload(User.roles).joinedload(Role.permissions))
+        .filter(
+            User.id == user_id,
+            (User.is_deleted == False) | (User.is_deleted == None)
+        )
+        .first()
+    )
+    if not user:
+        return []
+
+    # Super Admin Bypass
+    if getattr(user, "is_superadmin", False):
+        from app.roles.models import Permission
+        all_perms = db.query(Permission).all()
+        return [p.permission_name for p in all_perms]
+
+    perms: set[str] = set()
+    for role in user.roles:
+        for perm in role.permissions:
+            perms.add(perm.permission_name)
+
+    # Fallback — scalar role_id column
+    if not perms and user.role_id:
+        role = (
+            db.query(Role)
+            .options(joinedload(Role.permissions))
+            .filter(Role.id == user.role_id)
+            .first()
+        )
+        if role:
+            for perm in role.permissions:
+                perms.add(perm.permission_name)
+
+    return list(perms)

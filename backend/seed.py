@@ -1,326 +1,143 @@
 """
-seed.py - Database seed script for document management module.
+seed.py -- Creates 3 dummy users for testing.
+Assumes roles are already seeded by app startup.
 
-Inserts roles, permissions, and test employees required for the
-document management RBAC system.
-
-Usage:
-    python seed.py          (from the backend root folder)
-
-Idempotent: safe to run multiple times -- existing records are skipped.
+Usage:  python seed.py
 """
+# -*- coding: utf-8 -*-
 
-import sys
-import io
-from datetime import date
-from sqlalchemy.orm import Session
+import os, sys
 
-# Force UTF-8 output so the terminal does not choke on any characters
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+sys.path.insert(0, os.path.dirname(__file__))
 
-# ---------------------------------------------------------------------------
-# Bootstrap: app package must be importable from the backend root
-# ---------------------------------------------------------------------------
-from app.database.database import SessionLocal          # noqa: E402
-from app.auth.models import Role, Permission            # noqa: E402
-from app.employees.models import Employee, EmployeeStatus  # noqa: E402
+from dotenv import load_dotenv
+load_dotenv()
 
+from app.database.database import SessionLocal
+from app.core.security import hash_password
+from app.roles.models import Role
+from app.auth.models import User
+from app.employees.models import Employee # noqa: F401
+from app.departments.models import Department # noqa: F401
+from app.announcements.models import Announcement # noqa: F401
+from app.events.models import Event # noqa: F401
+from app.time_tracking.models import TimeEntry # noqa: F401
+from app.messages.models import Message # noqa: F401
+from app.notifications.models import Notification # noqa: F401
 
-# ===========================================================================
-# Data definitions
-# ===========================================================================
+db = SessionLocal()
 
-PERMISSIONS = [
-    {
-        "name": "document:upload",
-        "description": "Upload own documents",
-    },
-    {
-        "name": "document:request",
-        "description": "Request documents like service letter",
-    },
-    {
-        "name": "document:approve",
-        "description": "Approve or reject documents",
-    },
-    {
-        "name": "document:manage_requests",
-        "description": "Manage document requests",
-    },
-    {
-        "name": "document:manage_types",
-        "description": "Manage document types",
-    },
-    {
-        "name": "document:manage_templates",
-        "description": "Manage document templates",
-    },
-]
-
-ROLES = [
-    {
-        "name": "employee",
-        "description": "Regular employee with basic document access",
-        "is_system": 1,
-        "permissions": [
-            "document:upload",
-            "document:request",
-        ],
-    },
-    {
-        "name": "manager",
-        "description": "Manager who can approve documents",
-        "is_system": 1,
-        "permissions": [
-            "document:upload",
-            "document:request",
-            "document:approve",
-        ],
-    },
-    {
-        "name": "hr",
-        "description": "HR staff with full document management access",
-        "is_system": 1,
-        "permissions": [
-            "document:upload",
-            "document:request",
-            "document:approve",
-            "document:manage_requests",
-            "document:manage_types",
-            "document:manage_templates",
-        ],
-    },
-    {
-        "name": "super_admin",
-        "description": "Super admin with full administrative document control",
-        "is_system": 1,
-        "permissions": [
-            "document:approve",
-            "document:manage_requests",
-            "document:manage_types",
-            "document:manage_templates",
-        ],
-    },
-]
-
-# One test employee per role
-TEST_EMPLOYEES = [
-    {
-        "role_name": "employee",
-        "employee_id": "TEST-EMP-001",
-        "first_name": "Test",
-        "last_name": "Employee",
-        "email": "test.employee@hrm.local",
-        "phone": "0000000001",
-        "department": "General",
-        "designation": "Staff",
-    },
-    {
-        "role_name": "manager",
-        "employee_id": "TEST-MGR-001",
-        "first_name": "Test",
-        "last_name": "Manager",
-        "email": "test.manager@hrm.local",
-        "phone": "0000000002",
-        "department": "General",
-        "designation": "Manager",
-    },
-    {
-        "role_name": "hr",
-        "employee_id": "TEST-HR-001",
-        "first_name": "Test",
-        "last_name": "HR",
-        "email": "test.hr@hrm.local",
-        "phone": "0000000003",
-        "department": "Human Resources",
-        "designation": "HR Officer",
-    },
-    {
-        "role_name": "super_admin",
-        "employee_id": "TEST-SA-001",
-        "first_name": "Test",
-        "last_name": "SuperAdmin",
-        "email": "test.superadmin@hrm.local",
-        "phone": "0000000004",
-        "department": "Administration",
-        "designation": "Super Administrator",
-    },
-]
-
-
-# ===========================================================================
-# Colour helpers (ANSI codes -- safe on both Windows Terminal and plain CMD)
-# ===========================================================================
-
-def _green(msg: str) -> str:
-    return f"\033[92m{msg}\033[0m"
-
-
-def _yellow(msg: str) -> str:
-    return f"\033[93m{msg}\033[0m"
-
-
-def _red(msg: str) -> str:
-    return f"\033[91m{msg}\033[0m"
-
-
-def _bold(msg: str) -> str:
-    return f"\033[1m{msg}\033[0m"
-
-
-# ===========================================================================
-# Seed functions
-# ===========================================================================
-
-def seed_permissions(db: Session) -> dict:
-    """Insert permissions; skip if already present. Returns name->Permission map."""
-    print(_bold("\n-- Permissions ---------------------------------------"))
-    perm_map = {}
-
-    for pdef in PERMISSIONS:
-        existing = db.query(Permission).filter(Permission.name == pdef["name"]).first()
-        if existing:
-            print(_yellow(f"  SKIP   permission '{pdef['name']}' (already exists, id={existing.id})"))
-            perm_map[existing.name] = existing
-        else:
-            perm = Permission(name=pdef["name"], description=pdef["description"])
-            db.add(perm)
-            db.flush()  # obtain auto-generated id without committing yet
-            print(_green(f"  CREATE permission '{perm.name}' (id={perm.id})"))
-            perm_map[perm.name] = perm
-
-    return perm_map
-
-
-def seed_roles(db: Session, perm_map: dict) -> dict:
-    """Insert roles with their permissions; skip if already present."""
-    print(_bold("\n-- Roles ---------------------------------------------"))
-    role_map = {}
-
-    for rdef in ROLES:
-        existing = db.query(Role).filter(Role.name == rdef["name"]).first()
-        if existing:
-            print(_yellow(f"  SKIP   role '{rdef['name']}' (already exists, id={existing.id})"))
-            role_map[existing.name] = existing
-        else:
-            role = Role(
-                name=rdef["name"],
-                description=rdef["description"],
-                is_system=rdef["is_system"],
-            )
-            for pname in rdef["permissions"]:
-                if pname in perm_map:
-                    role.permissions.append(perm_map[pname])
-                else:
-                    print(_red(f"  WARN   permission '{pname}' not found for role '{rdef['name']}'"))
-
-            db.add(role)
-            db.flush()
-            pnames = ", ".join(rdef["permissions"])
-            print(_green(f"  CREATE role '{role.name}' (id={role.id}) -> [{pnames}]"))
-            role_map[role.name] = role
-
-    return role_map
-
-
-def seed_test_employees(db: Session, role_map: dict) -> list:
-    """Create one test employee per role; skip if employee_id already exists."""
-    print(_bold("\n-- Test Employees ------------------------------------"))
-    created = []
-
-    for edef in TEST_EMPLOYEES:
-        existing = db.query(Employee).filter(Employee.employee_id == edef["employee_id"]).first()
-        if existing:
-            print(_yellow(
-                f"  SKIP   employee '{edef['employee_id']}' "
-                f"({edef['first_name']} {edef['last_name']}) already exists -- db id={existing.id}"
-            ))
-            created.append({
-                "role": edef["role_name"],
-                "employee_id_field": existing.employee_id,
-                "db_id": existing.id,
-                "name": f"{existing.first_name} {existing.last_name}",
-                "skipped": True,
-            })
-            continue
-
-        role = role_map.get(edef["role_name"])
-        if not role:
-            print(_red(f"  ERROR  role '{edef['role_name']}' not found -- skipping {edef['employee_id']}"))
-            continue
-
-        emp = Employee(
-            employee_id=edef["employee_id"],
-            first_name=edef["first_name"],
-            last_name=edef["last_name"],
-            email=edef["email"],
-            phone=edef["phone"],
-            department=edef["department"],
-            designation=edef["designation"],
-            status=EmployeeStatus.active,
-            joined_date=date.today(),
-            role_id=role.id,
-        )
-        db.add(emp)
-        db.flush()
-        print(_green(
-            f"  CREATE employee '{emp.employee_id}' -- {emp.first_name} {emp.last_name} "
-            f"[role: {edef['role_name']}] -- db id={emp.id}"
-        ))
-        created.append({
-            "role": edef["role_name"],
-            "employee_id_field": emp.employee_id,
-            "db_id": emp.id,
-            "name": f"{emp.first_name} {emp.last_name}",
-            "skipped": False,
-        })
-
-    return created
-
-
-# ===========================================================================
-# Main entry point
-# ===========================================================================
-
-def run_seed():
-    db: Session = SessionLocal()
-
-    print(_bold("=" * 55))
-    print(_bold("  HRM Document Module - Database Seed"))
-    print(_bold("=" * 55))
-
-    try:
-        perm_map = seed_permissions(db)
-        role_map = seed_roles(db, perm_map)
-        employees = seed_test_employees(db, role_map)
-
-        db.commit()
-        print(_green("\n[OK] All changes committed successfully.\n"))
-
-    except Exception as exc:
-        db.rollback()
-        print(_red(f"\n[FAIL] Seed failed - transaction rolled back.\n  Error: {exc}"))
+def get_role(name: str) -> Role:
+    role = db.query(Role).filter(Role.role_name == name).first()
+    if not role:
+        print(f"  [ERROR] Role '{name}' not found. Make sure backend has run once to seed roles.")
         sys.exit(1)
-    finally:
-        db.close()
+    return role
 
-    # ------------------------------------------------------------------
-    # Summary table
-    # ------------------------------------------------------------------
-    print(_bold("=" * 55))
-    print(_bold("  Test Employee IDs (use as X-Employee-ID header)"))
-    print(_bold("=" * 55))
-    print(f"  {'Role':<14} {'employee_id':<16} {'DB id':<8} {'Name'}")
-    print(f"  {'-'*14} {'-'*16} {'-'*8} {'-'*20}")
-    for e in employees:
-        status_tag = _yellow("[skipped]") if e["skipped"] else _green("[created]")
-        print(
-            f"  {e['role']:<14} {e['employee_id_field']:<16} {e['db_id']:<8} {e['name']}  {status_tag}"
-        )
-    print()
-    print("  NOTE: Use the integer 'DB id' as the X-Employee-ID header value.")
-    print()
+print("\n-- Fetching roles --")
+super_admin_role = get_role("Super Admin")
+hr_role          = get_role("HR")
+emp_role         = get_role("Employee")
 
+print("\n-- Fixing Dashboard Widget Permissions --")
+from app.roles.models import Permission
+dashboard_perms = [
+    "widget.announcements.view", "widget.announcements.manage",
+    "widget.upcoming_events.view", "widget.upcoming_events.manage",
+    "widget.calendar.view", "widget.calendar.edit",
+    "widget.time_tracking.view", "widget.leave_balance.view",
+    "widget.approval_summary.view_approvals", "widget.approval_summary.view_requests",
+    "widget.notifications.view", "widget.weekly_hours.view", "widget.availability.view"
+]
 
-if __name__ == "__main__":
-    run_seed()
+for p_name in dashboard_perms:
+    p = db.query(Permission).filter(Permission.permission_name == p_name).first()
+    if not p:
+        p = Permission(permission_name=p_name, description="Dashboard Widget Access")
+        db.add(p)
+        db.commit()
+        db.refresh(p)
+    
+    if p not in super_admin_role.permissions:
+        super_admin_role.permissions.append(p)
+    if p not in hr_role.permissions:
+        hr_role.permissions.append(p)
+    if p_name.endswith(".view") and p not in emp_role.permissions:
+        emp_role.permissions.append(p)
+
+db.commit()
+
+dummy_users = [
+    {
+        "email": "admin@hrm.lk",
+        "username": "admin",
+        "password": "Admin@123",
+        "first_name": "Admin",
+        "last_name": "User",
+        "role": "Super Admin",
+        "position": "System Administrator",
+        "department": "Management",
+        "employee_id": "EMP-ADMIN",
+        "role_id": super_admin_role.id,
+    },
+    {
+        "email": "hr@hrm.lk",
+        "username": "hrmanager",
+        "password": "HR@123",
+        "first_name": "HR",
+        "last_name": "Manager",
+        "role": "HR",
+        "position": "HR Manager",
+        "department": "Human Resources",
+        "employee_id": "EMP-001",
+        "role_id": hr_role.id,
+    },
+    {
+        "email": "emp@hrm.lk",
+        "username": "employee1",
+        "password": "Emp@123",
+        "first_name": "John",
+        "last_name": "Employee",
+        "role": "Employee",
+        "position": "Software Engineer",
+        "department": "Engineering",
+        "employee_id": "EMP-002",
+        "role_id": emp_role.id,
+    },
+]
+
+print("\n-- Creating dummy users --")
+for u in dummy_users:
+    existing = (
+        db.query(User).filter(User.email == u["email"]).first()
+        or db.query(User).filter(User.username == u["username"]).first()
+    )
+    if existing:
+        print(f"  User '{u['username']}' already exists -- updating role and password.")
+        existing.role_id = u["role_id"]
+        existing.role = u["role"]
+        existing.username = u["username"]
+        existing.password_hash = hash_password(u["password"])
+        db.commit()
+        continue
+
+    user = User(
+        email=u["email"],
+        username=u["username"],
+        password_hash=hash_password(u["password"]),
+        first_name=u["first_name"],
+        last_name=u["last_name"],
+        role=u["role"],
+        position=u["position"],
+        department=u["department"],
+        employee_id=u["employee_id"],
+        role_id=u["role_id"],
+        is_active=True,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    print(f"  [OK] Created user '{u['username']}' ({u['email']}) -- role: {u['role']}")
+
+db.close()
+print("\nSeed complete.\n")

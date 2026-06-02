@@ -17,6 +17,14 @@ node_modules/
 /backend/uploaded_documents/
 /backend/admin_documents/
 
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# macOS metadata
+.DS_Store
+
 # Error logs and debug output
 backend/backend_err.txt
 backend/backend_full_error.txt

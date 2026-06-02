@@ -1,35 +1,12 @@
 """
-tests/conftest.py
-=================
-Shared fixtures for backend unit tests.
+Pytest configuration — backend test suite.
 
-Using SQLite in memory ensures tests are blazing fast and completely isolated
-from the production PostgreSQL database.
+Adds the backend directory to sys.path so that 'from app.x import y'
+works correctly without installing the package.
 """
+import sys
+import os
 
-import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-
-from app.database.base import Base
-
-# Use in-memory SQLite for tests to prevent touching the real DB
-SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
-
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL,
-    connect_args={"check_same_thread": False}
-)
-TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-@pytest.fixture(scope="function")
-def db():
-    """Provides a fresh database session for each test function."""
-    Base.metadata.create_all(bind=engine)
-    session = TestingSessionLocal()
-    try:
-        yield session
-    finally:
-        session.close()
-        # Drop all tables after the test runs to ensure strict isolation
-        Base.metadata.drop_all(bind=engine)
+# Insert the backend root directory at the front of the module search path.
+# This allows tests to import 'app.*' modules directly.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
