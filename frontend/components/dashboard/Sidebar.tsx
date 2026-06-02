@@ -1,0 +1,102 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import {
+  LayoutGrid,
+  Shield,
+  Users,
+  Calendar,
+  FileText,
+  Settings
+} from "lucide-react";
+
+import { useAuth } from "@/context/auth-context";
+
+export default function Sidebar() {
+
+  const pathname = usePathname();
+  const { hasPermission, hasAnyPermission } = useAuth();
+
+  const menu = [
+    { name: "Dashboard", path: "/dashboard", icon: LayoutGrid },
+    { 
+      name: "Employee Management", 
+      path: "/dashboard/employees", 
+      icon: Users,
+      permission: "employee:view_all" 
+    },
+    { 
+      name: "Role Management", 
+      path: "/dashboard/EmployeeManagement/assign-role", 
+      icon: Shield,
+      permission: "role:view"
+    },
+    { name: "Recruitment", path: "/recruitment", icon: Users, permission: "recruitment:view" },
+    { name: "Leave", path: "/dashboard/leave", icon: Calendar, permission: "leave:request" },
+    { name: "Document", path: "/dashboard/documents", icon: FileText, permission: "document:request_own" },
+    { name: "Settings", path: "/dashboard/settings", icon: Settings }
+  ];
+
+  return (
+    <aside className="fixed left-0 top-0 w-[260px] h-screen bg-[#EAEAEA] border-r border-gray-200 flex flex-col px-6 py-8">
+
+      {/* Logo */}
+      <div className="flex items-center gap-4 mb-12">
+
+        <div className="w-12 h-12 bg-[#F2924E] text-white flex items-center justify-center rounded-xl font-bold text-lg">
+          HR
+        </div>
+
+        <div>
+          <h2 className="font-semibold text-lg text-black">HRMS</h2>
+          <p className="text-sm text-gray-500">Management System</p>
+        </div>
+
+      </div>
+
+      <p className="text-xs text-gray-500 tracking-wide mb-8">
+        MAIN MENU
+      </p>
+
+      <nav className="flex flex-col gap-7">
+
+        {menu.map((item) => {
+          // Check permissions
+          if (item.name === "Employee Management") {
+            if (!hasAnyPermission(["employee:view_all", "employee:create", "employee:update", "employee:delete"])) return null;
+          } else if (item.name === "Role Management") {
+            if (!hasAnyPermission(["role:view", "role:create", "role:assign"])) return null;
+          } else if (item.permission && !hasPermission(item.permission)) {
+            return null;
+          }
+
+          const Icon = item.icon;
+          const active = pathname === item.path;
+
+          return (
+            <Link
+              key={item.path}
+              href={item.path}
+              className={`flex items-center gap-4 text-[15px] transition
+              ${active
+                ? "text-[#F2924E] font-medium"
+                : "text-gray-600 hover:text-[#F2924E]"
+              }`}
+            >
+              <Icon size={20} strokeWidth={1.6} />
+              {item.name}
+            </Link>
+          );
+
+        })}
+
+      </nav>
+
+      <div className="mt-auto text-xs text-gray-500">
+        © 2026 HRMS
+      </div>
+
+    </aside>
+  );
+}

@@ -1,7 +1,212 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap");
 @import "tailwindcss";
+@import "react-grid-layout/css/styles.css";
+@import "react-resizable/css/styles.css";
 
-/* Global Background */
+
+/* ===== HRMS DESIGN TOKENS ===== */
+
+:root {
+  --background: #F5F6F8;
+  --foreground: #111827;
+
+  --brand-orange: #F2924E;
+  --brand-orange-hover: #e4833f;
+
+  --sidebar-bg: #F5F6F8;
+  --card-bg: #ffffff;
+  --card-border: #E5E7EB;
+
+  --text-primary: #111827;
+  --text-secondary: #6B7280;
+  --text-muted: #9CA3AF;
+
+  --success: #22C55E;
+  --warning: #F59E0B;
+  --danger: #EF4444;
+}
+
+/* Tailwind theme bridge */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+}
+
+/* ===== BASE STYLES ===== */
+
 body {
+  background: var(--background);
+  color: var(--text-primary);
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+}
+
+/* ===== CUSTOM THIN SCROLLBAR (from dev) ===== */
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: #d1d5db;
+  border-radius: 3px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background-color: #9ca3af;
+}
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: #d1d5db transparent;
+}
+
+/* ===== SKELETON SHIMMER ===== */
+
+@keyframes skeleton-shimmer {
+  0%   { background-position: -600px 0; }
+  100% { background-position:  600px 0; }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    #f0f0f0 25%,
+    #e8e8e8 37%,
+    #f0f0f0 63%
+  );
+  background-size: 600px 100%;
+  animation: skeleton-shimmer 1.4s ease infinite;
+}
+
+
+/* ===== DASHBOARD LAYOUT (from auth branch) ===== */
+
+.dashboard-bg {
+  background: var(--background);
+}
+
+/* ===== CARD / WIDGET STYLE (from auth branch) ===== */
+
+.widget-card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  transition: all 0.2s ease;
+}
+
+.widget-card:hover {
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+}
+
+/* ===== SIDEBAR (from auth branch) ===== */
+
+.sidebar {
+  background: var(--sidebar-bg);
+}
+
+/* ===== BUTTONS (from auth branch) ===== */
+
+.btn-primary {
+  background: var(--brand-orange);
+  color: white;
+  border-radius: 10px;
+  padding: 10px 20px;
+  font-weight: 500;
+  transition: background 0.2s ease;
+}
+
+.btn-primary:hover {
+  background: var(--brand-orange-hover);
+}
+
+/* ===== SMALL TEXT ===== */
+
+.text-muted {
+  color: var(--text-muted);
+}
+
+/* ===== GRID FIXES (from auth branch) ===== */
+
+.react-grid-item {
+  transition: all 200ms ease;
+}
+
+.react-grid-placeholder {
+  background: rgba(242, 146, 78, 0.2);
+  border-radius: 12px;
+}
+
+/* ── Tiptap Rich Text Editor ───────────────────────────────────────────────── */
+
+/* Editor outer wrapper — border + focus ring handled via Tailwind in component */
+.tiptap-editor .ProseMirror {
+  min-height: 9rem;
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+  color: #374151;
+  outline: none;
+  line-height: 1.6;
+}
+
+/* Placeholder text */
+.tiptap-editor .ProseMirror p.is-empty:only-child::before,
+.tiptap-editor .ProseMirror .is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: #9ca3af;
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+/* Restore list styles reset by Tailwind */
+.tiptap-editor .ProseMirror ul {
+  list-style-type: disc !important;
+  padding-left: 1.5em !important;
+  margin-bottom: 0.5em;
+}
+.tiptap-editor .ProseMirror ol {
+  list-style-type: decimal !important;
+  padding-left: 1.5em !important;
+  margin-bottom: 0.5em;
+}
+.tiptap-editor .ProseMirror li {
+  margin-bottom: 0.2em;
+}
+
+/* Headings */
+.tiptap-editor .ProseMirror h2 {
+  font-size: 1.2em;
+  font-weight: 700;
+  margin-top: 0.75em;
+  margin-bottom: 0.4em;
+  color: #111827;
+}
+.tiptap-editor .ProseMirror h3 {
+  font-size: 1.05em;
+  font-weight: 600;
+  margin-top: 0.6em;
+  margin-bottom: 0.3em;
+  color: #1f2937;
+}
+.tiptap-editor .ProseMirror p {
+  margin-bottom: 0.5em;
+}
+
+/* ── Rich Content Render Styles (for HTML output) ── */
+.rich-content h1 { font-size: 1.5em; font-weight: bold; margin-bottom: 0.5em; }
+.rich-content h2 { font-size: 1.25em; font-weight: bold; margin-bottom: 0.5em; }
+.rich-content h3 { font-size: 1.125em; font-weight: bold; margin-bottom: 0.5em; }
+.rich-content p { margin-bottom: 0.75em; line-height: 1.6; }
+.rich-content ul { list-style-type: disc; padding-left: 1.5em; margin-bottom: 0.75em; }
+.rich-content ol { list-style-type: decimal; padding-left: 1.5em; margin-bottom: 0.75em; }
+.rich-content li { margin-bottom: 0.25em; }
+.rich-content a { color: #f97316; text-decoration: underline; }
+.rich-content strong { font-weight: bold; }
+.rich-content em { font-style: italic; }
+.rich-content u { text-decoration: underline; }
+.rich-content s { text-decoration: line-through; }
   background-color: #f3f4f6;
   font-family: system-ui, -apple-system, sans-serif;
 }

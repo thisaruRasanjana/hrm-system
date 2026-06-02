@@ -1,55 +1,53 @@
-from fastapi import Header, HTTPException, Depends, status
+from fastapi import Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
-
 from app.database.database import get_db
-from app.employees.models import Employee
-from app.auth.models import Role, Permission
+from app.core import security
+from app.auth import service
+from app.auth.models import User
 
-def get_current_user(x_employee_id: str = Header(default=None), db: Session = Depends(get_db)):
-    """
-    Retrieves the current user based on the X-Employee-ID header.
-    Expects the integer DB id of the employee (e.g. 6, 7, 8, 9).
-    """
-    if not x_employee_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, 
-            detail="Authentication required (X-Employee-ID header missing)"
-        )
+# Use the login endpoint (to be implemented in Step 5) as the token URL
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+
+def get_current_user(
+    db: Session = Depends(get_db), 
+    token: str = Depends(oauth2_scheme)
+) -> User:
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
     
-    try:
-        emp_id = int(x_employee_id)
-    except ValueError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Employee ID format (expected integer)")
+    payload = security.decode_access_token(token)
+    if payload is None:
+        raise credentials_exception
+    
+    user_id: int = payload.get("sub")
+    if user_id is None:
+        raise credentials_exception
         
-    employee = db.query(Employee).filter(Employee.id == emp_id).first()
-    if not employee:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+    user = service.get_user_by_id(db, user_id=int(user_id))
+    if user is None:
+        raise credentials_exception
         
-    return employee
+    return user
 
-def require_permission(permission_key: str):
+def require_permission(permission_name: str):
     """
-    Dependency factory to check if the current user's role has the required permission.
-    Usage: current_user: Employee = Depends(require_permission("document:upload"))
+    Dependency factory that returns a dependency function 
+    to check if the current user has a specific permission.
     """
-    def permission_checker(current_user: Employee = Depends(get_current_user), db: Session = Depends(get_db)):
-        if not current_user.role_id:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User has no role assigned")
-            
-        # Fetch the role and joined permissions
-        role = db.query(Role).filter(Role.id == current_user.role_id).first()
-        if not role:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Assigned role not found")
-            
-        # Check permissions list
-        permission_names = [p.name for p in role.permissions]
-        
-        if permission_key not in permission_names:
+    def permission_checker(
+        current_user: User = Depends(get_current_user),
+        db: Session = Depends(get_db)
+    ):
+        permissions = service.get_user_permissions(db, current_user.id)
+        if permission_name not in permissions:
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN, 
-                detail=f"Forbidden: Missing required permission '{permission_key}'"
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Missing required permission: {permission_name}"
             )
-            
-        return current_user
+        return True
         
     return permission_checker

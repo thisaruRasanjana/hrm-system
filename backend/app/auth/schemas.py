@@ -1,34 +1,123 @@
-from pydantic import BaseModel
-from typing import List, Optional
+from pydantic import BaseModel, EmailStr
+from typing import Optional, List
 
-class PermissionBase(BaseModel):
-    name: str
-    description: Optional[str] = None
 
-class PermissionRead(PermissionBase):
+# ── Dev schemas (RBAC) ────────────────────────────────────────────────────────
+
+class UserMe(BaseModel):
     id: int
+    username: str
+    email: str
+    roles: List[str]
+    permissions: List[str]
+    features: dict = {}  # For future feature flags
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
-class RoleBase(BaseModel):
-    name: str
-    description: Optional[str] = None
-    is_system: int = 0
 
-class RoleRead(RoleBase):
+class UserOut(BaseModel):
     id: int
-    permissions: List[PermissionRead] = []
+    username: str
+    email: str
+    is_active: bool
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
-class RoleCreate(RoleBase):
-    permissions: List[str] # List of permission names
 
-class RoleUpdate(BaseModel):
-    permissions: List[str] # List of permission names
+class Token(BaseModel):
+    access_token: str
+    token_type: str
 
-class RoleAssignment(BaseModel):
-    employee_id: int
-    role_id: int
+
+class TokenData(BaseModel):
+    user_id: Optional[int] = None
+
+
+class UserPermissionsOut(BaseModel):
+    user_id: int
+    permissions: List[str]
+
+
+# ── Auth dashboard schemas (Sanduni) ──────────────────────────────────────────
+
+class UserResponse(BaseModel):
+    id: int
+    email: str
+    username: Optional[str] = None
+    is_active: bool
+    role: str = "employee"
+    role_id: Optional[int] = None
+    position: Optional[str] = None
+    permissions: List[str] = []
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    employee_id: Optional[str] = None
+    department: Optional[str] = None
+    phone_number: Optional[str] = None
+    address: Optional[str] = None
+    date_of_birth: Optional[str] = None
+    emergency_contact_number: Optional[str] = None
+    profile_image_url: Optional[str] = None
+    two_factor_enabled: Optional[bool] = False
+    notification_preferences: Optional[dict] = None
+    quiet_hours_start: Optional[str] = "22:00"
+    quiet_hours_end: Optional[str] = "08:00"
+
+    # Fields sourced from Employee model
+    designation: Optional[str] = None
+    joined_date: Optional[str] = None
+    status: Optional[str] = None
+    gender: Optional[str] = None
+    marital_status: Optional[str] = None
+    nationality: Optional[str] = None
+    emergency_contact_name: Optional[str] = None
+    emergency_contact_relation: Optional[str] = None
+    bank_name: Optional[str] = None
+    bank_account_no: Optional[str] = None
+    bank_branch: Optional[str] = None
+    skills: Optional[str] = None
+    qualifications: Optional[str] = None
+
+    model_config = {"from_attributes": True}
+
+
+class UserProfileUpdate(BaseModel):
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    phone_number: Optional[str] = None
+    address: Optional[str] = None
+    date_of_birth: Optional[str] = None
+    emergency_contact_number: Optional[str] = None
+    gender: Optional[str] = None
+    marital_status: Optional[str] = None
+    nationality: Optional[str] = None
+    emergency_contact_name: Optional[str] = None
+    emergency_contact_relation: Optional[str] = None
+    bank_name: Optional[str] = None
+    bank_account_no: Optional[str] = None
+    bank_branch: Optional[str] = None
+    skills: Optional[str] = None
+    qualifications: Optional[str] = None
+
+
+class UserPasswordUpdate(BaseModel):
+    current_password: str
+    new_password: str
+
+
+class UserNotificationUpdate(BaseModel):
+    notification_preferences: dict
+    quiet_hours_start: str
+    quiet_hours_end: str
+
+
+class LoginRequest(BaseModel):
+    """Accepts either email or username in the `email` field, or the dedicated `username` field."""
+    email: Optional[str] = None
+    username: Optional[str] = None
+    password: str
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
