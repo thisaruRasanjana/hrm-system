@@ -12,5 +12,23 @@ node_modules/
 
 # Docker
 *.log
-# Uploads
+# Uploads and generated files
 /backend/uploads/
+/backend/uploaded_documents/
+/backend/admin_documents/
+
+# Error logs and debug output
+backend/backend_err.txt
+backend/backend_full_error.txt
+backend/preview_out.html
+backend/test.docx
+backend/ts_errors.txt
+frontend/ts_errors.txt
+
+# Backup files
+*.bak
+package-lock.json.bak
+package.json.bak
+
+# Scratch/migration scripts
+backend/scratch/
