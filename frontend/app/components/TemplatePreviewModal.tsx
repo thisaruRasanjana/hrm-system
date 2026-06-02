@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { X, FileText, RefreshCw } from "lucide-react";
-import { getToken } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 
 type Template = {
   id: number;
@@ -31,10 +31,7 @@ export default function TemplatePreviewModal({ template, onClose }: Props) {
   useEffect(() => {
     if (template.template_type === "DOCX" && template.file_path) {
       setLoadingDocx(true);
-      const token = getToken();
-      fetch(`http://localhost:8000/document-templates/${template.id}/preview`, {
-        headers: token ? { "Authorization": `Bearer ${token}` } : {},
-      })
+      apiFetch(`/document-templates/${template.id}/preview`)
         .then((res) => {
           if (!res.ok) throw new Error("Preview fetch failed");
           return res.json();

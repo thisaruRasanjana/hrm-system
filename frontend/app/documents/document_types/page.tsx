@@ -6,7 +6,7 @@ import {
   PlusCircle, Trash2, Pencil, Check, X, ToggleLeft, ToggleRight, FileType,
 } from "lucide-react";
 import ConfirmModal from "../../components/ConfirmModal";
-import { getToken } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 
 type DocType = {
   id: string;
@@ -42,14 +42,9 @@ export default function DocumentTypesPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const authHeader = (): Record<string, string> => {
-    const token = getToken();
-    return token ? { "Authorization": `Bearer ${token}` } : {};
-  };
-
   const fetchTypes = () => {
     setLoading(true);
-    fetch(`${API}/`, { headers: authHeader() })
+    apiFetch("/api/document-types/")
       .then((r) => r.json())
       .then((data) => setTypes(Array.isArray(data) ? data : []))
       .catch(console.error)
@@ -64,9 +59,9 @@ export default function DocumentTypesPage() {
     setCreating(true);
     setCreateError("");
     try {
-      const res = await fetch(`${API}/`, {
+      const res = await apiFetch("/api/document-types/", {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeader() },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: name.trim(), description: description.trim() || null, is_mandatory: isMandatory }),
       });
       if (!res.ok) {
@@ -83,9 +78,9 @@ export default function DocumentTypesPage() {
   };
 
   const toggleActive = async (type: DocType) => {
-    await fetch(`${API}/${type.id}`, {
+    await apiFetch(`/api/document-types/${type.id}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json", ...authHeader() },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ is_active: !type.is_active }),
     });
     fetchTypes();
@@ -100,7 +95,7 @@ export default function DocumentTypesPage() {
     if (!deletingId) return;
     setIsDeleting(true);
     try {
-      await fetch(`${API}/${deletingId}`, { method: "DELETE", headers: { ...authHeader() } });
+      await apiFetch(`/api/document-types/${deletingId}`, { method: "DELETE" });
       fetchTypes();
       setShowDeleteConfirm(false);
       setDeletingId(null);
@@ -124,9 +119,9 @@ export default function DocumentTypesPage() {
   const saveEdit = async (id: string) => {
     if (!editName.trim()) { setEditError("Name is required."); return; }
     try {
-      const res = await fetch(`${API}/${id}`, {
+      const res = await apiFetch(`/api/document-types/${id}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json", ...authHeader() },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: editName.trim(), description: editDescription.trim() || null, is_mandatory: editMandatory }),
       });
       if (!res.ok) {

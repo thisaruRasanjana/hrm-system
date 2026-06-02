@@ -193,8 +193,9 @@ export async function apiFetch(url: string, options: RequestInit = {}): Promise<
     }
   }
 
+  const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
   let headers: Record<string, string> = {
-    "Content-Type": "application/json",
+    ...(isFormData ? {} : { "Content-Type": "application/json" }),
     ...(options.headers as Record<string, string> || {}),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };

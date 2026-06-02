@@ -3,6 +3,7 @@
 import { useState } from "react";
 import RichTextEditor from "./RichTextEditor";
 import { X, FileText, Upload } from "lucide-react";
+import { apiFetch } from "@/lib/api";
 
 type Template = {
   id: number;
@@ -57,13 +58,10 @@ export default function TemplateEditModal({ template, onClose, onSuccess }: Prop
     if (templateType === "FILE" && file) formData.append("file", file);
 
     try {
-      const res = await fetch(
-        `http://localhost:8000/document-templates/${template.id}`,
-        {
-          method: "PUT",
-          body: formData,
-        }
-      );
+      const res = await apiFetch(`/document-templates/${template.id}`, {
+        method: "PUT",
+        body: formData,
+      });
 
       if (!res.ok) throw new Error("Failed to update template");
 

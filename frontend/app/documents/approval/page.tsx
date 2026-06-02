@@ -5,7 +5,7 @@ import DocumentReviewModal from "../../components/DocumentReviewModal";
 import StatusBadge from "../../components/statusBadge";
 import DocumentTabs from "../../components/DocumentTabsHR";
 import { Clock } from "lucide-react";
-import { getToken } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 
 type Document = {
   id: string;
@@ -27,10 +27,7 @@ export default function ApprovalPage() {
   }, []);
 
   async function fetchDocuments() {
-    const token = getToken();
-    const res = await fetch("http://localhost:8000/documents/review/pending", {
-      headers: token ? { "Authorization": `Bearer ${token}` } : {},
-    });
+    const res = await apiFetch("/documents/review/pending");
     const data = await res.json();
     setDocuments(Array.isArray(data) ? data : []);
   }

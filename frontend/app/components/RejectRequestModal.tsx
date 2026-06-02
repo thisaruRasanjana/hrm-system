@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { X, XCircle } from "lucide-react";
+import { apiFetch } from "@/lib/api";
 
 type Props = {
   request: any;
@@ -22,8 +23,8 @@ export default function RejectRequestModal({ request, onClose, onSuccess }: Prop
 
     setLoading(true);
     try {
-      const res = await fetch(`http://localhost:8000/hr-document-requests/${request.id}/status`, {
-        method: "PUT",
+      const res = await apiFetch(`/hr-document-requests/${request.id}/status`, {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "REJECTED", rejection_reason: reason }),
       });

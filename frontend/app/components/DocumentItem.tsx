@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { getToken } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 
 interface Props {
   id?: string;
@@ -11,20 +11,15 @@ interface Props {
   status: "APPROVED" | "PENDING_REVIEW" | "REJECTED" | "NOT_UPLOADED";
   isMandatory: boolean;
   rejectionReason?: string;
-  employeeId?: string;
-  uploadEndpoint?: string;
 }
 
 export default function DocumentItem({
-  id,
   documentTypeId,
   name,
   description,
   status,
   isMandatory,
   rejectionReason,
-  employeeId,
-  uploadEndpoint,
 }: Props) {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -45,46 +40,28 @@ export default function DocumentItem({
     NOT_UPLOADED: "Not Uploaded",
   };
 
-  const handleFileSelect = async (
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
-
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
-    if (!uploadEndpoint || !documentTypeId) {
-      setError("Upload configuration missing");
-      return;
-    }
-
-    const file = e.target.files[0];
+    if (!documentTypeId) { setError("Upload configuration missing"); return; }
 
     const formData = new FormData();
     formData.append("document_type_id", String(documentTypeId));
     formData.append("is_mandatory", String(isMandatory));
-    formData.append("file", file);
+    formData.append("file", e.target.files[0]);
 
-    const token = getToken();
     try {
-      const response = await fetch(uploadEndpoint, {
+      const response = await apiFetch("/documents/upload", {
         method: "POST",
-        headers: token ? { "Authorization": `Bearer ${token}` } : {},
         body: formData,
       });
-
       if (!response.ok) throw new Error("Upload failed");
-
       setMessage("✔ Document uploaded successfully");
       setError("");
-
-      setTimeout(() => {
-        window.location.reload();
-      }, 1500);
-
-    } catch (error) {
-
-      console.error(error);
+      setTimeout(() => window.location.reload(), 1500);
+    } catch (err) {
+      console.error(err);
       setError("Upload failed. Please try again.");
       setMessage("");
-
     }
   };
 

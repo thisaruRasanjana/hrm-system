@@ -4,7 +4,8 @@ import { FileText, X, Download, Clock, CheckCircle, XCircle, Eye } from "lucide-
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import DocumentTabsEmployee from "../../../components/DocumentTabsEmployee";
-import { getToken } from "@/lib/api";
+import { useAuth } from "@/context/auth-context";
+import { apiFetch } from "@/lib/api";
 
 type Request = {
   id: string;
@@ -17,18 +18,13 @@ type Request = {
 };
 
 export default function EmployeeRequestDocumentPage() {
+  const { user } = useAuth();
   const [documentType, setDocumentType] = useState("");
   const [reason, setReason] = useState("");
   const [requests, setRequests] = useState<Request[]>([]);
   const [selectedRequest, setSelectedRequest] = useState<Request | null>(null);
-
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-
-  const authHeader = (): Record<string, string> => {
-    const token = getToken();
-    return token ? { "Authorization": `Bearer ${token}` } : {};
-  };
 
   const documentTypes = [
     "Service Letter",
@@ -39,10 +35,7 @@ export default function EmployeeRequestDocumentPage() {
 
   const fetchRequests = async () => {
     try {
-      const res = await fetch(
-        `http://localhost:8000/document-requests/my`,
-        { headers: authHeader() }
-      );
+      const res = await apiFetch("/document-requests/my");
       const data = await res.json();
       setRequests(Array.isArray(data) ? data : []);
     } catch (err) {
@@ -51,28 +44,20 @@ export default function EmployeeRequestDocumentPage() {
   };
 
   useEffect(() => {
+    if (!user) return;
     fetchRequests();
-  }, []);
+  }, [user]);
 
   const handleSubmit = async () => {
     setMessage("");
     setError("");
-
-    if (!documentType || !reason) {
-      setError("Please fill all fields");
-      return;
-    }
-
+    if (!documentType || !reason) { setError("Please fill all fields"); return; }
     try {
-      const res = await fetch("http://localhost:8000/document-requests/", {
+      const res = await apiFetch("/document-requests/", {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeader() },
-        body: JSON.stringify({
-          document_type: documentType,
-          reason: reason,
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ document_type: documentType, reason }),
       });
-
       if (res.ok) {
         setMessage("Request submitted successfully!");
         setDocumentType("");
@@ -90,7 +75,7 @@ export default function EmployeeRequestDocumentPage() {
 
   const handleDownload = async (path: string) => {
     try {
-      const response = await fetch(`http://localhost:8000/${path}`, { headers: authHeader() });
+      const response = await apiFetch(`/${path}`);
       if (!response.ok) throw new Error("File not found");
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
