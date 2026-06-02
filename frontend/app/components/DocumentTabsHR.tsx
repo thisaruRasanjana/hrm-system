@@ -4,28 +4,28 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
 
-const tabs = [
-  { name: "My Document", path: "/documents" },
-  { name: "Request Document", path: "/documents/request" },
-  { name: "Approval Document", path: "/documents/approval" },
-  { name: "Template Management", path: "/documents/templates_management" },
-  { name: "Request Management", path: "/documents/request_management" },
-  { name: "Document Types", path: "/documents/document_types" },
+const DOC_TABS = [
+  { name: "My Document",        suffix: "" },
+  { name: "Approval",           suffix: "/approval" },
+  { name: "Request Management", suffix: "/request_management" },
+  { name: "Templates",          suffix: "/templates_management" },
+  { name: "Document Types",     suffix: "/document_types" },
 ];
 
 export default function DocumentTabsHR() {
   const pathname = usePathname();
+  const base = pathname.startsWith("/dashboard") ? "/dashboard/documents" : "/documents";
+
+  const tabs = DOC_TABS.map((t) => ({ name: t.name, path: `${base}${t.suffix}` }));
 
   return (
-    <div className="inline-flex w-max bg-white/80 backdrop-blur-md p-1.5 rounded-full shadow-xl border border-gray-100 relative">
+    <div className="inline-flex flex-wrap gap-1 bg-white/80 backdrop-blur-md p-1.5 rounded-full shadow-xl border border-gray-100 relative">
       {tabs.map((tab) => {
         let active = false;
 
-        if (tab.path === "/documents") {
-          // Only exact match
+        if (tab.path === base) {
           active = pathname === tab.path;
         } else {
-          // Match exact path or sub-routes with trailing slash
           active = pathname === tab.path || pathname.startsWith(`${tab.path}/`);
         }
 
