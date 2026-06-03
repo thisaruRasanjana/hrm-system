@@ -20,9 +20,8 @@ type Props = {
 };
 
 export default function TemplatePreviewModal({ template, onClose }: Props) {
-  const fileUrl = template.file_path
-    ? `http://localhost:8000/${template.file_path}`
-    : null;
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+  const fileUrl = template.file_path ? `${API_BASE}/${template.file_path}` : null;
 
   const [docxPreview, setDocxPreview] = useState<string | null>(null);
   const [loadingDocx, setLoadingDocx] = useState(false);
