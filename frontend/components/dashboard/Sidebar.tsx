@@ -34,7 +34,7 @@ const EMP_DOC_LINKS = [
 export default function Sidebar() {
 
   const pathname = usePathname();
-  const { hasPermission, hasAnyPermission } = useAuth();
+  const { user, hasPermission, hasAnyPermission } = useAuth();
 
   const isHR = hasAnyPermission(["document:approve", "document:request_manage", "document:template_upload"]);
   const docLinks = isHR ? HR_DOC_LINKS : EMP_DOC_LINKS;
@@ -87,7 +87,7 @@ export default function Sidebar() {
         })}
 
         {/* Document section */}
-        {(hasPermission("document:request_own") || hasPermission("document:upload_own") || isHR) && (
+        {user && hasAnyPermission(["document:view", "document:upload", "document:upload_own", "document:request_own", "document:approve"]) && (
           <div>
             <p className={`flex items-center gap-4 text-[15px] font-medium mb-3 ${inDocSection ? "text-[#F2924E]" : "text-gray-700"}`}>
               <FileText size={20} strokeWidth={1.6} />

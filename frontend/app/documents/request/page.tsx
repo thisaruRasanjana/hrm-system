@@ -1,10 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { FileText, X } from "lucide-react";
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import DocumentTabsHR from "@/app/components/DocumentTabsHR";
+import { useAuth } from "@/context/auth-context";
+import { apiFetch } from "@/lib/api";
 
 type Request = {
   id: string;
@@ -15,20 +16,13 @@ type Request = {
 };
 
 export default function HRRequestDocumentPage() {
+  const { user } = useAuth();
   const [documentType, setDocumentType] = useState("");
   const [purpose, setPurpose] = useState("");
   const [requests, setRequests] = useState<Request[]>([]);
   const [selectedRequest, setSelectedRequest] = useState<Request | null>(null);
-
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-
-  // Integer DB id from localStorage (set at login); fallback to seeded test employee
-  const employeeDbId =
-    typeof window !== "undefined"
-      ? (localStorage.getItem("employeeDbId") ?? "6")
-      : "6";
-
 
   const documentTypes = [
     "Service Letter",
@@ -38,48 +32,43 @@ export default function HRRequestDocumentPage() {
   ];
 
   const fetchRequests = async () => {
-    const res = await fetch(
-      `http://localhost:8000/hr-own-document-requests/${employeeDbId}`,
-      { headers: { "X-Employee-ID": employeeDbId } }
-    );
-    const data = await res.json();
-    setRequests(Array.isArray(data) ? data : []);
+    try {
+      const res = await apiFetch("/document-requests/my");
+      const data = await res.json();
+      setRequests(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("Failed to fetch requests", err);
+    }
   };
 
   useEffect(() => {
+    if (!user) return;
     fetchRequests();
-  }, []);
+  }, [user]);
 
   const handleSubmit = async () => {
     setMessage("");
     setError("");
+    if (!documentType || !purpose) { setError("Please fill all fields"); return; }
 
-    if (!documentType || !purpose) {
-      setError("Please fill all fields");
-      return;
-    }
-
-    const res = await fetch("http://localhost:8000/hr-own-document-requests/", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Employee-ID": employeeDbId,
-      },
-      body: JSON.stringify({
-        employee_id: employeeDbId,
-        document_type: documentType,
-        purpose: purpose,
-      }),
-    });
-
-    if (res.ok) {
-      setMessage("Request submitted successfully!");
-      setDocumentType("");
-      setPurpose("");
-      fetchRequests();
-      setTimeout(() => setMessage(""), 3000); // Clear success message after 3 seconds
-    } else {
-      setError("Error submitting request");
+    try {
+      const res = await apiFetch("/document-requests/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ document_type: documentType, reason: purpose }),
+      });
+      if (res.ok) {
+        setMessage("Request submitted successfully!");
+        setDocumentType("");
+        setPurpose("");
+        fetchRequests();
+        setTimeout(() => setMessage(""), 3000);
+      } else {
+        const err = await res.json();
+        setError(err.detail || "Error submitting request");
+      }
+    } catch {
+      setError("Failed to connect to server");
     }
   };
 

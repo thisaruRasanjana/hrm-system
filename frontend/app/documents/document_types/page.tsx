@@ -17,7 +17,6 @@ type DocType = {
   created_at: string;
 };
 
-const API = "http://localhost:8000/api/document-types";
 
 export default function DocumentTypesPage() {
   const [types, setTypes] = useState<DocType[]>([]);
