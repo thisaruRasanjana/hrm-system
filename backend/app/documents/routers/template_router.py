@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from app.database.database import get_db
 from app.documents.schemas.template_schema import TemplateResponse
 from app.documents.services import template_service
-from app.auth.dependencies import require_permission
+from app.core.deps import get_current_user, require_permission
 
 router = APIRouter(
     prefix="/document-templates",

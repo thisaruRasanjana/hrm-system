@@ -5,7 +5,8 @@ from uuid import UUID
 from app.database.database import get_db
 from app.documents.schemas import approval_schema
 from app.documents.services import approval_service
-from app.auth.dependencies import require_permission
+from app.core.deps import get_current_user, require_permission
+from app.employees.models import Employee
 
 router = APIRouter(
     prefix="/documents/review",
@@ -27,7 +28,8 @@ def approve_document(
     db: Session = Depends(get_db),
     current_user = Depends(require_permission("document:approve"))
 ):
-    reviewer_id = current_user.employee.id if current_user.employee else current_user.id
+    emp = db.query(Employee).filter(Employee.user_id == current_user.id).first()
+    reviewer_id = emp.id if emp else current_user.id
     return approval_service.approve_document(db, document_id, reviewer_id)
 
 
@@ -38,5 +40,6 @@ def reject_document(
     db: Session = Depends(get_db),
     current_user = Depends(require_permission("document:approve"))
 ):
-    reviewer_id = current_user.employee.id if current_user.employee else current_user.id
+    emp = db.query(Employee).filter(Employee.user_id == current_user.id).first()
+    reviewer_id = emp.id if emp else current_user.id
     return approval_service.reject_document(db, document_id, reviewer_id, request.reason)

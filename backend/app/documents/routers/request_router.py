@@ -1,10 +1,11 @@
 import app.documents.schemas.request_schema as request_schema
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.database.database import get_db
 from app.documents.services import request_service
-from app.auth.dependencies import get_current_user, require_permission
+from app.core.deps import get_current_user, require_permission
+from app.employees.models import Employee
 
 router = APIRouter(
     prefix="/document-requests",
@@ -31,5 +32,7 @@ def get_my_requests(
     db: Session = Depends(get_db),
     current_user = Depends(require_permission("document:request_own"))
 ):
-    employee_id = current_user.employee.id if current_user.employee else current_user.id
-    return request_service.get_employee_requests(db, employee_id)
+    emp = db.query(Employee).filter(Employee.user_id == current_user.id).first()
+    if not emp:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee profile not found")
+    return request_service.get_employee_requests(db, emp.id)

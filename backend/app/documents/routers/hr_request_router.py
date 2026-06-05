@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from app.database.database import get_db
 from app.documents.schemas import hr_request_schema
 from app.documents.services import hr_request_service, document_generator
-from app.auth.dependencies import require_permission
+from app.core.deps import get_current_user, require_permission
 
 router = APIRouter(
     prefix="/hr-document-requests",
