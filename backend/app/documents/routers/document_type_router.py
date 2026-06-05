@@ -9,7 +9,7 @@ from app.documents.schemas.document_type_schema import (
     DocumentTypeResponse,
 )
 from app.documents.services import document_type_service
-from app.auth.dependencies import require_permission
+from app.core.deps import get_current_user, require_permission
 
 router = APIRouter(prefix="/api/document-types", tags=["Document Types"])
 
