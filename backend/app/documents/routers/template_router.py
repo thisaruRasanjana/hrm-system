@@ -28,7 +28,7 @@ def create_template(
     content: str = Form(None),
     file: UploadFile = File(None),
     db: Session = Depends(get_db),
-    current_user = Depends(require_permission("document:manage_templates"))
+    current_user = Depends(require_permission("document:template_upload"))
 ):
     return template_service.create_template(db, name, category, template_type, content, file)
 
@@ -37,7 +37,7 @@ def create_template(
 def get_templates(
     category: str = None,
     db: Session = Depends(get_db),
-    current_user = Depends(require_permission("document:view"))
+    current_user = Depends(require_permission("document:template_upload"))
 ):
     return template_service.get_all_templates(db, category=category)
 
@@ -46,7 +46,7 @@ def get_templates(
 def get_template(
     template_id: int,
     db: Session = Depends(get_db),
-    current_user = Depends(require_permission("document:manage_templates"))
+    current_user = Depends(require_permission("document:template_upload"))
 ):
     template = template_service.get_template(db, template_id)
     if not template:
@@ -63,7 +63,7 @@ def update_template(
     content: str = Form(None),
     file: UploadFile = File(None),
     db: Session = Depends(get_db),
-    current_user = Depends(require_permission("document:manage_templates"))
+    current_user = Depends(require_permission("document:template_upload"))
 ):
     template = template_service.update_template(db, template_id, name, category, template_type, content, file)
     if not template:
@@ -75,7 +75,7 @@ def update_template(
 def delete_template(
     template_id: int,
     db: Session = Depends(get_db),
-    current_user = Depends(require_permission("document:manage_templates"))
+    current_user = Depends(require_permission("document:template_upload"))
 ):
     template = template_service.delete_template(db, template_id)
     if not template:
@@ -87,7 +87,7 @@ def delete_template(
 def preview_docx_template(
     template_id: int,
     db: Session = Depends(get_db),
-    current_user = Depends(require_permission("document:manage_templates"))
+    current_user = Depends(require_permission("document:template_upload"))
 ):
     """Generate an HTML preview of a DOCX template."""
     template = template_service.get_template(db, template_id)

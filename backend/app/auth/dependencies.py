@@ -48,6 +48,6 @@ def require_permission(permission_name: str):
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"Missing required permission: {permission_name}"
             )
-        return True
+        return current_user
         
     return permission_checker

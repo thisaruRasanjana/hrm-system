@@ -18,7 +18,7 @@ router = APIRouter(prefix="/api/document-types", tags=["Document Types"])
 def create_document_type(
     data: DocumentTypeCreate,
     db: Session = Depends(get_db),
-    current_user = Depends(require_permission("document:approve"))
+    current_user = Depends(require_permission("document:type_manage"))
 ):
     return document_type_service.create_document_type(db, data)
 
@@ -26,7 +26,7 @@ def create_document_type(
 @router.get("/", response_model=list[DocumentTypeResponse])
 def list_all_document_types(
     db: Session = Depends(get_db),
-    current_user = Depends(require_permission("document:view"))
+    current_user = Depends(require_permission("document:type_manage"))
 ):
     return document_type_service.list_all_document_types(db)
 
@@ -34,7 +34,7 @@ def list_all_document_types(
 @router.get("/active/", response_model=list[DocumentTypeResponse])
 def list_active_document_types(
     db: Session = Depends(get_db),
-    current_user = Depends(require_permission("document:view"))
+    current_user = Depends(require_permission("document:upload_own"))
 ):
     return document_type_service.list_active_document_types(db)
 
@@ -44,7 +44,7 @@ def update_document_type(
     type_id: UUID,
     data: DocumentTypeUpdate,
     db: Session = Depends(get_db),
-    current_user = Depends(require_permission("document:approve"))
+    current_user = Depends(require_permission("document:type_manage"))
 ):
     return document_type_service.update_document_type(db, type_id, data)
 
@@ -53,6 +53,6 @@ def update_document_type(
 def delete_document_type(
     type_id: UUID,
     db: Session = Depends(get_db),
-    current_user = Depends(require_permission("document:approve"))
+    current_user = Depends(require_permission("document:type_manage"))
 ):
     return document_type_service.delete_document_type(db, type_id)

@@ -24,7 +24,7 @@ router = APIRouter(
 def get_all_hr_requests(
     filter_status: str = None,
     db: Session = Depends(get_db),
-    current_user = Depends(require_permission("document:view"))
+    current_user = Depends(require_permission("document:request_manage"))
 ):
     """List all document requests with their linked employee details."""
     requests = hr_request_service.get_all_hr_requests(db, filter_status)
@@ -36,7 +36,7 @@ def generate_document(
     request_id: UUID,
     data: hr_request_schema.HRGenerateDocumentRequest,
     db: Session = Depends(get_db),
-    current_user = Depends(require_permission("document:generate"))
+    current_user = Depends(require_permission("document:template_upload"))
 ):
     """Generate a document from a template for a specific request."""
     try:
@@ -64,7 +64,7 @@ def update_request_status(
     request_id: UUID,
     data: hr_request_schema.HRRequestStatusUpdate,
     db: Session = Depends(get_db),
-    current_user = Depends(require_permission("document:approve"))
+    current_user = Depends(require_permission("document:request_manage"))
 ):
     """Update the status of a document request (e.g. to IN_PROGRESS or REJECTED)."""
     return hr_request_service.update_request_status(
@@ -80,7 +80,7 @@ def assign_employee(
     request_id: UUID,
     employee_id: int,
     db: Session = Depends(get_db),
-    current_user = Depends(require_permission("document:approve"))
+    current_user = Depends(require_permission("document:request_manage"))
 ):
     """Link an existing employee to an external email request."""
     return hr_request_service.assign_employee_to_request(db, request_id, employee_id)
@@ -91,7 +91,7 @@ def send_custom_letter(
     request_id: UUID,
     content: str,
     db: Session = Depends(get_db),
-    current_user = Depends(require_permission("document:generate"))
+    current_user = Depends(require_permission("document:template_upload"))
 ):
     """Generate a completely custom PDF letter and mark the request COMPLETED."""
     final_path, html_content = document_generator.generate_from_custom_text(

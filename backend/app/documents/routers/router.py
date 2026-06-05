@@ -19,7 +19,7 @@ def upload_document(
     is_mandatory: bool = Form(False),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    current_user = Depends(require_permission("document:upload"))
+    current_user = Depends(require_permission("document:upload_own"))
 ):
     employee_id = current_user.employee.id if current_user.employee else current_user.id
     return service.upload_employee_document(
@@ -36,7 +36,7 @@ def upload_document(
 )
 def get_my_documents(
     db: Session = Depends(get_db),
-    current_user = Depends(require_permission("document:view"))
+    current_user = Depends(require_permission("document:upload_own"))
 ):
     employee_id = current_user.employee.id if current_user.employee else current_user.id
     return service.get_employee_documents(db, employee_id)
@@ -45,7 +45,7 @@ def get_my_documents(
 def download_document(
     document_id: UUID,
     db: Session = Depends(get_db),
-    current_user = Depends(require_permission("document:view"))
+    current_user = Depends(require_permission("document:upload_own"))
 ):
     employee_id = current_user.employee.id if current_user.employee else current_user.id
     return service.download_employee_document(
