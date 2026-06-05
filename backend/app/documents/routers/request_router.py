@@ -15,21 +15,21 @@ router = APIRouter(
 def create_request(
     data: request_schema.CreateRequest,
     db: Session = Depends(get_db),
-    current_user = Depends(require_permission("document:view"))
+    current_user = Depends(require_permission("document:request_own"))
 ):
     return request_service.create_document_request(db, data)
 
 @router.get("/", response_model=list[request_schema.RequestResponse])
 def get_all_requests(
     db: Session = Depends(get_db),
-    current_user = Depends(require_permission("document:view"))
+    current_user = Depends(require_permission("document:request_manage"))
 ):
     return request_service.get_all_requests(db)
 
 @router.get("/my", response_model=list[request_schema.RequestResponse])
 def get_my_requests(
     db: Session = Depends(get_db),
-    current_user = Depends(require_permission("document:view"))
+    current_user = Depends(require_permission("document:request_own"))
 ):
     employee_id = current_user.employee.id if current_user.employee else current_user.id
     return request_service.get_employee_requests(db, employee_id)
