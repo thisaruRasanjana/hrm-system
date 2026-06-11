@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { X, CheckCircle, XCircle, Clock, AlertCircle } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { useCloseAnimation } from "@/app/hooks/useCloseAnimation";
 
 type Props = {
   document: any;
@@ -16,6 +17,7 @@ export default function DocumentReviewModal({
   refresh,
 }: Props) {
 
+  const { closing, triggerClose } = useCloseAnimation(onClose);
   const [rejectMode, setRejectMode] = useState(false);
   const [reason, setReason] = useState("");
   const [loading, setLoading] = useState(false);
@@ -29,7 +31,7 @@ export default function DocumentReviewModal({
       if (!res.ok) throw new Error("Approval failed");
       
       refresh();
-      onClose();
+      triggerClose();
     } catch (err) {
       setError("Failed to approve document. Please try again.");
     } finally {
@@ -54,7 +56,7 @@ export default function DocumentReviewModal({
       if (!res.ok) throw new Error("Rejection failed");
 
       refresh();
-      onClose();
+      triggerClose();
     } catch (err) {
       setError("Failed to reject document. Please try again.");
     } finally {
@@ -63,8 +65,8 @@ export default function DocumentReviewModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 animate-backdrop p-4">
-      <div className="bg-white w-[1100px] max-h-[95vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-modal">
+    <div className={`fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 ${closing ? "animate-backdrop-out" : "animate-backdrop"}`}>
+      <div className={`bg-white w-[1100px] max-h-[95vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden ${closing ? "animate-modal-out" : "animate-modal"}`}>
         
         {/* Header */}
         <div className="flex justify-between items-center px-8 py-6 border-b border-gray-100 bg-gray-50/50">

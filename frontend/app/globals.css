@@ -308,32 +308,73 @@ body {
    Global Modal Animations
 ========================= */
 
-@keyframes modal-fade-zoom {
-  0% {
-    opacity: 0;
-    transform: scale(0.95);
-  }
+@keyframes modal-in {
+  0%   { opacity: 0; transform: scale(0.94) translateY(8px); }
+  100% { opacity: 1; transform: scale(1)    translateY(0); }
+}
 
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
+@keyframes modal-out {
+  0%   { opacity: 1; transform: scale(1)    translateY(0); }
+  100% { opacity: 0; transform: scale(0.94) translateY(8px); }
+}
+
+@keyframes backdrop-in {
+  0%   { opacity: 0; backdrop-filter: blur(0px); }
+  100% { opacity: 1; backdrop-filter: blur(4px); }
+}
+
+@keyframes backdrop-out {
+  0%   { opacity: 1; }
+  100% { opacity: 0; }
 }
 
 .animate-modal {
-  animation: modal-fade-zoom 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: modal-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
-@keyframes backdrop-fade {
-  0% {
-    opacity: 0;
-  }
-
-  100% {
-    opacity: 1;
-  }
+.animate-modal-out {
+  animation: modal-out 0.2s cubic-bezier(0.4, 0, 1, 1) forwards;
 }
 
 .animate-backdrop {
-  animation: backdrop-fade 0.25s ease-out forwards;
+  animation: backdrop-in 0.25s ease-out forwards;
+}
+
+.animate-backdrop-out {
+  animation: backdrop-out 0.2s ease-in forwards;
+}
+
+/* =========================
+   Page / Section Transitions
+========================= */
+
+@keyframes fade-up {
+  0%   { opacity: 0; transform: translateY(10px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.3s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* =========================
+   Global Interactive Transitions
+========================= */
+
+button, a, [role="button"] {
+  transition: opacity 0.15s ease, background-color 0.15s ease,
+              color 0.15s ease, box-shadow 0.2s ease,
+              transform 0.15s ease, border-color 0.15s ease;
+}
+
+button:active, [role="button"]:active {
+  transform: scale(0.97);
+}
+
+/* Cards */
+.widget-card {
+  transition: box-shadow 0.25s ease, transform 0.25s ease;
+}
+.widget-card:hover {
+  transform: translateY(-1px);
 }

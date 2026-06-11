@@ -7,6 +7,7 @@ import TemplateAddModal from "../../components/TemplateAddModal";
 import TemplateEditModal from "../../components/TemplateEditModal";
 import TemplatePreviewModal from "../../components/TemplatePreviewModal";
 import { apiFetch } from "@/lib/api";
+import { useAuth } from "@/context/auth-context";
 
 type Template = {
   id: number;
@@ -19,6 +20,7 @@ type Template = {
 };
 
 export default function TemplatesManagementPage() {
+  const { user } = useAuth();
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -42,8 +44,9 @@ export default function TemplatesManagementPage() {
   };
 
   useEffect(() => {
+    if (!user) return;
     fetchTemplates();
-  }, []);
+  }, [user]);
 
   const handleDelete = async () => {
     if (deleteId === null) return;

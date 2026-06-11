@@ -1,36 +1,49 @@
 import os
 import smtplib
+import logging
 from email.mime.text import MIMEText
 from dotenv import load_dotenv
+from pathlib import Path
 
-load_dotenv()
+logger = logging.getLogger(__name__)
 
-SMTP_SERVER = os.getenv("MAIL_SERVER")
-SMTP_PORT_STR = os.getenv("MAIL_PORT", "587")
-SMTP_PORT = int(SMTP_PORT_STR)
-SMTP_EMAIL = os.getenv("MAIL_USERNAME")
-SMTP_PASSWORD = os.getenv("MAIL_PASSWORD")
-MAIL_FROM = os.getenv("MAIL_FROM")
+_env_path = Path(__file__).parent.parent.parent / ".env"
 
 
 def _send(to_email: str, subject: str, body: str, html: bool = False):
-    """Internal SMTP send helper. Skips silently if mail config is missing (dev mode)."""
-    if not all([SMTP_SERVER, SMTP_EMAIL, SMTP_PASSWORD, MAIL_FROM]):
+    """Internal SMTP send helper. Reloads .env on every call so credential changes
+    in .env take effect without restarting the server."""
+    load_dotenv(dotenv_path=_env_path, override=True)
+
+    smtp_server = os.getenv("MAIL_SERVER")
+    smtp_port = int(os.getenv("MAIL_PORT", "587"))
+    smtp_user = os.getenv("MAIL_USERNAME")
+    smtp_password = (os.getenv("MAIL_PASSWORD") or "").replace(" ", "")
+    mail_from = os.getenv("MAIL_FROM")
+
+    if not all([smtp_server, smtp_user, smtp_password, mail_from]):
         print(f"[EMAIL SKIPPED] {subject} → {to_email} (mail config not set)")
         return
+
     try:
         mime_type = "html" if html else "plain"
         msg = MIMEText(body, mime_type)
         msg["Subject"] = subject
-        msg["From"] = MAIL_FROM
+        msg["From"] = mail_from
         msg["To"] = to_email
-        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
-        server.starttls()
-        server.login(SMTP_EMAIL, SMTP_PASSWORD)
-        server.sendmail(MAIL_FROM, to_email, msg.as_string())
-        server.quit()
+
+        if smtp_port == 465:
+            with smtplib.SMTP_SSL(smtp_server, smtp_port) as server:
+                server.login(smtp_user, smtp_password)
+                server.sendmail(mail_from, to_email, msg.as_string())
+        else:
+            with smtplib.SMTP(smtp_server, smtp_port) as server:
+                server.starttls()
+                server.login(smtp_user, smtp_password)
+                server.sendmail(mail_from, to_email, msg.as_string())
+        logger.info(f"Email sent: '{subject}' → {to_email}")
     except Exception as e:
-        print(f"[ERROR] Failed to send email: {e}")
+        logger.error(f"[ERROR] Failed to send email: {e}")
 
 
 def send_otp_email(to_email: str, otp: str):

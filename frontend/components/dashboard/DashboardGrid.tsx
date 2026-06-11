@@ -17,6 +17,7 @@ const defaultLayout = [
   { i: "approval_summary", x: 8, y: 3, w: 4, h: 3 },
   { i: "announcements",    x: 0, y: 6, w: 4, h: 3 },
   { i: "upcoming_events",  x: 4, y: 6, w: 4, h: 3 },
+  { i: "availability",     x: 8, y: 6, w: 4, h: 3 },
 ];
 
 interface Props {

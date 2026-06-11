@@ -5,7 +5,7 @@ import { apiFetch } from "@/lib/api";
 
 interface Props {
   id?: string;
-  documentTypeId?: number;
+  documentTypeId?: string;
   name: string;
   description: string;
   status: "APPROVED" | "PENDING_REVIEW" | "REJECTED" | "NOT_UPLOADED";
@@ -54,7 +54,17 @@ export default function DocumentItem({
         method: "POST",
         body: formData,
       });
-      if (!response.ok) throw new Error("Upload failed");
+      if (!response.ok) {
+        let msg = "Upload failed. Please try again.";
+        try {
+          const body = await response.json();
+          if (typeof body.detail === "string") msg = body.detail;
+          else if (Array.isArray(body.detail)) msg = body.detail.map((e: any) => e.msg ?? JSON.stringify(e)).join(", ");
+        } catch {}
+        setError(msg);
+        setMessage("");
+        return;
+      }
       setMessage("✔ Document uploaded successfully");
       setError("");
       setTimeout(() => window.location.reload(), 1500);

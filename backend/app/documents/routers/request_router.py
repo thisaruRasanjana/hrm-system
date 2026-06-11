@@ -14,11 +14,19 @@ router = APIRouter(
 
 @router.post("/", response_model=request_schema.RequestResponse)
 def create_request(
-    data: request_schema.CreateRequest,
+    data: request_schema.CreateRequestInput,
     db: Session = Depends(get_db),
     current_user = Depends(require_permission("document:request_own"))
 ):
-    return request_service.create_document_request(db, data)
+    emp = db.query(Employee).filter(Employee.user_id == current_user.id).first()
+    if not emp:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee profile not found. Contact HR.")
+    full_data = request_schema.CreateRequest(
+        employee_id=emp.id,
+        document_type=data.document_type,
+        reason=data.reason,
+    )
+    return request_service.create_document_request(db, full_data)
 
 @router.get("/", response_model=list[request_schema.RequestResponse])
 def get_all_requests(

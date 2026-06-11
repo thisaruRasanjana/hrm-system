@@ -1,0 +1,9 @@
+DATABASE URL USED BY FASTAPI: postgresql://postgres:Sdl%402003@localhost:5432/hrm_db
+[WARNING] seed_roles skipped (DB migration may be needed): (psycopg2.errors.NotNullViolation) null value in column "name" of relation "permissions" violates not-null constraint
+DETAIL:  Failing row contains (49, null, dashboard, view, View time tracking, 2026-06-02 16:14:24.582336+05:30, widget.time_tracking.view).
+
+[SQL: INSERT INTO permissions (permission_name, resource, action, description) VALUES (%(permission_name)s, %(resource)s, %(action)s, %(description)s) RETURNING permissions.id, permissions.created_at]
+[parameters: {'permission_name': 'widget.time_tracking.view', 'resource': 'dashboard', 'action': 'view', 'description': 'View time tracking'}]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+[Email Poller] Background email polling started (every 60 seconds).
+INFO:     127.0.0.1:12324 - "POST /auth/login HTTP/1.1" 401 Unauthorized

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/context/auth-context";
 import { apiFetch } from "@/lib/api";
 import DocumentItem from "../components/DocumentItem";
@@ -16,7 +17,7 @@ type UploadedDocument = {
 
 type MergedDocument = {
   id?: string;
-  document_type_id: number;
+  document_type_id: string;
   name: string;
   is_mandatory: boolean;
   status: "NOT_UPLOADED" | "PENDING_REVIEW" | "APPROVED" | "REJECTED";
@@ -25,12 +26,32 @@ type MergedDocument = {
 
 export default function HRDocumentsPage() {
   const { user, hasPermission } = useAuth();
+  const router = useRouter();
+  const pathname = usePathname();
   const [uploadedDocs, setUploadedDocs] = useState<UploadedDocument[]>([]);
   const [docTypes, setDocTypes] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Redirect users who can't upload to their first available tab
   useEffect(() => {
     if (!user) return;
+    if (hasPermission("document:upload_own")) return;
+
+    const base = pathname.startsWith("/dashboard") ? "/dashboard/documents" : "/documents";
+    if (hasPermission("document:approve")) {
+      router.replace(`${base}/approval`);
+    } else if (hasPermission("document:request_manage")) {
+      router.replace(`${base}/request_management`);
+    } else if (hasPermission("document:template_upload")) {
+      router.replace(`${base}/templates_management`);
+    } else if (hasPermission("document:type_manage")) {
+      router.replace(`${base}/document_types`);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    if (!hasPermission("document:upload_own")) return;
     setIsLoading(true);
     Promise.all([
       apiFetch("/api/document-types/active/").then(r => r.json()),
@@ -88,7 +109,7 @@ export default function HRDocumentsPage() {
         <p className="text-sm text-gray-500">Upload required documents to complete your employee profile.</p>
       </div>
 
-      {!hasPermission("document:upload") && (
+      {!hasPermission("document:upload_own") && (
         <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded-lg text-sm">
           You have read-only access to documents.
         </div>

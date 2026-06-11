@@ -4,21 +4,26 @@ from typing import List, Optional
 from datetime import datetime, timezone
 
 from app.database.database import get_db
-from app.core.deps import get_current_user, get_user_permissions
+from app.core.deps import get_current_user, get_user_permissions, require_permission, require_any_permission
 from app.auth.models import User
 from app.roles.models import Role
 from app.messages import models, schemas
 
 router = APIRouter()
 
+# Inbox access — anyone who can receive messages
+can_receive = require_permission("messaging.receive")
+# Trash/delete/restore touch both inbox copies and sent copies
+can_message = require_any_permission("messaging.receive", "messaging.send")
+
 
 # ── GET message groups ──────────────────────────────────────────────────────────
 @router.get("/groups")
 def list_groups(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("messaging.send")),
 ):
-    """Return all custom message groups (available to any authenticated user for the compose dropdown)."""
+    """Return all custom message groups (used by the compose dropdown — senders only)."""
     groups = db.query(models.MessageGroup).order_by(models.MessageGroup.name).all()
     return [{"id": g.id, "name": g.name} for g in groups]
 
@@ -141,7 +146,7 @@ def send_message(
 @router.get("/inbox", response_model=List[schemas.MessageResponse])
 def get_inbox(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(can_receive),
 ):
     """
     Return all non-deleted inbox messages for the current user,
@@ -229,7 +234,7 @@ def get_sent(
 @router.get("/trash", response_model=List[schemas.MessageResponse])
 def get_trash(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(can_message),
 ):
     """
     Return all soft-deleted (but not permanently deleted) messages for the current user.
@@ -296,7 +301,7 @@ def get_trash(
 def delete_message(
     message_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(can_message),
 ):
     """
     Soft-delete a message by moving it to trash.
@@ -335,7 +340,7 @@ def delete_message(
 def restore_message(
     message_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(can_message),
 ):
     """
     Restore a soft-deleted message from trash back to its original folder.
@@ -367,7 +372,7 @@ def restore_message(
 def permanent_delete(
     message_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(can_message),
 ):
     """
     Permanently delete a message that is already in the trash.
@@ -407,7 +412,7 @@ def permanent_delete(
 def mark_read(
     message_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(can_receive),
 ):
     """
     Mark an inbox message as read for the current user.

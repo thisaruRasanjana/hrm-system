@@ -6,6 +6,7 @@ import StatusBadge from "../../components/statusBadge";
 import DocumentTabs from "../../components/DocumentTabsHR";
 import { Clock } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { useAuth } from "@/context/auth-context";
 
 type Document = {
   id: string;
@@ -18,13 +19,14 @@ type Document = {
 };
 
 export default function ApprovalPage() {
-
+  const { user } = useAuth();
   const [documents, setDocuments] = useState<Document[]>([]);
   const [selectedDoc, setSelectedDoc] = useState<Document | null>(null);
 
   useEffect(() => {
+    if (!user) return;
     fetchDocuments();
-  }, []);
+  }, [user]);
 
   async function fetchDocuments() {
     const res = await apiFetch("/documents/review/pending");

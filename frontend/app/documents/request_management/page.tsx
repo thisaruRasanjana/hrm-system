@@ -6,6 +6,7 @@ import { Search, Clock, FileText, CheckCircle, XCircle, ArrowLeft, AlertCircle, 
 import GenerateDocumentModal from "../../components/GenerateDocumentModal";
 import RejectRequestModal from "../../components/RejectRequestModal";
 import { apiFetch } from "@/lib/api";
+import { useAuth } from "@/context/auth-context";
 
 type RequestType = {
   id: string;
@@ -22,6 +23,7 @@ type RequestType = {
 };
 
 export default function HRRequestManagementPage() {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<"ALL" | "NEW" | "IN_PROGRESS" | "COMPLETED">("NEW");
   const [requests, setRequests] = useState<RequestType[]>([]);
   const [loading, setLoading] = useState(true);
@@ -54,10 +56,11 @@ export default function HRRequestManagementPage() {
   };
 
   useEffect(() => {
+    if (!user) return;
     fetchRequests();
     const interval = setInterval(fetchRequests, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [user]);
 
   const handleMarkInProgress = async (id: string) => {
     try {

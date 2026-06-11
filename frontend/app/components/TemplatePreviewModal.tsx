@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { X, FileText, RefreshCw } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { useCloseAnimation } from "@/app/hooks/useCloseAnimation";
 
 type Template = {
   id: number;
@@ -20,6 +21,7 @@ type Props = {
 };
 
 export default function TemplatePreviewModal({ template, onClose }: Props) {
+  const { closing, triggerClose } = useCloseAnimation(onClose);
   const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
   const fileUrl = template.file_path ? `${API_BASE}/${template.file_path}` : null;
 
@@ -45,11 +47,11 @@ export default function TemplatePreviewModal({ template, onClose }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
-      onClick={onClose}
+      className={`fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm ${closing ? "animate-backdrop-out" : "animate-backdrop"}`}
+      onClick={triggerClose}
     >
       <div
-        className="bg-white w-[800px] max-h-[90vh] rounded-2xl shadow-2xl flex flex-col"
+        className={`bg-white w-[800px] max-h-[90vh] rounded-2xl shadow-2xl flex flex-col ${closing ? "animate-modal-out" : "animate-modal"}`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -69,7 +71,7 @@ export default function TemplatePreviewModal({ template, onClose }: Props) {
             </div>
           </div>
           <button
-            onClick={onClose}
+            onClick={triggerClose}
             className="text-gray-400 hover:text-gray-700 transition"
           >
             <X size={20} />
@@ -156,7 +158,7 @@ export default function TemplatePreviewModal({ template, onClose }: Props) {
         {/* Footer */}
         <div className="border-t border-gray-100 px-6 py-4 flex justify-end bg-gray-50/50">
           <button
-            onClick={onClose}
+            onClick={triggerClose}
             className="px-6 py-2.5 text-sm rounded-xl bg-[#F2924E] text-white hover:bg-[#e07d3a] transition font-bold shadow-md hover:shadow-lg"
           >
             Close Preview

@@ -118,3 +118,23 @@ def require_permission(permission: str):
             )
         return current_user
     return _check
+
+
+def require_any_permission(*permissions: str):
+    """
+    Dependency factory that passes if the user holds AT LEAST ONE
+    of the given permissions.
+    Usage:  Depends(require_any_permission("recruitment:view", "recruitment:manage"))
+    """
+    def _check(
+        current_user: User = Depends(get_current_user),
+        db: Session = Depends(get_db),
+    ):
+        perms = get_user_permissions(current_user, db)
+        if not any(p in perms for p in permissions):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Permission required: one of {', '.join(permissions)}"
+            )
+        return current_user
+    return _check

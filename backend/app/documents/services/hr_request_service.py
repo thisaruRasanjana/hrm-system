@@ -59,8 +59,7 @@ def get_all_hr_requests(db: Session, filter_status: str = None) -> list[dict]:
             "employee_id": req.employee_id,
             "employee_name": employee_name,
             "document_type": req.document_type,
-            # 'purpose' key kept for frontend compatibility; value comes from 'reason'
-            "purpose": req.reason,
+            "reason": req.reason,
             "status": req.status,
             "source": getattr(req, "source", "INTERNAL"),
             "requester_email": getattr(req, "requester_email", None),

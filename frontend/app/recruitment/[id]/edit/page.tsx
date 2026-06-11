@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/api";
 import { API_BASE_URL } from "@/lib/constants";
 
 import { useState, useEffect, useRef } from "react";
@@ -153,8 +154,7 @@ export default function EditVacancyPage() {
     const loadData = async () => {
       try {
         // Fetch vacancy details
-        const vRes = await fetch(
-          `${API_BASE_URL}/recruitment/vacancies/${vacancyId}`
+        const vRes = await apiFetch(`/recruitment/vacancies/${vacancyId}`
         );
         if (!vRes.ok) throw new Error("Vacancy not found");
         const v: Vacancy = await vRes.json();
@@ -166,14 +166,13 @@ export default function EditVacancyPage() {
         });
 
         // Fetch employees for panel search
-        const empRes = await fetch(`${API_BASE_URL}/employees/`);
+        const empRes = await apiFetch(`/employees/`);
         const empData = await empRes.json();
         const empList: User[] = Array.isArray(empData) ? empData : [];
         setUsers(empList);
 
         // Fetch existing panel (may return 404 — that's fine)
-        const panelRes = await fetch(
-          `${API_BASE_URL}/recruitment/vacancies/${vacancyId}/panel`
+        const panelRes = await apiFetch(`/recruitment/vacancies/${vacancyId}/panel`
         );
 
         if (panelRes.ok) {
@@ -223,8 +222,7 @@ export default function EditVacancyPage() {
 
     try {
       // Patch only the editable fields
-      const patchRes = await fetch(
-        `${API_BASE_URL}/recruitment/vacancies/${vacancyId}`,
+      const patchRes = await apiFetch(`/recruitment/vacancies/${vacancyId}`,
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -241,8 +239,7 @@ export default function EditVacancyPage() {
 
       // Save the panel whenever a panel head has been selected
       if (panel.panel_head_id) {
-        const panelRes = await fetch(
-          `${API_BASE_URL}/recruitment/vacancies/${vacancyId}/panel`,
+        const panelRes = await apiFetch(`/recruitment/vacancies/${vacancyId}/panel`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
