@@ -122,6 +122,27 @@ async def lifespan(app: FastAPI):
             conn.execute(text("ALTER TABLE employees ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id)"))
             conn.execute(text("ALTER TABLE employees ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE"))
 
+            # ── Link employees to users by matching email ─────────────────────
+            conn.execute(text("""
+                UPDATE employees e
+                SET user_id = u.id
+                FROM users u
+                WHERE e.email = u.email
+                  AND e.user_id IS NULL
+            """))
+
+            # ── Backfill user_roles from scalar role_id for users missing entries ──
+            conn.execute(text("""
+                INSERT INTO user_roles (user_id, role_id)
+                SELECT u.id, u.role_id
+                FROM users u
+                WHERE u.role_id IS NOT NULL
+                  AND NOT EXISTS (
+                      SELECT 1 FROM user_roles ur
+                      WHERE ur.user_id = u.id AND ur.role_id = u.role_id
+                  )
+            """))
+
             # ── Patch permissions table (dev uses permission_name, resource, action) ──
             conn.execute(text("ALTER TABLE permissions ADD COLUMN IF NOT EXISTS permission_name VARCHAR(255)"))
             conn.execute(text("ALTER TABLE permissions ADD COLUMN IF NOT EXISTS resource VARCHAR(100)"))
@@ -133,6 +154,17 @@ async def lifespan(app: FastAPI):
                 SET permission_name = name
                 WHERE permission_name IS NULL AND name IS NOT NULL
             """))
+            # Legacy 'name' column is NOT NULL but unmapped in the current model —
+            # without this, every new permission INSERT fails and seed_roles is
+            # silently skipped on startup.
+            conn.execute(text("""
+                DO $$ BEGIN
+                    IF EXISTS (SELECT 1 FROM information_schema.columns
+                               WHERE table_name = 'permissions' AND column_name = 'name') THEN
+                        ALTER TABLE permissions ALTER COLUMN name DROP NOT NULL;
+                    END IF;
+                END $$;
+            """))
 
             # ── Patch roles table (dev uses role_name) ────────────────────────
             conn.execute(text("ALTER TABLE roles ADD COLUMN IF NOT EXISTS role_name VARCHAR(100)"))
@@ -142,6 +174,37 @@ async def lifespan(app: FastAPI):
                 UPDATE roles
                 SET role_name = name
                 WHERE role_name IS NULL AND name IS NOT NULL
+            """))
+            # Same legacy-column guard as permissions.name above
+            conn.execute(text("""
+                DO $$ BEGIN
+                    IF EXISTS (SELECT 1 FROM information_schema.columns
+                               WHERE table_name = 'roles' AND column_name = 'name') THEN
+                        ALTER TABLE roles ALTER COLUMN name DROP NOT NULL;
+                    END IF;
+                END $$;
+            """))
+
+            # ── Patch recruitment tables created by an older model version ────
+            conn.execute(text("ALTER TABLE candidates ADD COLUMN IF NOT EXISTS cv_file_path VARCHAR(500)"))
+            conn.execute(text("ALTER TABLE candidates ADD COLUMN IF NOT EXISTS uploaded_at TIMESTAMP DEFAULT now()"))
+            conn.execute(text("ALTER TABLE candidates ADD COLUMN IF NOT EXISTS ai_reasoning TEXT"))
+            conn.execute(text("ALTER TABLE applications ADD COLUMN IF NOT EXISTS notes TEXT"))
+            conn.execute(text("ALTER TABLE applications ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT now()"))
+            # Migrate data from the old column names where present
+            conn.execute(text("""
+                DO $$ BEGIN
+                    IF EXISTS (SELECT 1 FROM information_schema.columns
+                               WHERE table_name = 'candidates' AND column_name = 'cv_path') THEN
+                        UPDATE candidates SET cv_file_path = cv_path
+                        WHERE cv_file_path IS NULL AND cv_path IS NOT NULL;
+                    END IF;
+                    IF EXISTS (SELECT 1 FROM information_schema.columns
+                               WHERE table_name = 'candidates' AND column_name = 'ai_summary') THEN
+                        UPDATE candidates SET ai_reasoning = ai_summary
+                        WHERE ai_reasoning IS NULL AND ai_summary IS NOT NULL;
+                    END IF;
+                END $$;
             """))
 
             # ── Add missing messages column ───────────────────────────────────

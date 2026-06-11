@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/api";
 
 import { useEffect, useState } from "react";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
@@ -114,7 +115,7 @@ export default function VacancyDetailPage() {
     if (!confirm("Are you sure you want to permanently delete this vacancy? This will also delete all applications and evaluations tied to it.")) return;
     
     try {
-      const res = await fetch(`${API_BASE_URL}/recruitment/vacancies/${vacancyId}`, {
+      const res = await apiFetch(`/recruitment/vacancies/${vacancyId}`, {
         method: "DELETE",
       });
       if (res.ok) {
@@ -146,12 +147,12 @@ export default function VacancyDetailPage() {
   useEffect(() => {
     if (!vacancyId) return;
 
-    fetch(`${API_BASE_URL}/recruitment/vacancies/${vacancyId}`)
+    apiFetch(`/recruitment/vacancies/${vacancyId}`)
       .then((res) => res.json())
       .then((data) => setVacancy(data))
       .catch(console.error);
 
-    fetch(`${API_BASE_URL}/recruitment/vacancies/${vacancyId}/candidates`)
+    apiFetch(`/recruitment/vacancies/${vacancyId}/candidates`)
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) setCandidates(data);
@@ -163,7 +164,7 @@ export default function VacancyDetailPage() {
   useEffect(() => {
     if (activeTab !== "evaluated") return;
     setEvaluatedLoading(true);
-    fetch(`${API_BASE_URL}/recruitment/vacancies/${vacancyId}/evaluated-candidates`)
+    apiFetch(`/recruitment/vacancies/${vacancyId}/evaluated-candidates`)
       .then((r) => r.json())
       .then((d) => {
         setEvaluatedCandidates(Array.isArray(d) ? d : []);
@@ -190,13 +191,11 @@ export default function VacancyDetailPage() {
   const rerunAI = async () => {
     setRerunning(true);
     try {
-      await fetch(
-        `${API_BASE_URL}/recruitment/vacancies/${vacancyId}/run-ai-screening`,
+      await apiFetch(`/recruitment/vacancies/${vacancyId}/run-ai-screening`,
         { method: "POST" }
       );
       // Refresh candidate list to show updated scores
-      const data = await fetch(
-        `${API_BASE_URL}/recruitment/vacancies/${vacancyId}/candidates`
+      const data = await apiFetch(`/recruitment/vacancies/${vacancyId}/candidates`
       ).then((r) => r.json());
       if (Array.isArray(data)) setCandidates(data);
     } catch (err) {

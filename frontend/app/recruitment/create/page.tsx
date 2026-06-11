@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/api";
 import { API_BASE_URL } from "@/lib/constants";
 
 import { useState, useEffect, useRef } from "react";
@@ -184,7 +185,7 @@ export default function VacancyCreatePage() {
   });
 
   useEffect(() => {
-    fetch(`${API_BASE_URL}/employees/`)
+    apiFetch(`/employees/`)
       .then((r) => r.json())
       .then((d) => setUsers(Array.isArray(d) ? d : []))
       .catch(() => setUsers([]));
@@ -222,8 +223,7 @@ export default function VacancyCreatePage() {
 
     setSubmitting(true);
     try {
-      const vacancyRes = await fetch(
-        `${API_BASE_URL}/recruitment/vacancies`,
+      const vacancyRes = await apiFetch(`/recruitment/vacancies`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -252,8 +252,7 @@ export default function VacancyCreatePage() {
       const vacancy = await vacancyRes.json();
 
       if (panel.panel_head_id) {
-        const panelRes = await fetch(
-          `${API_BASE_URL}/recruitment/vacancies/${vacancy.id}/panel`,
+        const panelRes = await apiFetch(`/recruitment/vacancies/${vacancy.id}/panel`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },

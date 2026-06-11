@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import ConfirmModal from "../../components/ConfirmModal";
 import { apiFetch } from "@/lib/api";
+import { useAuth } from "@/context/auth-context";
 
 type DocType = {
   id: string;
@@ -19,6 +20,7 @@ type DocType = {
 
 
 export default function DocumentTypesPage() {
+  const { user } = useAuth();
   const [types, setTypes] = useState<DocType[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -50,7 +52,10 @@ export default function DocumentTypesPage() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { fetchTypes(); }, []);
+  useEffect(() => {
+    if (!user) return;
+    fetchTypes();
+  }, [user]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();

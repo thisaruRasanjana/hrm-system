@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { X, XCircle } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { useCloseAnimation } from "@/app/hooks/useCloseAnimation";
 
 type Props = {
   request: any;
@@ -11,6 +12,7 @@ type Props = {
 };
 
 export default function RejectRequestModal({ request, onClose, onSuccess }: Props) {
+  const { closing, triggerClose } = useCloseAnimation(onClose);
   const [reason, setReason] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -41,8 +43,8 @@ export default function RejectRequestModal({ request, onClose, onSuccess }: Prop
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-backdrop">
-      <div className="bg-white w-[540px] rounded-3xl shadow-xl overflow-hidden animate-modal p-7">
+    <div className={`fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm ${closing ? "animate-backdrop-out" : "animate-backdrop"}`}>
+      <div className={`bg-white w-[540px] rounded-3xl shadow-xl overflow-hidden p-7 ${closing ? "animate-modal-out" : "animate-modal"}`}>
         
         {/* Header */}
         <div className="flex items-start justify-between border-b-2 border-gray-200 pb-6 mb-6">
@@ -50,7 +52,7 @@ export default function RejectRequestModal({ request, onClose, onSuccess }: Prop
             <h2 className="text-[20px] font-bold text-gray-900 mb-1.5">Reject Request</h2>
             <p className="text-[13px] text-gray-500 font-medium">Provide a reason for rejection</p>
           </div>
-          <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-500 transition">
+          <button onClick={triggerClose} className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-500 transition">
             <X size={20} />
           </button>
         </div>
@@ -84,7 +86,7 @@ export default function RejectRequestModal({ request, onClose, onSuccess }: Prop
         {/* Footer */}
         <div className="flex gap-3 border-t-2 border-gray-200 pt-6">
           <button 
-            onClick={onClose} 
+            onClick={triggerClose} 
             className="flex-1 py-3.5 bg-gray-100 hover:bg-gray-200 text-gray-800 text-[14px] font-bold rounded-2xl transition"
           >
             Cancel

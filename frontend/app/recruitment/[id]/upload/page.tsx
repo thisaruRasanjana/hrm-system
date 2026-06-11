@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/api";
 import { API_BASE_URL } from "@/lib/constants";
 
 import { useState, useEffect } from "react";
@@ -65,7 +66,7 @@ export default function UploadCVPage() {
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
 
   useEffect(() => {
-    fetch(`${API}/recruitment/vacancies`)
+    apiFetch(`/recruitment/vacancies`)
       .then((res) => res.json())
       .then((data: Vacancy[]) => {
         const active = Array.isArray(data)
@@ -116,8 +117,7 @@ export default function UploadCVPage() {
     setLoading(true);
 
     try {
-      const res = await fetch(
-        `${API}/recruitment/vacancies/${selectedVacancy}/upload-cvs`,
+      const res = await apiFetch(`/recruitment/vacancies/${selectedVacancy}/upload-cvs`,
         { method: "POST", body: formData }
       );
 

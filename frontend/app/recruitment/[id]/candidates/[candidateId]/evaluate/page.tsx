@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/api";
 import { API_BASE_URL } from "@/lib/constants";
 
 import { useState, useEffect } from "react";
@@ -61,15 +62,15 @@ export default function EvaluateInterviewPage() {
     let resolvedCandidate: any = null;
 
     Promise.all([
-      fetch(`${API_BASE_URL}/recruitment/candidates/${candidateId}`).then(r => r.json()),
-      fetch(`${API_BASE_URL}/recruitment/vacancies/${vacancyId}`).then(r => r.json()),
+      apiFetch(`/recruitment/candidates/${candidateId}`).then(r => r.json()),
+      apiFetch(`/recruitment/vacancies/${vacancyId}`).then(r => r.json()),
     ])
     .then(([candData, vacData]) => {
       resolvedCandidate = candData;
       setCandidate(candData);
       setVacancy(vacData);
       // Fetch existing evaluations to determine the round number
-      return fetch(`${API_BASE_URL}/recruitment/applications/${candData.application_id}/evaluations`);
+      return apiFetch(`/recruitment/applications/${candData.application_id}/evaluations`);
     })
     .then(r => r.json())
     .then(async (evals: any[]) => {
@@ -122,7 +123,7 @@ export default function EvaluateInterviewPage() {
     setSaving(true);
     
     try {
-      const res = await fetch(`${API_BASE_URL}/recruitment/applications/${candidate.application_id}/evaluate`, {
+      const res = await apiFetch(`/recruitment/applications/${candidate.application_id}/evaluate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

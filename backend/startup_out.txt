@@ -1,0 +1,13 @@
+DATABASE URL USED BY FASTAPI: postgresql://postgres:Sdl%402003@localhost:5432/hrm_db
+[WARNING] seed_roles skipped (DB migration may be needed): (psycopg2.errors.UndefinedColumn) column permissions.permission_name does not exist
+LINE 1: SELECT permissions.id AS permissions_id, permissions.permiss...
+                                                 ^
+
+[SQL: SELECT permissions.id AS permissions_id, permissions.permission_name AS permissions_permission_name, permissions.resource AS permissions_resource, permissions.action AS permissions_action, permissions.description AS permissions_description, permissions.created_at AS permissions_created_at 
+FROM permissions 
+WHERE permissions.permission_name = %(permission_name_1)s 
+ LIMIT %(param_1)s]
+[parameters: {'permission_name_1': 'employee:create', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/f405)
+[Email Poller] Background email polling started (every 60 seconds).
+INFO:     127.0.0.1:8159 - "GET / HTTP/1.1" 200 OK

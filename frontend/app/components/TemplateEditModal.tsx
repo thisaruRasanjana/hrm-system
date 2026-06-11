@@ -4,6 +4,7 @@ import { useState } from "react";
 import RichTextEditor from "./RichTextEditor";
 import { X, FileText, Upload } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { useCloseAnimation } from "@/app/hooks/useCloseAnimation";
 
 type Template = {
   id: number;
@@ -31,6 +32,7 @@ const CATEGORIES = [
 ];
 
 export default function TemplateEditModal({ template, onClose, onSuccess }: Props) {
+  const { closing, triggerClose } = useCloseAnimation(onClose);
   const [name, setName] = useState(template.name);
   const [category, setCategory] = useState(template.category);
   const [templateType, setTemplateType] = useState<"HTML" | "FILE">(
@@ -76,11 +78,11 @@ export default function TemplateEditModal({ template, onClose, onSuccess }: Prop
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-backdrop"
-      onClick={onClose}
+      className={`fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm ${closing ? "animate-backdrop-out" : "animate-backdrop"}`}
+      onClick={triggerClose}
     >
       <div
-        className="bg-white w-[640px] max-h-[90vh] rounded-2xl shadow-2xl flex flex-col animate-modal"
+        className={`bg-white w-[640px] max-h-[90vh] rounded-2xl shadow-2xl flex flex-col ${closing ? "animate-modal-out" : "animate-modal"}`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -95,7 +97,7 @@ export default function TemplateEditModal({ template, onClose, onSuccess }: Prop
             </div>
           </div>
           <button
-            onClick={onClose}
+            onClick={triggerClose}
             className="text-gray-400 hover:text-gray-700 transition"
           >
             <X size={20} />
@@ -223,7 +225,7 @@ export default function TemplateEditModal({ template, onClose, onSuccess }: Prop
         {/* Footer */}
         <div className="border-t border-gray-100 px-6 py-4 flex gap-3 justify-end bg-gray-50/50">
           <button
-            onClick={onClose}
+            onClick={triggerClose}
             className="px-5 py-2.5 text-sm rounded-xl border border-gray-100 hover:bg-gray-50 text-gray-600 font-bold transition-all duration-300 shadow-sm bg-white"
           >
             Cancel

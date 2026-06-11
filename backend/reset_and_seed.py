@@ -37,33 +37,9 @@ def reset_db():
         db.add_all([admin_role, hr_role, emp_role])
         db.commit()
 
-        # Create Dummy Users
-        from passlib.context import CryptContext
-        pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-        
-        users = [
-            User(
-                email="admin@hrm.lk", username="admin", 
-                hashed_password=pwd_context.hash("Admin@123"), 
-                role="Admin", role_id=admin_role.id, first_name="System", last_name="Admin",
-                employee_id="EMP-001"
-            ),
-            User(
-                email="hr@hrm.lk", username="hrmanager", 
-                hashed_password=pwd_context.hash("HR@123"), 
-                role="HR Manager", role_id=hr_role.id, first_name="HR", last_name="Manager",
-                employee_id="EMP-002"
-            ),
-            User(
-                email="emp@hrm.lk", username="employee1", 
-                hashed_password=pwd_context.hash("Emp@123"), 
-                role="Employee", role_id=emp_role.id, first_name="John", last_name="Doe",
-                employee_id="EMP-003"
-            ),
-        ]
-        db.add_all(users)
         db.commit()
-        print("Database reset and seeded successfully.")
+        print("Database reset and roles seeded successfully.")
+        print("Use the admin UI to create real users.")
 
 if __name__ == "__main__":
     reset_db()

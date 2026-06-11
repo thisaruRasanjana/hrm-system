@@ -13,11 +13,9 @@ router = APIRouter(
     tags=["Documents"]
 )
 
-def _get_employee_id(current_user, db: Session) -> int:
+def _get_employee_id(current_user, db: Session) -> int | None:
     emp = db.query(Employee).filter(Employee.user_id == current_user.id).first()
-    if not emp:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee profile not found")
-    return emp.id
+    return emp.id if emp else None
 
 @router.post("/upload", response_model=schemas.DocumentUploadResponse)
 def upload_document(
@@ -27,9 +25,12 @@ def upload_document(
     db: Session = Depends(get_db),
     current_user = Depends(require_permission("document:upload_own"))
 ):
+    emp_id = _get_employee_id(current_user, db)
+    if emp_id is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No employee profile linked to your account. Contact HR.")
     return service.upload_employee_document(
         db=db,
-        employee_id=_get_employee_id(current_user, db),
+        employee_id=emp_id,
         document_type_id=document_type_id,
         is_mandatory=is_mandatory,
         file=file
@@ -40,7 +41,10 @@ def get_my_documents(
     db: Session = Depends(get_db),
     current_user = Depends(require_permission("document:upload_own"))
 ):
-    return service.get_employee_documents(db, _get_employee_id(current_user, db))
+    emp_id = _get_employee_id(current_user, db)
+    if emp_id is None:
+        return []  # No employee linked yet — return empty list, page shows no docs
+    return service.get_employee_documents(db, emp_id)
 
 @router.get("/download/{document_id}")
 def download_document(
@@ -48,8 +52,11 @@ def download_document(
     db: Session = Depends(get_db),
     current_user = Depends(require_permission("document:upload_own"))
 ):
+    emp_id = _get_employee_id(current_user, db)
+    if emp_id is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No employee profile linked to your account.")
     return service.download_employee_document(
         db=db,
         document_id=document_id,
-        employee_id=_get_employee_id(current_user, db)
+        employee_id=emp_id
     )

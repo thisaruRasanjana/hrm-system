@@ -5,18 +5,19 @@
  */
 
 // Widget permissions — must match strings in the permissions table exactly
-export const WIDGET_TIME_TRACKING_VIEW      = "dashboard:view_time_tracking";
-export const WIDGET_LEAVE_BALANCE_VIEW      = "dashboard:view_leave_balance";
-export const WIDGET_NOTIFICATIONS_VIEW      = "dashboard:view_notifications";
-export const WIDGET_WEEKLY_HOURS_VIEW       = "dashboard:view_weekly_hours";
-export const WIDGET_CALENDAR_VIEW           = "dashboard:view_calendar";
-export const WIDGET_CALENDAR_EDIT           = "dashboard:edit_calendar";
-export const WIDGET_APPROVAL_VIEW_APPROVALS = "dashboard:view_approvals";
-export const WIDGET_APPROVAL_VIEW_REQUESTS  = "dashboard:view_requests";
-export const WIDGET_ANNOUNCEMENTS_VIEW      = "dashboard:view_announcements";
-export const WIDGET_ANNOUNCEMENTS_MANAGE    = "dashboard:manage_announcements";
-export const WIDGET_EVENTS_VIEW             = "dashboard:view_events";
-export const WIDGET_EVENTS_MANAGE           = "dashboard:manage_events";
+export const WIDGET_TIME_TRACKING_VIEW      = "widget.time_tracking.view";
+export const WIDGET_LEAVE_BALANCE_VIEW      = "widget.leave_balance.view";
+export const WIDGET_NOTIFICATIONS_VIEW      = "widget.notifications.view";
+export const WIDGET_WEEKLY_HOURS_VIEW       = "widget.weekly_hours.view";
+export const WIDGET_CALENDAR_VIEW           = "widget.calendar.view";
+export const WIDGET_CALENDAR_EDIT           = "widget.calendar.edit";
+export const WIDGET_APPROVAL_VIEW_APPROVALS = "widget.approval_summary.view_approvals";
+export const WIDGET_APPROVAL_VIEW_REQUESTS  = "widget.approval_summary.view_requests";
+export const WIDGET_ANNOUNCEMENTS_VIEW      = "widget.announcements.view";
+export const WIDGET_ANNOUNCEMENTS_MANAGE    = "widget.announcements.manage";
+export const WIDGET_EVENTS_VIEW             = "widget.upcoming_events.view";
+export const WIDGET_EVENTS_MANAGE           = "widget.upcoming_events.manage";
+export const WIDGET_AVAILABILITY_VIEW       = "widget.availability.view";
 
 // Messaging
 export const MESSAGING_SEND = "messaging.send";
@@ -38,4 +39,5 @@ export const WIDGET_META: WidgetMeta[] = [
   { key: "approval_summary", label: "Approval & Req. Summary", description: "Pending approvals",         viewPermission: WIDGET_APPROVAL_VIEW_APPROVALS },
   { key: "announcements",    label: "Announcements",           description: "Company announcements",      viewPermission: WIDGET_ANNOUNCEMENTS_VIEW      },
   { key: "upcoming_events",  label: "Upcoming Events",         description: "Upcoming company events",    viewPermission: WIDGET_EVENTS_VIEW             },
+  { key: "availability",     label: "Team Availability",       description: "Who's in, out or on leave",  viewPermission: WIDGET_AVAILABILITY_VIEW       },
 ];

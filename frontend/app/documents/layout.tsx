@@ -2,28 +2,22 @@
 import SidebarHR from "../components/SidebarHR";
 import SidebarEmployee from "../components/SidebarEmployee";
 import Navbar from "../components/Navbar";
-import { useEffect, useState } from "react";
-import { hasPermission } from "../components/AuthGuard";
+import { useAuth } from "@/context/auth-context";
 
 export default function DocumentsLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const [isHr, setIsHr] = useState<boolean>(false);
+  const { hasPermission, user, loading } = useAuth();
 
-  useEffect(() => {
-    // If the user has document modification permissions, show the HR-level sidebar
-    if (hasPermission("document:manage_types")) {
-        setIsHr(true);
-    } else {
-        setIsHr(false);
-    }
-  }, []);
+  // HR and Super Admin both have document:type_manage — use it to pick the correct sidebar.
+  // While loading, default to the employee sidebar to avoid a flash of the wrong chrome.
+  const isHrOrAdmin = !loading && (hasPermission("document:type_manage") || !!user?.is_superadmin);
 
   return (
     <div className="flex h-screen">
-      {isHr ? <SidebarHR /> : <SidebarEmployee />}
+      {isHrOrAdmin ? <SidebarHR /> : <SidebarEmployee />}
       <div className="flex-1 flex justify-center">
         <div className="w-full max-w-7xl flex flex-col">
           <Navbar />

@@ -17,13 +17,5 @@ admin = db.query(User).filter(User.is_superadmin == True).first()
 if admin:
     print(f"Super Admin: {admin.email} (is_superadmin={admin.is_superadmin})")
 else:
-    print("No Super Admin found with is_superadmin=True. Checking for 'admin@hrm.lk'...")
-    admin = db.query(User).filter(User.email == "admin@hrm.lk").first()
-    if admin:
-        print(f"Found {admin.email}. Setting is_superadmin=True...")
-        admin.is_superadmin = True
-        db.commit()
-        print("[OK] admin@hrm.lk is now Super Admin.")
-    else:
-        print("Admin user not found.")
+    print("No Super Admin found. Use the admin UI or set is_superadmin=True directly in the DB.")
 db.close()

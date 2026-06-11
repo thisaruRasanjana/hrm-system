@@ -3,7 +3,9 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { IconChevron } from "../../components/Icons";
-import { API_BASE_URL, VACANCY_STATUS } from "@/lib/constants";
+import { VACANCY_STATUS } from "@/lib/constants";
+import { apiFetch } from "@/lib/api";
+import { useAuth } from "@/context/auth-context";
 
 type Vacancy = {
   id: number;
@@ -52,16 +54,29 @@ function FilterSelect({
 }
 
 export default function VacancyListPage() {
+  const { hasPermission, hasAnyPermission, loading: authLoading } = useAuth();
   const [vacancies, setVacancies] = useState<Vacancy[]>([]);
   const [statusFilter, setStatusFilter] = useState("All Status");
   const [deptFilter, setDeptFilter] = useState("All Departments");
 
+  const canView = hasAnyPermission(["recruitment:view", "recruitment:manage", "recruitment:interview_panel"]);
+  const canManage = hasPermission("recruitment:manage");
+
   useEffect(() => {
-    fetch(`${API_BASE_URL}/recruitment/vacancies`)
+    if (!canView) return;
+    apiFetch(`/recruitment/vacancies`)
       .then((res) => res.json())
       .then((data) => setVacancies(data))
       .catch((err) => console.error("Failed to load vacancies:", err));
-  }, []);
+  }, [canView]);
+
+  if (!authLoading && !canView) {
+    return (
+      <div className="flex items-center justify-center py-24 text-gray-500 text-sm">
+        You don&apos;t have permission to view recruitment.
+      </div>
+    );
+  }
 
   const departments = Array.from(new Set(vacancies.map((v) => v.department)));
 
@@ -76,12 +91,14 @@ export default function VacancyListPage() {
       <div className="mb-4">
         <div className="flex justify-between items-center mb-3">
           <h2 className="text-2xl font-bold text-gray-800">Vacancies</h2>
-          <Link
-            href="/recruitment/create"
-            className="bg-orange-400 hover:bg-orange-500 text-white px-5 py-2.5 rounded-xl text-sm font-medium transition-colors"
-          >
-            + Add New Vacancy
-          </Link>
+          {canManage && (
+            <Link
+              href="/recruitment/create"
+              className="bg-orange-400 hover:bg-orange-500 text-white px-5 py-2.5 rounded-xl text-sm font-medium transition-colors"
+            >
+              + Add New Vacancy
+            </Link>
+          )}
         </div>
 
         <div className="flex gap-2">
@@ -138,7 +155,7 @@ export default function VacancyListPage() {
                       >
                         View
                       </Link>
-                      {(v.status === "Active" || v.status === "Draft") && (
+                      {canManage && (v.status === "Active" || v.status === "Draft") && (
                         <Link
                           href={`/recruitment/${v.id}/edit`}
                           className="text-gray-400 hover:text-gray-600 transition-colors"

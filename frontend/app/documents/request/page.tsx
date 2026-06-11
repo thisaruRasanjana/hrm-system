@@ -10,8 +10,10 @@ import { apiFetch } from "@/lib/api";
 type Request = {
   id: string;
   document_type: string;
-  purpose: string;
+  reason: string;
   status: string;
+  rejection_reason?: string;
+  generated_document_path?: string;
   created_at: string;
 };
 
@@ -50,6 +52,7 @@ export default function HRRequestDocumentPage() {
     setMessage("");
     setError("");
     if (!documentType || !purpose) { setError("Please fill all fields"); return; }
+    if (purpose.trim().length < 5) { setError("Purpose must be at least 5 characters."); return; }
 
     try {
       const res = await apiFetch("/document-requests/", {
@@ -65,7 +68,14 @@ export default function HRRequestDocumentPage() {
         setTimeout(() => setMessage(""), 3000);
       } else {
         const err = await res.json();
-        setError(err.detail || "Error submitting request");
+        const detail = err.detail;
+        if (Array.isArray(detail)) {
+          setError(detail.map((e: any) => e.msg ?? JSON.stringify(e)).join(", "));
+        } else if (typeof detail === "string") {
+          setError(detail);
+        } else {
+          setError("Error submitting request");
+        }
       }
     } catch {
       setError("Failed to connect to server");
@@ -212,17 +222,27 @@ export default function HRRequestDocumentPage() {
             >
               <div>
                 <p className="font-bold text-sm text-gray-800">{req.document_type}</p>
-
                 <p className="text-xs text-gray-500 mt-1">
                   Requested on {new Date(req.created_at).toLocaleDateString()}
                 </p>
+                {req.status === 'REJECTED' && req.rejection_reason && (
+                  <p className="text-xs text-red-500 mt-1">Rejected: {req.rejection_reason}</p>
+                )}
               </div>
 
-              <span className={`px-3 py-1 text-[10px] uppercase tracking-wider rounded-full font-bold border ${
-                req.status === 'COMPLETED' ? 'bg-orange-50 text-[#F2924E] border-orange-100' : 'bg-gray-50 text-gray-500 border-gray-100'
-              }`}>
-                {req.status}
-              </span>
+              <div className="flex items-center gap-3">
+                <span className={`px-3 py-1 text-[10px] uppercase tracking-wider rounded-full font-bold border ${
+                  req.status === 'COMPLETED' ? 'bg-orange-50 text-[#F2924E] border-orange-100' : 'bg-gray-50 text-gray-500 border-gray-100'
+                }`}>
+                  {req.status}
+                </span>
+                <button
+                  onClick={() => setSelectedRequest(req)}
+                  className="bg-white border border-gray-100 hover:bg-gray-50 text-gray-600 text-xs px-4 py-1.5 rounded-lg transition shadow-sm"
+                >
+                  View
+                </button>
+              </div>
             </div>
           ))
         )}
@@ -285,10 +305,10 @@ export default function HRRequestDocumentPage() {
           </div>
 
           <div className="pt-2">
-            <p className="text-gray-500 font-medium mb-2">Purpose</p>
+            <p className="text-gray-500 font-medium mb-2">Purpose / Reason</p>
 
             <p className="text-gray-700 leading-relaxed bg-gray-50 p-4 rounded-xl font-medium">
-              {selectedRequest.purpose}
+              {selectedRequest.reason}
             </p>
           </div>
         </div>

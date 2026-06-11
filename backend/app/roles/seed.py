@@ -73,7 +73,8 @@ HR_PERMISSIONS = {
     "role:create", "role:view", "role:assign",
     "document:upload_own", "document:request_own", "document:approve", "document:request_manage", "document:template_upload", "document:type_manage",
     "leave:request", "leave:edit_pending", "leave:view_history", "leave:approve", "leave:reject", "leave:report",
-    "recruitment:manage", "recruitment:view"
+    "recruitment:manage", "recruitment:view",
+    "messaging.send", "messaging.receive"
 }
 # Add all widget permissions to HR (except interview_panel which is never default)
 for p in SYSTEM_PERMISSIONS:

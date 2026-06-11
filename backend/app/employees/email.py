@@ -18,7 +18,7 @@ SMTP_HOST = os.getenv("MAIL_SERVER")
 port_val = os.getenv("MAIL_PORT")
 SMTP_PORT = int(port_val) if port_val and port_val.isdigit() else 587
 SMTP_USER = os.getenv("MAIL_USERNAME")
-SMTP_PASSWORD = os.getenv("MAIL_PASSWORD")
+SMTP_PASSWORD = (os.getenv("MAIL_PASSWORD") or "").replace(" ", "")  # strip spaces from app password
 SMTP_FROM = os.getenv("MAIL_FROM")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
@@ -28,20 +28,25 @@ def send_welcome_email(email: str, full_name: str, temp_password: str):
     Sends a welcome email with a temporary password and a link to reset it.
     If email sending fails, it logs the error but doesn't raise an exception.
     """
-    if not all([SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, SMTP_FROM]):
-        config_map = {
-            "MAIL_SERVER": SMTP_HOST,
-            "MAIL_PORT": SMTP_PORT,
-            "MAIL_USERNAME": SMTP_USER,
-            "MAIL_PASSWORD": "SET" if SMTP_PASSWORD else None,
-            "MAIL_FROM": SMTP_FROM
-        }
-        missing = [k for k, v in config_map.items() if not v]
-        logger.error(f"SMTP configuration is incomplete. Missing or empty: {', '.join(missing)}")
+    # Re-load .env fresh every call so credential changes take effect without restart
+    load_dotenv(dotenv_path=env_path, override=True)
+
+    host = os.getenv("MAIL_SERVER")
+    port_str = os.getenv("MAIL_PORT", "587")
+    port = int(port_str) if port_str and port_str.isdigit() else 587
+    user = os.getenv("MAIL_USERNAME")
+    password = (os.getenv("MAIL_PASSWORD") or "").replace(" ", "")
+    from_addr = os.getenv("MAIL_FROM")
+    frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+
+    if not all([host, port, user, password, from_addr]):
+        missing = [k for k, v in {"MAIL_SERVER": host, "MAIL_USERNAME": user, "MAIL_PASSWORD": password, "MAIL_FROM": from_addr}.items() if not v]
+        logger.error(f"SMTP configuration is incomplete. Missing: {', '.join(missing)}")
+        logger.warning(f"[FALLBACK] Welcome email NOT sent for {email} ({full_name}). Temporary password (share manually): {temp_password}")
         return
 
     subject = "Welcome to the HRM System!"
-    reset_url = f"{FRONTEND_URL}/auth/reset-password"
+    reset_url = f"{frontend_url}/auth/reset-password"
     
     html_content = f"""
     <html>
@@ -65,16 +70,28 @@ def send_welcome_email(email: str, full_name: str, temp_password: str):
     """
 
     msg = MIMEMultipart()
-    msg["From"] = SMTP_FROM
+    msg["From"] = from_addr
     msg["To"] = email
     msg["Subject"] = subject
     msg.attach(MIMEText(html_content, "html"))
 
     try:
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
-            server.starttls()
-            server.login(SMTP_USER, SMTP_PASSWORD)
-            server.send_message(msg)
+        logger.info(f"SMTP attempt → host={host} port={port} user={user}")
+        if port == 465:
+            # Direct SSL (port 465)
+            with smtplib.SMTP_SSL(host, port) as server:
+                server.login(user, password)
+                server.send_message(msg)
+        else:
+            # STARTTLS (port 587 or 25)
+            with smtplib.SMTP(host, port) as server:
+                server.starttls()
+                server.login(user, password)
+                server.send_message(msg)
         logger.info(f"Welcome email sent successfully to {email}")
     except Exception as e:
         logger.error(f"Failed to send welcome email to {email}: {str(e)}")
+        logger.warning(
+            f"[FALLBACK] Email delivery failed for {email} ({full_name}). "
+            f"Temporary password (share manually): {temp_password}"
+        )
