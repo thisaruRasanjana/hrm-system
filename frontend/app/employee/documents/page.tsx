@@ -16,7 +16,8 @@ type UploadedDocument = {
 
 type MergedDocument = {
   id?: string;
-  document_type_id: number;
+  // Document type IDs are UUIDs on the backend
+  document_type_id: string;
   name: string;
   is_mandatory: boolean;
   status: "NOT_UPLOADED" | "PENDING_REVIEW" | "APPROVED" | "REJECTED";
