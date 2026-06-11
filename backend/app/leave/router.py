@@ -4,7 +4,9 @@ import shutil
 from uuid import uuid4
 from sqlalchemy.orm import Session
 
-from app.core.rbac import require_roles, get_current_user
+from app.core.deps import get_current_user, get_user_permissions, require_permission
+from app.auth.models import User
+from app.employees.models import Employee
 from app.database.database import get_db
 
 from app.leave.schemas import (
@@ -41,26 +43,65 @@ router = APIRouter(prefix="/leave", tags=["Leave"])
 UPLOAD_DIR = "uploads/medical_docs"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
+
+def leave_actor(*permissions: str):
+    """
+    Dependency factory bridging JWT auth to the leave service layer.
+
+    Enforces that the caller holds AT LEAST ONE of the given leave
+    permissions, then returns the {id, role} dict the service expects:
+      - id   → Employee.id mapped from the JWT user
+      - role → "hr" if the caller can approve leave (sees all requests),
+               otherwise "employee" (sees own requests only)
+
+    Reviewers without an employee profile (e.g. superadmin) get id=0 so
+    ownership filters match nothing but review endpoints still work.
+    """
+    def _dep(
+        current_user: User = Depends(get_current_user),
+        db: Session = Depends(get_db),
+    ):
+        perms = get_user_permissions(current_user, db)
+        if permissions and not any(p in perms for p in permissions):
+            raise HTTPException(
+                status_code=403,
+                detail=f"Permission required: one of {', '.join(permissions)}",
+            )
+        emp = db.query(Employee).filter(Employee.user_id == current_user.id).first()
+        is_reviewer = "leave:approve" in perms
+        if emp is None:
+            if not is_reviewer:
+                raise HTTPException(
+                    status_code=404,
+                    detail="No employee profile linked to your account. Contact HR.",
+                )
+            emp_id = 0
+        else:
+            emp_id = emp.id
+        return {"id": emp_id, "role": "hr" if is_reviewer else "employee"}
+    return _dep
+
+
 # -----------------------------
-# CREATE LEAVE (EMPLOYEE + HR)
+# CREATE LEAVE
 # -----------------------------
 @router.post("/requests", response_model=LeaveRequestOut)
 def submit_leave(
     payload: LeaveRequestCreate,
-    current_user: dict = Depends(require_roles(["employee", "hr"])),
+    current_user: dict = Depends(leave_actor("leave:request")),
     db: Session = Depends(get_db),
 ):
     return create_leave(db, current_user["id"], payload)
 
 
 # -----------------------------
-# UPDATE LEAVE (EMPLOYEE ONLY)
+# UPDATE OWN PENDING LEAVE
 # -----------------------------
 @router.put("/requests/{request_id}", response_model=LeaveRequestOut)
 def update_leave(
     request_id: int,
     payload: LeaveRequestCreate,
-    current_user: dict = Depends(require_roles(["employee", "hr"])),
+    current_user: dict = Depends(leave_actor("leave:edit_pending")),
     db: Session = Depends(get_db),
 ):
     try:
@@ -70,12 +111,12 @@ def update_leave(
 
 
 # -----------------------------
-# DELETE LEAVE (EMPLOYEE ONLY)
+# DELETE OWN PENDING LEAVE
 # -----------------------------
 @router.delete("/requests/{request_id}")
 def delete_leave(
     request_id: int,
-    current_user: dict = Depends(require_roles(["employee", "hr"])),
+    current_user: dict = Depends(leave_actor("leave:edit_pending")),
     db: Session = Depends(get_db),
 ):
     try:
@@ -90,18 +131,18 @@ def delete_leave(
 # -----------------------------
 @router.get("/requests/me", response_model=list[LeaveRequestOut])
 def get_my_leave(
-    current_user: dict = Depends(require_roles(["employee", "hr"])),
+    current_user: dict = Depends(leave_actor("leave:view_history", "leave:request")),
     db: Session = Depends(get_db),
 ):
     return my_requests(db, current_user["id"])
 
 
 # -----------------------------
-# PENDING REQUESTS (HR ONLY)
+# PENDING REQUESTS (approvers)
 # -----------------------------
 @router.get("/requests/pending", response_model=list[LeaveRequestOut])
 def get_pending(
-    current_user: dict = Depends(require_roles(["hr"])),
+    current_user: dict = Depends(leave_actor("leave:approve")),
     db: Session = Depends(get_db),
 ):
     return get_pending_requests(db, current_user)
@@ -113,7 +154,7 @@ def get_pending(
 @router.get("/requests/{request_id}", response_model=LeaveRequestOut)
 def get_leave_request_details(
     request_id: int,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(leave_actor("leave:view_history", "leave:approve")),
     db: Session = Depends(get_db),
 ):
     req = get_leave_request_by_id(db, request_id)
@@ -121,26 +162,21 @@ def get_leave_request_details(
     if not req:
         raise HTTPException(status_code=404, detail="Leave request not found")
 
-    role = current_user["role"]
-
-    # Employee can only see own requests
-    if role == "employee":
-        if req.employee_id != current_user["id"]:
-            raise HTTPException(status_code=403, detail="Not authorized")
-
-    # HR can see everything → no restriction
+    # Non-reviewers can only see their own requests
+    if current_user["role"] == "employee" and req.employee_id != current_user["id"]:
+        raise HTTPException(status_code=403, detail="Not authorized")
 
     return req
 
 
 # -----------------------------
-# APPROVE REQUEST (HR ONLY)
+# APPROVE REQUEST
 # -----------------------------
 @router.patch("/requests/{request_id}/approve", response_model=LeaveRequestOut)
 def approve_request(
     request_id: int,
     payload: ApproveLeaveRequest,
-    current_user: dict = Depends(require_roles(["hr"])),
+    current_user: dict = Depends(leave_actor("leave:approve")),
     db: Session = Depends(get_db),
 ):
     req = get_leave_request_by_id(db, request_id)
@@ -160,13 +196,13 @@ def approve_request(
 
 
 # -----------------------------
-# REJECT REQUEST (HR ONLY)
+# REJECT REQUEST
 # -----------------------------
 @router.patch("/requests/{request_id}/reject", response_model=LeaveRequestOut)
 def reject_request(
     request_id: int,
     payload: RejectLeaveRequest,
-    current_user: dict = Depends(require_roles(["hr"])),
+    current_user: dict = Depends(leave_actor("leave:reject")),
     db: Session = Depends(get_db),
 ):
     req = get_leave_request_by_id(db, request_id)
@@ -186,13 +222,13 @@ def reject_request(
 
 
 # -----------------------------
-# REQUEST INFO (HR ONLY)
+# REQUEST INFO
 # -----------------------------
 @router.patch("/requests/{request_id}/request-info", response_model=LeaveRequestOut)
 def request_info(
     request_id: int,
     payload: RequestInfoLeaveRequest,
-    current_user: dict = Depends(require_roles(["hr"])),
+    current_user: dict = Depends(leave_actor("leave:approve")),
     db: Session = Depends(get_db),
 ):
     req = get_leave_request_by_id(db, request_id)
@@ -212,13 +248,13 @@ def request_info(
 
 
 # -----------------------------
-# RESUBMIT REQUEST (EMPLOYEE ONLY)
+# RESUBMIT OWN REQUEST
 # -----------------------------
 @router.patch("/requests/{request_id}/resubmit", response_model=LeaveRequestOut)
 def resubmit_request(
     request_id: int,
     payload: ResubmitLeaveRequest,
-    current_user: dict = Depends(require_roles(["employee", "hr"])),
+    current_user: dict = Depends(leave_actor("leave:request")),
     db: Session = Depends(get_db),
 ):
     try:
@@ -235,13 +271,13 @@ def resubmit_request(
 
 
 # -----------------------------
-# UPDATE STATUS (HR ONLY)
+# UPDATE STATUS (approvers)
 # -----------------------------
 @router.patch("/requests/{request_id}/status", response_model=LeaveRequestOut)
 def change_status(
     request_id: int,
     payload: LeaveStatusUpdate,
-    current_user: dict = Depends(require_roles(["hr"])),
+    current_user: dict = Depends(leave_actor("leave:approve")),
     db: Session = Depends(get_db),
 ):
     allowed = {"APPROVED", "REJECTED", "REQ_INFO", "PENDING"}
@@ -270,12 +306,19 @@ def change_status(
 # LEAVE TYPES
 # -----------------------------
 @router.get("/types", response_model=list[LeaveTypeOut])
-def list_leave_types(db: Session = Depends(get_db)):
+def list_leave_types(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     return get_leave_types(db)
 
 
 @router.post("/types", response_model=LeaveTypeOut)
-def add_leave_type(payload: LeaveTypeCreate, db: Session = Depends(get_db)):
+def add_leave_type(
+    payload: LeaveTypeCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("leave:type_manage")),
+):
     return create_leave_type(db, payload.name, payload.description)
 
 
@@ -283,7 +326,10 @@ def add_leave_type(payload: LeaveTypeCreate, db: Session = Depends(get_db)):
 # UPLOAD FILE
 # -----------------------------
 @router.post("/upload")
-def upload_leave_attachment(file: UploadFile = File(...)):
+def upload_leave_attachment(
+    file: UploadFile = File(...),
+    current_user: dict = Depends(leave_actor("leave:request")),
+):
     allowed_types = ["image/jpeg", "image/png", "application/pdf"]
 
     if file.content_type not in allowed_types:
@@ -303,7 +349,7 @@ def upload_leave_attachment(file: UploadFile = File(...)):
 # -----------------------------
 @router.get("/history/me", response_model=list[LeaveRequestOut])
 def get_my_leave_history_api(
-    current_user: dict = Depends(require_roles(["employee", "hr"])),
+    current_user: dict = Depends(leave_actor("leave:view_history")),
     search: str | None = None,
     leave_type_id: int | None = None,
     status: str | None = None,

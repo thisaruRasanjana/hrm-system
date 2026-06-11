@@ -36,6 +36,7 @@ SYSTEM_PERMISSIONS = [
     ("leave:approve", "leave", "approve", "Approve leave requests"),
     ("leave:reject", "leave", "reject", "Reject leave requests"),
     ("leave:report", "leave", "report", "Generate leave reports"),
+    ("leave:type_manage", "leave", "type_manage", "Manage leave types"),
 
     # Recruitment
     ("recruitment:manage", "recruitment", "manage", "Manage vacancies and pipeline"),
@@ -72,7 +73,7 @@ HR_PERMISSIONS = {
     "employee:create", "employee:update", "employee:delete", "employee:view_all", "employee:view_own",
     "role:create", "role:view", "role:assign",
     "document:upload_own", "document:request_own", "document:approve", "document:request_manage", "document:template_upload", "document:type_manage",
-    "leave:request", "leave:edit_pending", "leave:view_history", "leave:approve", "leave:reject", "leave:report",
+    "leave:request", "leave:edit_pending", "leave:view_history", "leave:approve", "leave:reject", "leave:report", "leave:type_manage",
     "recruitment:manage", "recruitment:view",
     "messaging.send", "messaging.receive"
 }

@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { X, UploadCloud, File as FileIcon, Loader2 } from 'lucide-react';
-import { API_BASE_URL, getAuthHeaders } from '../app/lib/api';
+import { apiFetch } from "@/lib/api";
 
 interface LeaveRequest {
   leave_request_id: number;
@@ -65,12 +65,8 @@ export default function LeaveResubmitModal({
           const formData = new FormData();
           formData.append('file', file);
 
-          const headers = getAuthHeaders() as Record<string, string>;
-          delete headers['Content-Type'];
-
-          const uploadRes = await fetch(`${API_BASE_URL}/leave/upload`, {
+          const uploadRes = await apiFetch(`/leave/upload`, {
             method: 'POST',
-            headers,
             body: formData,
           });
 
@@ -88,12 +84,8 @@ export default function LeaveResubmitModal({
         reason: reason.trim() || undefined,
       };
 
-      const resubmitRes = await fetch(`${API_BASE_URL}/leave/requests/${requestId}/resubmit`, {
+      const resubmitRes = await apiFetch(`/leave/requests/${requestId}/resubmit`, {
         method: 'PATCH',
-        headers: {
-          ...getAuthHeaders(),
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify(payload),
       });
 

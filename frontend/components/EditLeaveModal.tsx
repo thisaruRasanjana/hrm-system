@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { X, UploadCloud, File as FileIcon, Loader2, Trash2 } from 'lucide-react';
-import { API_BASE_URL, getAuthHeaders } from '../app/lib/api';
+import { apiFetch } from "@/lib/api";
 import LeaveDatePicker from './LeaveDatePicker';
 
 interface LeaveRequest {
@@ -60,7 +60,7 @@ export default function EditLeaveModal({
   useEffect(() => {
     const fetchLeaveTypes = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/leave/types`);
+        const res = await apiFetch(`/leave/types`);
         if (res.ok) {
           const data = await res.json();
           setLeaveTypes(data);
@@ -126,12 +126,8 @@ export default function EditLeaveModal({
           const formData = new FormData();
           formData.append('file', file);
 
-          const headers = getAuthHeaders() as Record<string, string>;
-          delete headers['Content-Type'];
-
-          const uploadRes = await fetch(`${API_BASE_URL}/leave/upload`, {
+          const uploadRes = await apiFetch(`/leave/upload`, {
             method: 'POST',
-            headers,
             body: formData,
           });
 
@@ -152,9 +148,8 @@ export default function EditLeaveModal({
         attachment_urls: uploadedFileUrls,
       };
 
-      const updateRes = await fetch(`${API_BASE_URL}/leave/requests/${request.leave_request_id}`, {
+      const updateRes = await apiFetch(`/leave/requests/${request.leave_request_id}`, {
         method: 'PUT',
-        headers: getAuthHeaders(),
         body: JSON.stringify(payload),
       });
 

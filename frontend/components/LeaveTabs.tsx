@@ -4,27 +4,26 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
+import { useAuth } from "@/context/auth-context";
 
 export default function LeaveTabs() {
   const pathname = usePathname();
   const [activePath, setActivePath] = useState(pathname);
+  const { hasPermission } = useAuth();
 
   // Sync internal state if URL changes externally (e.g. browser back button)
   useEffect(() => {
     setActivePath(pathname);
   }, [pathname]);
 
-  // Sync read: ensures it doesn't drop to null during page transitions
-  const role = typeof window !== "undefined" ? localStorage.getItem("role") : null;
-
   const tabs = [
     { name: "Request Leave", path: "/apply-leave" },
     { name: "Leave History", path: "/leave-history" },
-    ...(role === "hr"
-      ? [
-          { name: "Approval panel", path: "/approval" },
-          { name: "Get Reports", path: "/reports" },
-        ]
+    ...(hasPermission("leave:approve")
+      ? [{ name: "Approval panel", path: "/approval" }]
+      : []),
+    ...(hasPermission("leave:report")
+      ? [{ name: "Get Reports", path: "/reports" }]
       : []),
   ];
 

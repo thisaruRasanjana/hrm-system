@@ -251,6 +251,11 @@ async def lifespan(app: FastAPI):
             seed_holidays()
         except Exception as e:
             print(f"[WARNING] seed_holidays skipped: {e}")
+        try:
+            from app.leave.seed import seed_leave_types
+            seed_leave_types(db)
+        except Exception as e:
+            print(f"[WARNING] seed_leave_types skipped: {e}")
     finally:
         db.close()
 
