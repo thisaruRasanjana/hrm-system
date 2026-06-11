@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { API_BASE_URL, getAuthHeaders } from "../app/lib/api";
+import { apiFetch } from "@/lib/api";
 import LeaveDatePicker from "./LeaveDatePicker";
 
 interface Props {
@@ -80,7 +80,7 @@ const ApplyLeaveForm: React.FC<Props> = ({ balances }) => {
     const fetchLeaveTypes = async () => {
       setLoadingTypes(true);
       try {
-        const res = await fetch(`${API_BASE_URL}/leave/types`);
+        const res = await apiFetch(`/leave/types`);
         if (!res.ok) {
           throw new Error("Failed to load leave types");
         }
@@ -157,12 +157,8 @@ const ApplyLeaveForm: React.FC<Props> = ({ balances }) => {
         const formData = new FormData();
         formData.append("file", file);
 
-        const headers = getAuthHeaders() as Record<string, string>;
-        delete headers['Content-Type'];
-
-        const uploadRes = await fetch(`${API_BASE_URL}/leave/upload`, {
+        const uploadRes = await apiFetch(`/leave/upload`, {
           method: "POST",
-          headers,
           body: formData,
         });
 
@@ -186,12 +182,8 @@ const ApplyLeaveForm: React.FC<Props> = ({ balances }) => {
       attachment_urls: uploadedFileUrls,
     };
 
-    const res = await fetch(`${API_BASE_URL}/leave/requests`, {
+    const res = await apiFetch(`/leave/requests`, {
       method: "POST",
-      headers: {
-        ...getAuthHeaders(),
-        "Content-Type": "application/json",
-      },
       body: JSON.stringify(payload),
     });
 

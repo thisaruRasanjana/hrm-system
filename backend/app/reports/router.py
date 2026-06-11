@@ -5,6 +5,8 @@ from sqlalchemy.orm import Session
 from io import BytesIO
 
 from app.database.database import get_db
+from app.core.deps import require_permission
+from app.auth.models import User
 from app.reports.schemas import LeaveReportResponse
 from app.reports.service import get_leave_report, generate_leave_report_csv
 
@@ -12,6 +14,9 @@ from fastapi.responses import StreamingResponse
 from app.reports.service import generate_leave_report_pdf
 
 router = APIRouter(prefix="/reports", tags=["Reports"])
+
+# All report endpoints require the leave:report permission
+can_report = require_permission("leave:report")
 
 
 @router.get("/leave", response_model=LeaveReportResponse)
@@ -22,6 +27,7 @@ def preview_leave_report(
     start_date: date | None = None,
     end_date: date | None = None,
     db: Session = Depends(get_db),
+    current_user: User = Depends(can_report),
 ):
     return get_leave_report(
         db=db,
@@ -41,6 +47,7 @@ def export_leave_report_csv(
     start_date: date | None = None,
     end_date: date | None = None,
     db: Session = Depends(get_db),
+    current_user: User = Depends(can_report),
 ):
     report_data = get_leave_report(
         db=db,
@@ -69,6 +76,7 @@ def download_leave_pdf(
     start_date: date | None = None,
     end_date: date | None = None,
     db: Session = Depends(get_db),
+    current_user: User = Depends(can_report),
 ):
     data = get_leave_report(
         db=db,

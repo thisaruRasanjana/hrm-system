@@ -7,7 +7,7 @@ import LeaveTabs from '@/components/LeaveTabs';
 import LeaveResubmitModal from '@/components/LeaveResubmitModal';
 import EditLeaveModal from '@/components/EditLeaveModal';
 import { Search, Pencil, Trash2 } from "lucide-react";
-import { API_BASE_URL, getAuthHeaders } from '../lib/api';
+import { apiFetch } from '@/lib/api';
 
 interface LeaveRequest {
   leave_request_id: number;
@@ -87,13 +87,10 @@ export default function LeaveHistoryPage() {
 
       params.append("sort_by", sortBy === "Newest first" ? "newest" : "oldest");
 
-      const url = `${API_BASE_URL}/leave/history/me?${params.toString()}`;
-      console.log("Fetching leave history:", url);
-      console.log("Headers:", getAuthHeaders());
+      const url = `/leave/history/me?${params.toString()}`;
 
-      const response = await fetch(url, {
+      const response = await apiFetch(url, {
         method: "GET",
-        headers: getAuthHeaders(),
         cache: "no-store",
       });
 
@@ -120,10 +117,8 @@ export default function LeaveHistoryPage() {
   const handleDelete = async (requestId: number) => {
     if (window.confirm("Are you sure you want to cancel and delete this pending request?")) {
       try {
-        const url = `${API_BASE_URL}/leave/requests/${requestId}`;
-        const res = await fetch(url, {
+        const res = await apiFetch(`/leave/requests/${requestId}`, {
           method: 'DELETE',
-          headers: getAuthHeaders(),
         });
         if (!res.ok) throw new Error("Failed to delete leave request");
         setSelectedRequestForEdit(null); // safely close the modal if open

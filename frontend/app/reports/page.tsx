@@ -8,6 +8,8 @@ import ReportSummaryCards from "@/components/reports/ReportSummaryCards";
 import ReportFilterBar from "@/components/reports/ReportFilterBar";
 import EmployeeReportTable from "@/components/reports/EmployeeReportTable";
 import { ReportPeriod } from "./types";
+import { apiFetch } from "@/lib/api";
+import { useAuth } from "@/context/auth-context";
 
 type BackendLeaveRecord = {
   leave_request_id: number;
@@ -46,7 +48,6 @@ type BackendLeaveReportResponse = {
   records: BackendLeaveRecord[];
 };
 
-const API_BASE_URL = "http://127.0.0.1:8000";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 function getPeriodDateRange(period: ReportPeriod): { start: string; end: string } {
@@ -77,6 +78,9 @@ function getPeriodDateRange(period: ReportPeriod): { start: string; end: string 
 }
 
 export default function ReportsPage() {
+  const { loading: authLoading, hasPermission } = useAuth();
+  const canViewReports = hasPermission("leave:report");
+
   const [period, setPeriod] = useState<ReportPeriod>("monthly");
   const [search, setSearch] = useState("");
   const [department, setDepartment] = useState("All Departments");
@@ -92,8 +96,7 @@ export default function ReportsPage() {
         setError("");
 
         const { start, end } = getPeriodDateRange(period);
-        const url = `${API_BASE_URL}/reports/leave?start_date=${start}&end_date=${end}`;
-        const response = await fetch(url);
+        const response = await apiFetch(`/reports/leave?start_date=${start}&end_date=${end}`);
 
         if (!response.ok) {
           throw new Error("Failed to fetch report data");
@@ -217,19 +220,37 @@ export default function ReportsPage() {
     });
   }, [tableRows, search, department]);
 
+  // Authenticated download: window.open can't send the JWT, so fetch a blob
+  const downloadReport = async (path: string, filename: string) => {
+    try {
+      const res = await apiFetch(path);
+      if (!res.ok) throw new Error("Download failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Report download error:", err);
+      alert("Failed to download report.");
+    }
+  };
+
   const handleDownloadCsv = () => {
     const { start, end } = getPeriodDateRange(period);
-    window.open(
-      `${API_BASE_URL}/reports/leave/export/csv?start_date=${start}&end_date=${end}`,
-      "_blank"
+    downloadReport(
+      `/reports/leave/export/csv?start_date=${start}&end_date=${end}`,
+      "leave_report.csv"
     );
   };
 
   const handleDownloadPdf = () => {
     const { start, end } = getPeriodDateRange(period);
-    window.open(
-      `${API_BASE_URL}/reports/leave/pdf?start_date=${start}&end_date=${end}`,
-      "_blank"
+    downloadReport(
+      `/reports/leave/pdf?start_date=${start}&end_date=${end}`,
+      "leave_report.pdf"
     );
   };
 
@@ -245,17 +266,16 @@ export default function ReportsPage() {
     return ["All Departments", ...uniqueDepartments];
   }, [tableRows]);
 
-  const [role, setRole] = useState<string | null>(null);
-  const [mounted, setMounted] = useState(false);
+  if (authLoading) {
+    return null;
+  }
 
-  useEffect(() => {
-    setMounted(true);
-    const userRole = localStorage.getItem("role");
-    setRole(userRole);
-  }, []);
-
-  if (!mounted || role !== "hr") {
-    return <div>Access Denied</div>;
+  if (!canViewReports) {
+    return (
+      <div className="flex items-center justify-center py-24 text-gray-500 text-sm">
+        You don&apos;t have permission to view leave reports.
+      </div>
+    );
   }
 
   return (

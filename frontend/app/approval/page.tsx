@@ -12,7 +12,8 @@ import ApprovalReviewModal, {
   ModalMode,
 } from '../../components/ApprovalReviewModal';
 import { Search, ChevronDown, CheckCircle2, XCircle } from 'lucide-react';
-import { API_BASE_URL, getAuthHeaders } from '../lib/api';
+import { apiFetch } from '@/lib/api';
+import { useAuth } from '@/context/auth-context';
 
 type BackendLeaveRequest = {
   leave_request_id: number;
@@ -122,22 +123,16 @@ export default function ApprovalPage() {
   const [messageType, setMessageType] = useState<'success' | 'error' | ''>('');
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
-  const [role, setRole] = useState<string | null | undefined>(undefined);
 
   const router = useRouter();
+  const { loading: authLoading, hasPermission } = useAuth();
+  const canApprove = hasPermission('leave:approve');
 
   useEffect(() => {
-    const storedRole = localStorage.getItem('role');
-    setRole(storedRole);
-  }, []);
-
-  useEffect(() => {
-    if (role === undefined) return;
-
-    if (role !== 'hr') {
+    if (!authLoading && !canApprove) {
       router.replace('/apply-leave');
     }
-  }, [role, router]);
+  }, [authLoading, canApprove, router]);
 
   const loadPendingRequests = useCallback(async () => {
     try {
@@ -145,9 +140,8 @@ export default function ApprovalPage() {
       setActionMessage('');
       setMessageType('');
 
-      const response = await fetch(`${API_BASE_URL}/leave/requests/pending`, {
+      const response = await apiFetch(`/leave/requests/pending`, {
         method: 'GET',
-        headers: getAuthHeaders(),
         cache: 'no-store',
       });
 
@@ -174,10 +168,10 @@ export default function ApprovalPage() {
   }, []);
 
   useEffect(() => {
-    if (role === 'hr') {
+    if (canApprove) {
       loadPendingRequests();
     }
-  }, [role, loadPendingRequests]);
+  }, [canApprove, loadPendingRequests]);
 
   useEffect(() => {
     if (!actionMessage) return;
@@ -222,9 +216,8 @@ export default function ApprovalPage() {
 
   const openReview = async (request: ApprovalRequest) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/leave/requests/${request.id}`, {
+      const response = await apiFetch(`/leave/requests/${request.id}`, {
         method: 'GET',
-        headers: getAuthHeaders(),
         cache: 'no-store',
       });
 
@@ -258,14 +251,10 @@ export default function ApprovalPage() {
     try {
       setActionLoading(true);
 
-      const response = await fetch(
-        `${API_BASE_URL}/leave/requests/${selectedRequest.id}/approve`,
+      const response = await apiFetch(
+        `/leave/requests/${selectedRequest.id}/approve`,
         {
           method: 'PATCH',
-          headers: {
-            ...getAuthHeaders(),
-            'Content-Type': 'application/json',
-          },
           body: JSON.stringify({
             manager_comment: comment || null,
           }),
@@ -298,14 +287,10 @@ export default function ApprovalPage() {
     try {
       setActionLoading(true);
 
-      const response = await fetch(
-        `${API_BASE_URL}/leave/requests/${selectedRequest.id}/reject`,
+      const response = await apiFetch(
+        `/leave/requests/${selectedRequest.id}/reject`,
         {
           method: 'PATCH',
-          headers: {
-            ...getAuthHeaders(),
-            'Content-Type': 'application/json',
-          },
           body: JSON.stringify({
             rejection_reason: reason,
           }),
@@ -338,14 +323,10 @@ export default function ApprovalPage() {
     try {
       setActionLoading(true);
 
-      const response = await fetch(
-        `${API_BASE_URL}/leave/requests/${selectedRequest.id}/request-info`,
+      const response = await apiFetch(
+        `/leave/requests/${selectedRequest.id}/request-info`,
         {
           method: 'PATCH',
-          headers: {
-            ...getAuthHeaders(),
-            'Content-Type': 'application/json',
-          },
           body: JSON.stringify({
             manager_comment: message,
           }),
@@ -372,11 +353,11 @@ export default function ApprovalPage() {
     }
   };
 
-  if (role === undefined) {
+  if (authLoading) {
     return null;
   }
 
-  if (role !== 'hr') {
+  if (!canApprove) {
     return <div className="p-10 text-red-500 font-semibold">Access Denied</div>;
   }
 
