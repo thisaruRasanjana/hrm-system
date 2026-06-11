@@ -15,20 +15,25 @@ import { useAuth } from "@/context/auth-context";
 
 const NAV_ITEMS = [
   { label: "Dashboard",            icon: <IconDashboard />,   href: "/dashboard" },
-  { label: "Employee\nManagement", icon: <IconEmployees />,   href: "/dashboard/employees" },
-  { label: "Recruitment",          icon: <IconRecruitment />, href: "/recruitment" },
-  { label: "Leave",                icon: <IconLeave />,       href: "/leave" },
+  { label: "Employee\nManagement", icon: <IconEmployees />,   href: "/dashboard/employees",
+    anyPermission: ["employee:view_all", "employee:create", "employee:update", "employee:delete"] },
+  { label: "Recruitment",          icon: <IconRecruitment />, href: "/recruitment",
+    anyPermission: ["recruitment:view", "recruitment:manage", "recruitment:interview_panel"] },
+  { label: "Leave",                icon: <IconLeave />,       href: "/apply-leave",
+    anyPermission: ["leave:request", "leave:approve"],
+    activePrefixes: ["/apply-leave", "/leave-history", "/approval", "/reports"] },
   { label: "Settings",             icon: <IconSettings />,    href: "/settings" },
 ];
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const { hasPermission } = useAuth();
+  const { hasPermission, hasAnyPermission } = useAuth();
 
-  // Link to the correct base documents path based on permissions
-  const docHref = hasPermission("document:upload_own") || hasPermission("document:approve")
-    ? "/dashboard/documents"
-    : "/dashboard/documents";
+  const docHref = "/dashboard/documents";
+  const hasDocAccess = hasAnyPermission([
+    "document:upload_own", "document:request_own", "document:approve",
+    "document:request_manage", "document:template_upload", "document:type_manage",
+  ]);
   const isDocActive = pathname.startsWith("/dashboard/documents") || pathname.startsWith("/documents");
 
   return (
@@ -51,7 +56,10 @@ export default function Sidebar() {
         </p>
         <div className="space-y-0.5">
           {NAV_ITEMS.map((item) => {
-            const isActive = pathname === item.href;
+            if (item.anyPermission && !hasAnyPermission(item.anyPermission)) return null;
+            const isActive = item.activePrefixes
+              ? item.activePrefixes.some((p) => pathname === p || pathname.startsWith(`${p}/`))
+              : pathname === item.href;
             return (
               <Link
                 key={item.label}
@@ -72,6 +80,8 @@ export default function Sidebar() {
         </div>
 
         {/* Documents — single link, tabs inside handle per-role navigation */}
+        {hasDocAccess && (
+        <>
         <p className="text-[10px] text-gray-400 tracking-widest font-semibold uppercase px-2 mt-5 mb-3">
           Documents
         </p>
@@ -90,6 +100,8 @@ export default function Sidebar() {
             <span>Documents</span>
           </Link>
         </div>
+        </>
+        )}
       </nav>
 
       {/* Footer */}
