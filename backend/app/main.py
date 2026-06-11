@@ -37,6 +37,8 @@ from app.auth.router          import router as auth_router
 from app.roles.router         import router as roles_router
 from app.employees.router     import router as employee_router
 from app.leave.router         import router as leave_router
+from app.reports.router       import router as reports_router
+import app.leave.models             # noqa: F401 — register leave tables for create_all
 from app.departments.router   import router as departments_router
 from app.dashboard.router     import router as dashboard_router
 from app.messages.router      import router as messages_router
@@ -286,7 +288,8 @@ app.add_middleware(
 app.include_router(auth_router,          prefix="/auth",          tags=["Authentication"])
 app.include_router(roles_router,         prefix="/roles",         tags=["Roles & Permissions"])
 app.include_router(employee_router,      prefix="/employees",     tags=["Employees"])
-app.include_router(leave_router,         prefix="/leave",         tags=["Leave"])
+app.include_router(leave_router,         tags=["Leave"])  # router defines its own /leave prefix
+app.include_router(reports_router,       tags=["Reports"])
 app.include_router(departments_router,   prefix="/departments",   tags=["Departments"])
 app.include_router(dashboard_router,     prefix="/dashboard",     tags=["Dashboard"])
 app.include_router(messages_router,      prefix="/messages",      tags=["Messages"])
