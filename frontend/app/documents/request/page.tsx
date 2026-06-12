@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, X } from "lucide-react";
+import { FileText, X, Download } from "lucide-react";
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import DocumentTabsHR from "@/app/components/DocumentTabsHR";
@@ -47,6 +47,23 @@ export default function HRRequestDocumentPage() {
     if (!user) return;
     fetchRequests();
   }, [user]);
+
+  const handleDownload = async (path: string) => {
+    try {
+      const res = await apiFetch(`/${path}`);
+      if (!res.ok) throw new Error("File not found");
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = path.split("/").pop() || "document.pdf";
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Download failed", err);
+      alert("Failed to download the document. The file may no longer be available — please contact HR.");
+    }
+  };
 
   const handleSubmit = async () => {
     setMessage("");
@@ -236,6 +253,14 @@ export default function HRRequestDocumentPage() {
                 }`}>
                   {req.status}
                 </span>
+                {req.status === 'COMPLETED' && req.generated_document_path && (
+                  <button
+                    onClick={() => handleDownload(req.generated_document_path!)}
+                    className="flex items-center gap-1.5 bg-[#F2924E] hover:bg-orange-500 text-white text-xs px-4 py-1.5 rounded-lg transition shadow-sm"
+                  >
+                    <Download size={13} /> Download
+                  </button>
+                )}
                 <button
                   onClick={() => setSelectedRequest(req)}
                   className="bg-white border border-gray-100 hover:bg-gray-50 text-gray-600 text-xs px-4 py-1.5 rounded-lg transition shadow-sm"
@@ -314,10 +339,22 @@ export default function HRRequestDocumentPage() {
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end mt-8">
+        <div className="flex flex-col gap-3 mt-8">
+          {selectedRequest.status === 'COMPLETED' && selectedRequest.generated_document_path && (
+            <button
+              onClick={() => handleDownload(selectedRequest.generated_document_path!)}
+              className="w-full py-3 text-sm font-bold rounded-xl bg-[#F2924E] text-white hover:opacity-90 transition shadow-md flex items-center justify-center gap-2"
+            >
+              <Download size={16} /> Download Document
+            </button>
+          )}
           <button
             onClick={() => setSelectedRequest(null)}
-            className="w-full py-3 text-sm font-bold rounded-xl bg-[#F2924E] text-white hover:opacity-90 transition shadow-md"
+            className={`w-full py-3 text-sm font-bold rounded-xl transition ${
+              selectedRequest.status === 'COMPLETED' && selectedRequest.generated_document_path
+                ? 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 shadow-sm'
+                : 'bg-[#F2924E] text-white hover:opacity-90 shadow-md'
+            }`}
           >
             Close
           </button>
