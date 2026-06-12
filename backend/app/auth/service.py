@@ -105,11 +105,13 @@ def get_user_permissions(db: Session, user_id: int) -> List[str]:
     if not user:
         return []
 
-    # Super Admin Bypass
+    # Super Admin Bypass — all permissions except employee self-service ones
     if getattr(user, "is_superadmin", False):
         from app.roles.models import Permission
+        from app.roles.seed import SUPER_ADMIN_EXCLUDES
         all_perms = db.query(Permission).all()
-        return [p.permission_name for p in all_perms]
+        return [p.permission_name for p in all_perms
+                if p.permission_name not in SUPER_ADMIN_EXCLUDES]
 
     perms: set[str] = set()
     for role in user.roles:

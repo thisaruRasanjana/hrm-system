@@ -13,13 +13,13 @@ export default function LeaveBalanceCards({ balances }: Props) {
         .map(([type, amount]) => (
           <div
             key={type}
-            className="bg-[#FFF3E6] border border-[#F5C28B] rounded-xl p-5"
+            className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5"
           >
-            <p className="text-sm text-gray-600 mb-1">
+            <p className="text-sm text-gray-500 mb-1">
               {type} Leaves
             </p>
-            <h2 className="text-2xl font-bold text-gray-800">
-              {amount} days
+            <h2 className="text-2xl font-bold text-[#F2924E]">
+              {amount} <span className="text-base font-medium text-gray-500">days left</span>
             </h2>
           </div>
         ))}

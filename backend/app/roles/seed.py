@@ -64,8 +64,12 @@ SYSTEM_PERMISSIONS = [
 # ---------------------------------------------------------------------------
 # DEFAULT ROLES CONFIGURATION
 # ---------------------------------------------------------------------------
-# Super Admin — all permissions except document:upload_own and document:request_own
-SUPER_ADMIN_EXCLUDES = {"document:upload_own", "document:request_own"}
+# Super Admin — all permissions except employee self-service ones
+# (admins review/approve; they don't submit their own documents or leave)
+SUPER_ADMIN_EXCLUDES = {
+    "document:upload_own", "document:request_own",
+    "leave:request", "leave:edit_pending", "leave:view_history",
+}
 
 # HR — Specific list + all dashboard except interview_panel
 HR_PERMISSIONS = {
