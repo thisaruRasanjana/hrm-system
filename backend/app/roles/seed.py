@@ -57,7 +57,6 @@ SYSTEM_PERMISSIONS = [
     ("widget.announcements.manage", "dashboard", "manage", "Manage announcements"),
     ("widget.upcoming_events.view", "dashboard", "view", "View events"),
     ("widget.upcoming_events.manage", "dashboard", "manage", "Manage events"),
-    ("widget.availability.view", "dashboard", "view", "View availability"),
     ("messaging.send", "messaging", "send", "Send messages"),
     ("messaging.receive", "messaging", "receive", "Receive messages"),
 ]
@@ -88,7 +87,7 @@ MANAGER_PERMISSIONS = {
     "widget.time_tracking.view", "widget.leave_balance.view", "widget.notifications.view",
     "widget.weekly_hours.view", "widget.calendar.view", "widget.approval_summary.view_approvals",
     "widget.approval_summary.view_requests", "widget.announcements.view", "widget.upcoming_events.view",
-    "widget.availability.view", "messaging.send", "messaging.receive"
+    "messaging.send", "messaging.receive"
 }
 
 EMPLOYEE_PERMISSIONS = {
@@ -96,7 +95,7 @@ EMPLOYEE_PERMISSIONS = {
     "leave:request", "leave:edit_pending", "leave:view_history",
     "widget.time_tracking.view", "widget.leave_balance.view", "widget.notifications.view",
     "widget.weekly_hours.view", "widget.calendar.view", "widget.approval_summary.view_requests",
-    "widget.announcements.view", "widget.upcoming_events.view", "widget.availability.view",
+    "widget.announcements.view", "widget.upcoming_events.view",
     "messaging.receive"
 }
 

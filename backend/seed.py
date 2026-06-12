@@ -47,7 +47,7 @@ dashboard_perms = [
     "widget.calendar.view", "widget.calendar.edit",
     "widget.time_tracking.view", "widget.leave_balance.view",
     "widget.approval_summary.view_approvals", "widget.approval_summary.view_requests",
-    "widget.notifications.view", "widget.weekly_hours.view", "widget.availability.view"
+    "widget.notifications.view", "widget.weekly_hours.view"
 ]
 
 for p_name in dashboard_perms:
