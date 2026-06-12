@@ -25,6 +25,9 @@ export default function LeaveTabs() {
     ...(hasPermission("leave:report")
       ? [{ name: "Get Reports", path: "/reports" }]
       : []),
+    ...(hasPermission("leave:type_manage")
+      ? [{ name: "Leave Settings", path: "/leave-settings" }]
+      : []),
   ];
 
   return (

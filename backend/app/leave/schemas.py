@@ -70,3 +70,35 @@ class LeaveBalanceOut(BaseModel):
     used_days: float
     pending_days: float
     remaining: Optional[float] = None     # None = unlimited
+
+
+class EntitlementItem(BaseModel):
+    role_id: int
+    leave_type_id: int
+    days: Optional[float] = None          # None = remove override (fall back to type default)
+
+
+class EntitlementEntry(BaseModel):
+    role_id: int
+    role_name: str
+    leave_type_id: int
+    leave_type_name: str
+    days: Optional[float] = None
+    is_override: bool
+
+
+class EntitlementRole(BaseModel):
+    id: int
+    name: str
+
+
+class EntitlementLeaveType(BaseModel):
+    id: int
+    name: str
+    default_days: Optional[float] = None
+
+
+class EntitlementMatrixOut(BaseModel):
+    roles: List[EntitlementRole]
+    leave_types: List[EntitlementLeaveType]
+    entries: List[EntitlementEntry]

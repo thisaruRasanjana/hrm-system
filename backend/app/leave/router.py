@@ -16,6 +16,8 @@ from app.leave.schemas import (
     LeaveTypeCreate,
     LeaveTypeOut,
     LeaveBalanceOut,
+    EntitlementItem,
+    EntitlementMatrixOut,
     ApproveLeaveRequest,
     RejectLeaveRequest,
     RequestInfoLeaveRequest,
@@ -25,6 +27,8 @@ from app.leave.schemas import (
 from app.leave.service import (
     create_leave,
     get_leave_balances,
+    get_leave_entitlements,
+    set_leave_entitlements,
     my_requests,
     get_pending_requests,
     update_status,
@@ -316,6 +320,29 @@ def change_status(
         approved_by=current_user["id"],
         rejection_reason=payload.rejection_reason,
     )
+
+
+# -----------------------------
+# PER-ROLE ENTITLEMENTS (HR / Super Admin)
+# -----------------------------
+@router.get("/entitlements", response_model=EntitlementMatrixOut)
+def list_entitlements(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("leave:type_manage")),
+):
+    return get_leave_entitlements(db)
+
+
+@router.put("/entitlements", response_model=EntitlementMatrixOut)
+def update_entitlements(
+    items: list[EntitlementItem],
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("leave:type_manage")),
+):
+    try:
+        return set_leave_entitlements(db, items)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 # -----------------------------

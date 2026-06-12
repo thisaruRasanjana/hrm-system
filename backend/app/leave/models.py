@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Date, Float, Text, DateTime, Boolean, ForeignKey, JSON
+from sqlalchemy import Column, Integer, String, Date, Float, Text, DateTime, Boolean, ForeignKey, JSON, UniqueConstraint
 from sqlalchemy.sql import func
 from app.database.base import Base
 from sqlalchemy import JSON
@@ -8,8 +8,26 @@ class LeaveType(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(50), nullable=False, unique=True)
     description = Column(String(255), nullable=True)
-    # Annual entitlement in days; NULL = unlimited (no balance enforcement)
+    # Fallback annual entitlement in days when no per-role entitlement is set;
+    # NULL = unlimited (no balance enforcement)
     default_days = Column(Float, nullable=True)
+
+
+class LeaveEntitlement(Base):
+    """Per-role annual entitlement for a leave type.
+
+    Overrides LeaveType.default_days for users holding that role, so
+    HR/Super Admin can grant e.g. Managers more annual leave than Employees.
+    """
+    __tablename__ = "leave_entitlements"
+    __table_args__ = (
+        UniqueConstraint("role_id", "leave_type_id", name="uix_role_leave_type"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    role_id = Column(Integer, ForeignKey("roles.id", ondelete="CASCADE"), nullable=False)
+    leave_type_id = Column(Integer, ForeignKey("leave_types.id", ondelete="CASCADE"), nullable=False)
+    days = Column(Float, nullable=False)
 
 class LeaveRequest(Base):
     __tablename__ = "leave_requests"

@@ -3,7 +3,7 @@ from sqlalchemy.exc import IntegrityError
 from datetime import date
 from sqlalchemy import or_, cast, String, func, extract
 
-from app.leave.models import LeaveRequest, LeaveType
+from app.leave.models import LeaveRequest, LeaveType, LeaveEntitlement
 from app.leave.schemas import LeaveRequestCreate
 
 from fastapi import HTTPException
@@ -54,25 +54,67 @@ def _used_days(db: Session, employee_id: int, leave_type_id: int, year: int, sta
     return float(q.scalar() or 0.0)
 
 
+def _employee_role_id(db: Session, employee_id: int) -> int | None:
+    """Resolve the role of the user linked to an employee record."""
+    from app.employees.models import Employee
+    from app.auth.models import User
+
+    emp = db.query(Employee).filter(Employee.id == employee_id).first()
+    if not emp or not emp.user_id:
+        return None
+    user = db.query(User).filter(User.id == emp.user_id).first()
+    if not user:
+        return None
+    if user.role_id:
+        return user.role_id
+    if user.roles:
+        return user.roles[0].id
+    return None
+
+
+def _entitlement_for(db: Session, employee_id: int, leave_type: LeaveType,
+                     role_id: int | None = None) -> float | None:
+    """
+    Entitlement for one employee/type: the per-role entitlement if HR has
+    configured one, otherwise the type's default_days. None = unlimited.
+    """
+    if role_id is None:
+        role_id = _employee_role_id(db, employee_id)
+    if role_id is not None:
+        row = (
+            db.query(LeaveEntitlement)
+            .filter(
+                LeaveEntitlement.role_id == role_id,
+                LeaveEntitlement.leave_type_id == leave_type.id,
+            )
+            .first()
+        )
+        if row is not None:
+            return float(row.days)
+    return float(leave_type.default_days) if leave_type.default_days is not None else None
+
+
 def get_leave_balances(db: Session, employee_id: int) -> list[dict]:
     """
     Per-type balance for the current year:
-      remaining = entitlement (default_days) − approved days.
-    Types without an entitlement (default_days NULL) report remaining=None
-    and are never enforced.
+      remaining = entitlement − approved days.
+    Entitlement is the per-role value when configured, else the type
+    default. Types with no entitlement report remaining=None (unlimited).
     """
     year = date.today().year
+    role_id = _employee_role_id(db, employee_id)
     balances = []
     for lt in db.query(LeaveType).order_by(LeaveType.id).all():
+        entitlement = _entitlement_for(db, employee_id, lt, role_id=role_id)
         used = _used_days(db, employee_id, lt.id, year, ["APPROVED"])
         pending = _used_days(db, employee_id, lt.id, year, ["PENDING", "REQ_INFO"])
         remaining = None
-        if lt.default_days is not None:
-            remaining = max(float(lt.default_days) - used, 0.0)
+        if entitlement is not None:
+            remaining = max(entitlement - used, 0.0)
         balances.append({
             "leave_type_id": lt.id,
             "leave_type_name": lt.name,
-            "entitlement": lt.default_days,
+            "entitlement": entitlement,
             "used_days": used,
             "pending_days": pending,
             "remaining": remaining,
@@ -83,17 +125,91 @@ def get_leave_balances(db: Session, employee_id: int) -> list[dict]:
 def _enforce_balance(db: Session, employee_id: int, leave_type: LeaveType, requested_days: float,
                      start_date: date, exclude_request_id: int | None = None) -> None:
     """Reject the request if it exceeds the remaining entitlement for that year."""
-    if leave_type is None or leave_type.default_days is None:
+    if leave_type is None:
+        return
+    entitlement = _entitlement_for(db, employee_id, leave_type)
+    if entitlement is None:
         return
     year = start_date.year
     used = _used_days(db, employee_id, leave_type.id, year, ["APPROVED"],
                       exclude_request_id=exclude_request_id)
-    remaining = float(leave_type.default_days) - used
+    remaining = entitlement - used
     if requested_days > remaining:
         raise ValueError(
             f"Insufficient {leave_type.name} leave balance: "
             f"{max(remaining, 0.0):g} day(s) remaining, {requested_days:g} requested"
         )
+
+
+def get_leave_entitlements(db: Session) -> dict:
+    """Roles × leave types matrix for the entitlement management UI."""
+    from app.roles.models import Role
+
+    roles = [
+        r for r in db.query(Role).order_by(Role.id).all()
+        if not (r.description or "").startswith("LEGACY:")
+    ]
+    types = db.query(LeaveType).order_by(LeaveType.id).all()
+    overrides = {
+        (e.role_id, e.leave_type_id): float(e.days)
+        for e in db.query(LeaveEntitlement).all()
+    }
+
+    entries = []
+    for role in roles:
+        for lt in types:
+            override = overrides.get((role.id, lt.id))
+            entries.append({
+                "role_id": role.id,
+                "role_name": role.role_name,
+                "leave_type_id": lt.id,
+                "leave_type_name": lt.name,
+                "days": override if override is not None
+                        else (float(lt.default_days) if lt.default_days is not None else None),
+                "is_override": override is not None,
+            })
+    return {
+        "roles": [{"id": r.id, "name": r.role_name} for r in roles],
+        "leave_types": [
+            {"id": t.id, "name": t.name, "default_days": t.default_days} for t in types
+        ],
+        "entries": entries,
+    }
+
+
+def set_leave_entitlements(db: Session, items: list) -> dict:
+    """Upsert per-role entitlements. days=None removes the override."""
+    from app.roles.models import Role
+
+    for item in items:
+        role = db.query(Role).filter(Role.id == item.role_id).first()
+        lt = db.query(LeaveType).filter(LeaveType.id == item.leave_type_id).first()
+        if not role or not lt:
+            raise ValueError(f"Invalid role_id {item.role_id} or leave_type_id {item.leave_type_id}")
+        if item.days is not None and item.days < 0:
+            raise ValueError("Entitlement days cannot be negative")
+
+        row = (
+            db.query(LeaveEntitlement)
+            .filter(
+                LeaveEntitlement.role_id == item.role_id,
+                LeaveEntitlement.leave_type_id == item.leave_type_id,
+            )
+            .first()
+        )
+        if item.days is None:
+            if row:
+                db.delete(row)
+        elif row:
+            row.days = item.days
+        else:
+            db.add(LeaveEntitlement(
+                role_id=item.role_id,
+                leave_type_id=item.leave_type_id,
+                days=item.days,
+            ))
+    db.commit()
+    return get_leave_entitlements(db)
 
 
 def has_overlapping_leave(db: Session, employee_id: int, start_date: date, end_date: date) -> bool:
