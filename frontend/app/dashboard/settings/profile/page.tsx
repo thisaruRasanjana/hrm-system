@@ -136,10 +136,8 @@ export default function ProfileSettingsPage() {
     data.append("file", file);
 
     try {
-      const token = getToken();
-      const res = await fetch("http://127.0.0.1:8000/auth/profile/image", {
+      const res = await apiFetch("/auth/profile/image", {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
         body: data
       });
 

@@ -3,6 +3,7 @@
 import React from "react";
 import { Download, Calendar, ChevronDown } from "lucide-react";
 import { EmployeeDetail, ReportPeriod } from "@/app/reports/types";
+import { apiFetch } from "@/lib/api";
 
 interface Props {
   employee: EmployeeDetail;
@@ -15,7 +16,7 @@ export default function EmployeeReportHeader({
   period,
   setPeriod,
 }: Props) {
-  const handleDownload = () => {
+  const handleDownload = async () => {
     const today = new Date();
     const startDate = new Date();
 
@@ -30,11 +31,23 @@ export default function EmployeeReportHeader({
     const startStr = startDate.toISOString().split("T")[0];
     const endStr = today.toISOString().split("T")[0];
 
-    // Construct the URL with filters and dates
-    const url = `http://127.0.0.1:8000/reports/leave/pdf?employee_id=${employee.id}&start_date=${startStr}&end_date=${endStr}`;
-    
-    // Trigger download
-    window.location.href = url;
+    // Authenticated download: a plain navigation can't send the JWT
+    try {
+      const res = await apiFetch(
+        `/reports/leave/pdf?employee_id=${employee.id}&start_date=${startStr}&end_date=${endStr}`
+      );
+      if (!res.ok) throw new Error("Download failed");
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = "leave_report.pdf";
+      a.click();
+      URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      console.error("Report download error:", err);
+      alert("Failed to download report.");
+    }
   };
   const getInitials = (name: string) => {
     if (!name) return "";

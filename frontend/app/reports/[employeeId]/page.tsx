@@ -4,9 +4,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, notFound } from "next/navigation";
 
-import Sidebar from "@/components/Sidebar";
-import TopBar from "@/components/TopBar";
 import LeaveTabs from "@/components/LeaveTabs";
+import { apiFetch } from "@/lib/api";
 import EmployeeReportHeader from "@/components/reports/EmployeeReportHeader";
 import EmployeeReportStats from "@/components/reports/EmployeeReportStats";
 import EmployeeDetailTabs from "@/components/reports/EmployeeDetailTabs";
@@ -30,7 +29,7 @@ export default function EmployeeReportDetailPage() {
 
   // ✅ Fetch data from backend
   useEffect(() => {
-    fetch(`http://127.0.0.1:8000/reports/leave?employee_id=${employeeId}`)
+    apiFetch(`/reports/leave?employee_id=${employeeId}`)
       .then((res) => res.json())
       .then((data) => {
         if (!data.records || data.records.length === 0) {
@@ -97,13 +96,8 @@ export default function EmployeeReportDetailPage() {
   if (!employee) return null;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Sidebar />
-      <TopBar />
-
-      <div className="ml-64 pt-16">
-        <main className="min-h-[calc(100vh-4rem)] overflow-auto px-10 pt-4 pb-8">
-          <LeaveTabs />
+    <div>
+      <LeaveTabs />
 
           <div className="mt-2">
             <Link
@@ -140,8 +134,6 @@ export default function EmployeeReportDetailPage() {
           {content}
 
           <ManagerNotesCard />
-        </main>
-      </div>
     </div>
   );
 }

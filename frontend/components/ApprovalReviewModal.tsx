@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { X, CircleUserRound, Building2, Check, Info, Paperclip, ExternalLink, FileText, Image } from 'lucide-react';
 import { ApprovalRequest } from './ApprovalRequestCard';
+import { API_BASE_URL } from '@/lib/constants';
 
 export type ModalMode = 'review' | 'approve' | 'reject' | 'info';
 
@@ -164,7 +165,7 @@ export default function ApprovalReviewModal({
                     {request.attachmentUrls.map((url, idx) => {
                       const fullUrl = url.startsWith('http')
                         ? url
-                        : `http://127.0.0.1:8000${url}`;
+                        : `${API_BASE_URL}${url}`;
                       const filename = url.split('/').pop() || `file-${idx + 1}`;
                       const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(filename);
                       const isPdf = /\.pdf$/i.test(filename);
