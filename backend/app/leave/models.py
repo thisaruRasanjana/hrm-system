@@ -8,6 +8,8 @@ class LeaveType(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(50), nullable=False, unique=True)
     description = Column(String(255), nullable=True)
+    # Annual entitlement in days; NULL = unlimited (no balance enforcement)
+    default_days = Column(Float, nullable=True)
 
 class LeaveRequest(Base):
     __tablename__ = "leave_requests"

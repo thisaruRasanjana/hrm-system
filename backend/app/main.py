@@ -187,6 +187,9 @@ async def lifespan(app: FastAPI):
                 END $$;
             """))
 
+            # ── Leave types: per-type annual entitlement ──────────────────────
+            conn.execute(text("ALTER TABLE leave_types ADD COLUMN IF NOT EXISTS default_days FLOAT"))
+
             # ── Patch recruitment tables created by an older model version ────
             conn.execute(text("ALTER TABLE candidates ADD COLUMN IF NOT EXISTS cv_file_path VARCHAR(500)"))
             conn.execute(text("ALTER TABLE candidates ADD COLUMN IF NOT EXISTS uploaded_at TIMESTAMP DEFAULT now()"))
