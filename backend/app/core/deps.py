@@ -60,11 +60,13 @@ def get_user_permissions(user: User, db: Session) -> List[str]:
     get_current_user).  The role_id scalar column acts as a fallback for
     legacy rows that were never inserted into the user_roles join table.
     """
-    # Super Admin Bypass
+    # Super Admin Bypass — all permissions except employee self-service ones
     if getattr(user, "is_superadmin", False):
         from app.roles.models import Permission
+        from app.roles.seed import SUPER_ADMIN_EXCLUDES
         all_perms = db.query(Permission).all()
-        return [p.permission_name for p in all_perms]
+        return [p.permission_name for p in all_perms
+                if p.permission_name not in SUPER_ADMIN_EXCLUDES]
 
     from app.roles.models import Role as _Role
     from sqlalchemy.orm import joinedload as _jl

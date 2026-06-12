@@ -209,7 +209,7 @@ const ApplyLeaveForm: React.FC<Props> = ({ balances, onSubmitted }) => {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm p-6 mt-6">
+    <form onSubmit={handleSubmit} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 mt-6">
       {success && (
         <div className="bg-green-50 text-green-700 p-2 rounded mb-4">
           Leave Request Submitted Successfully
@@ -232,7 +232,7 @@ const ApplyLeaveForm: React.FC<Props> = ({ balances, onSubmitted }) => {
           value={leaveTypeId}
           onChange={(e) => setLeaveTypeId(e.target.value)}
           disabled={loadingTypes}
-          className="w-full border rounded-lg px-3 py-2 bg-white text-[#6C6C70]"
+          className="w-full border border-gray-200 shadow-sm rounded-lg px-4 py-2.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-300 transition"
         >
           {leaveTypes.map((type) => (
             <option key={type.id} value={type.id}>
@@ -256,7 +256,7 @@ const ApplyLeaveForm: React.FC<Props> = ({ balances, onSubmitted }) => {
           type="number"
           value={days}
           readOnly
-          className="w-full border rounded-lg px-3 py-2 bg-[#FFF3E6] text-[#6C6C70]"
+          className="w-full border border-orange-100 shadow-sm rounded-lg px-4 py-2.5 bg-[#FFF8F1] text-gray-700 focus:outline-none"
         />
       </div>
 
@@ -266,7 +266,7 @@ const ApplyLeaveForm: React.FC<Props> = ({ balances, onSubmitted }) => {
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           rows={4}
-          className="w-full border rounded-lg px-3 py-2 bg-white text-[#6C6C70]"
+          className="w-full border border-gray-200 shadow-sm rounded-lg px-4 py-2.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-300 transition"
         />
       </div>
 
@@ -276,10 +276,10 @@ const ApplyLeaveForm: React.FC<Props> = ({ balances, onSubmitted }) => {
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
-          className={`mt-1 flex justify-center items-center px-6 pt-5 pb-6 border-2 border-dashed rounded-xl transition-colors ${
+          className={`mt-1 flex justify-center items-center px-6 pt-5 pb-6 border border-dashed rounded-xl shadow-sm transition-colors ${
             isDragging
-              ? "border-orange-500 bg-orange-50"
-              : "border-gray-300 bg-white"
+              ? "border-orange-400 bg-orange-50"
+              : "border-gray-200 bg-gray-50/50"
           }`}
         >  
            <div className="flex flex-col items-center space-y-2">
@@ -316,7 +316,7 @@ const ApplyLeaveForm: React.FC<Props> = ({ balances, onSubmitted }) => {
         <button
           type="button"
           onClick={resetForm}
-          className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 transition-colors duration-200"
+          className="px-5 py-2.5 rounded-lg border border-gray-200 shadow-sm text-gray-700 hover:bg-gray-50 transition-colors duration-200"
         >
           Cancel Request
         </button>
@@ -324,7 +324,7 @@ const ApplyLeaveForm: React.FC<Props> = ({ balances, onSubmitted }) => {
         <button
           type="submit"
           disabled={submitting}
-          className="px-4 py-2 rounded-lg bg-orange-500 text-white hover:bg-orange-600 transition-colors duration-200 disabled:opacity-50"
+          className="px-5 py-2.5 rounded-lg bg-[#F2924E] text-white shadow-sm hover:bg-orange-500 transition-colors duration-200 disabled:opacity-50"
         >
           {submitting ? "Submitting..." : "Submit Request"}
         </button>

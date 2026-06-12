@@ -17,8 +17,12 @@ export default function LeaveTabs() {
   }, [pathname]);
 
   const tabs = [
-    { name: "Request Leave", path: "/apply-leave" },
-    { name: "Leave History", path: "/leave-history" },
+    ...(hasPermission("leave:request")
+      ? [{ name: "Request Leave", path: "/apply-leave" }]
+      : []),
+    ...(hasPermission("leave:view_history")
+      ? [{ name: "Leave History", path: "/leave-history" }]
+      : []),
     ...(hasPermission("leave:approve")
       ? [{ name: "Approval panel", path: "/approval" }]
       : []),
