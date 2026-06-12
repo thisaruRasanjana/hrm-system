@@ -16,10 +16,7 @@ import { useAuth } from "@/context/auth-context";
 export default function Sidebar() {
 
   const pathname = usePathname();
-  const { user, hasPermission, hasAnyPermission } = useAuth();
-
-  const inDocSection = pathname.startsWith("/dashboard/documents") || pathname.startsWith("/dashboard/employee/documents");
-  const hasDocAccess = hasAnyPermission(["document:upload_own", "document:request_own", "document:approve", "document:request_manage", "document:template_upload", "document:type_manage"]);
+  const { hasPermission, hasAnyPermission } = useAuth();
 
   const menu = [
     { name: "Dashboard",           path: "/dashboard",                               icon: LayoutGrid },
@@ -27,6 +24,9 @@ export default function Sidebar() {
     { name: "Role Management",     path: "/dashboard/EmployeeManagement/assign-role",icon: Shield,    anyPermission: ["role:view", "role:create", "role:assign"] },
     { name: "Recruitment",         path: "/recruitment",                             icon: Users,     anyPermission: ["recruitment:view", "recruitment:manage", "recruitment:interview_panel"] },
     { name: "Leave",               path: "/apply-leave",                             icon: Calendar,  permission: "leave:request" },
+    { name: "Documents",           path: "/dashboard/documents",                     icon: FileText,
+      anyPermission: ["document:upload_own", "document:request_own", "document:approve", "document:request_manage", "document:template_upload", "document:type_manage"],
+      activePrefixes: ["/dashboard/documents", "/dashboard/employee/documents"] },
     { name: "Settings",            path: "/dashboard/settings",                      icon: Settings },
   ];
 
@@ -51,7 +51,9 @@ export default function Sidebar() {
           if (item.permission && !hasPermission(item.permission)) return null;
 
           const Icon = item.icon;
-          const active = pathname === item.path;
+          const active = item.activePrefixes
+            ? item.activePrefixes.some((p: string) => pathname === p || pathname.startsWith(`${p}/`))
+            : pathname === item.path;
 
           return (
             <Link
@@ -66,19 +68,6 @@ export default function Sidebar() {
             </Link>
           );
         })}
-
-        {/* Documents — single link, tab bar inside handles per-role navigation */}
-        {user && hasDocAccess && (
-          <Link
-            href="/dashboard/documents"
-            className={`flex items-center gap-4 text-[15px] transition ${
-              inDocSection ? "text-[#F2924E] font-medium" : "text-gray-600 hover:text-[#F2924E]"
-            }`}
-          >
-            <FileText size={20} strokeWidth={1.6} />
-            Documents
-          </Link>
-        )}
 
       </nav>
 

@@ -10,7 +10,6 @@ import {
   IconDocument,
   IconSettings,
 } from "./Icons";
-import { FileText } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
 
 const NAV_ITEMS = [
@@ -21,20 +20,17 @@ const NAV_ITEMS = [
     anyPermission: ["recruitment:view", "recruitment:manage", "recruitment:interview_panel"] },
   { label: "Leave",                icon: <IconLeave />,       href: "/apply-leave",
     anyPermission: ["leave:request", "leave:approve"],
-    activePrefixes: ["/apply-leave", "/leave-history", "/approval", "/reports"] },
+    activePrefixes: ["/apply-leave", "/leave-history", "/approval", "/reports", "/leave-settings"] },
+  { label: "Documents",            icon: <IconDocument />,    href: "/dashboard/documents",
+    anyPermission: ["document:upload_own", "document:request_own", "document:approve",
+      "document:request_manage", "document:template_upload", "document:type_manage"],
+    activePrefixes: ["/dashboard/documents", "/documents"] },
   { label: "Settings",             icon: <IconSettings />,    href: "/settings" },
 ];
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const { hasPermission, hasAnyPermission } = useAuth();
-
-  const docHref = "/dashboard/documents";
-  const hasDocAccess = hasAnyPermission([
-    "document:upload_own", "document:request_own", "document:approve",
-    "document:request_manage", "document:template_upload", "document:type_manage",
-  ]);
-  const isDocActive = pathname.startsWith("/dashboard/documents") || pathname.startsWith("/documents");
+  const { hasAnyPermission } = useAuth();
 
   return (
     <aside className="w-56 shrink-0 bg-[#F5F5F5] border-r border-gray-200 flex flex-col h-full">
@@ -79,29 +75,6 @@ export default function Sidebar() {
           })}
         </div>
 
-        {/* Documents — single link, tabs inside handle per-role navigation */}
-        {hasDocAccess && (
-        <>
-        <p className="text-[10px] text-gray-400 tracking-widest font-semibold uppercase px-2 mt-5 mb-3">
-          Documents
-        </p>
-        <div className="space-y-0.5">
-          <Link
-            href={docHref}
-            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
-              isDocActive
-                ? "text-orange-500 font-semibold bg-orange-50"
-                : "text-gray-500 hover:bg-gray-100 hover:text-gray-700"
-            }`}
-          >
-            <span className={isDocActive ? "text-orange-400" : "text-gray-400"}>
-              <FileText size={16} />
-            </span>
-            <span>Documents</span>
-          </Link>
-        </div>
-        </>
-        )}
       </nav>
 
       {/* Footer */}
