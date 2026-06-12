@@ -11,6 +11,7 @@ from io import BytesIO
 
 from app.leave.models import LeaveRequest, LeaveType
 from app.employees.models import Employee
+from app.departments.models import Department
 
 
 def build_leave_report_query(
@@ -23,18 +24,20 @@ def build_leave_report_query(
 ):
     query = (
         db.query(
-            LeaveRequest, 
+            LeaveRequest,
             LeaveType.name.label("leave_type_name"),
             Employee.employee_id.label("employee_code"),
             Employee.first_name,
             Employee.last_name,
-            Employee.department,
+            # Employee has no department string column — resolve via Department join
+            Department.name.label("department"),
             Employee.designation,
             Employee.joined_date,
             Employee.status.label("employee_status"),
             )
         .join(LeaveType, LeaveRequest.leave_type_id == LeaveType.id)
         .outerjoin(Employee, LeaveRequest.employee_id == Employee.id)
+        .outerjoin(Department, Employee.department_id == Department.id)
     )
 
     if employee_id is not None:
@@ -109,7 +112,7 @@ def get_leave_report(
             "leave_request_id": leave.leave_request_id,
             "employee_id": leave.employee_id,
             "employee_code": employee_code,
-            "employee_name": f"{first_name} {last_name}".strip() or None,
+            "employee_name": " ".join(p for p in (first_name, last_name) if p) or None,
             "department": department,
             "designation": designation,
             "joined_date": joined_date,

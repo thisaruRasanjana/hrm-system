@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from datetime import date
-from sqlalchemy import or_, cast, String
+from sqlalchemy import or_, cast, String, func, extract
 
 from app.leave.models import LeaveRequest, LeaveType
 from app.leave.schemas import LeaveRequestCreate
@@ -35,6 +35,65 @@ def calculate_total_days(start_date: date, end_date: date, half_day: bool) -> fl
 def leave_type_exists(db: Session, leave_type_id: int) -> bool:
     leave_type = db.query(LeaveType).filter(LeaveType.id == leave_type_id).first()
     return leave_type is not None
+
+
+def _used_days(db: Session, employee_id: int, leave_type_id: int, year: int, statuses: list[str],
+               exclude_request_id: int | None = None) -> float:
+    """Sum of total_days for the employee/type/year in the given statuses."""
+    q = (
+        db.query(func.coalesce(func.sum(LeaveRequest.total_days), 0.0))
+        .filter(
+            LeaveRequest.employee_id == employee_id,
+            LeaveRequest.leave_type_id == leave_type_id,
+            LeaveRequest.status.in_(statuses),
+            extract("year", LeaveRequest.start_date) == year,
+        )
+    )
+    if exclude_request_id is not None:
+        q = q.filter(LeaveRequest.leave_request_id != exclude_request_id)
+    return float(q.scalar() or 0.0)
+
+
+def get_leave_balances(db: Session, employee_id: int) -> list[dict]:
+    """
+    Per-type balance for the current year:
+      remaining = entitlement (default_days) − approved days.
+    Types without an entitlement (default_days NULL) report remaining=None
+    and are never enforced.
+    """
+    year = date.today().year
+    balances = []
+    for lt in db.query(LeaveType).order_by(LeaveType.id).all():
+        used = _used_days(db, employee_id, lt.id, year, ["APPROVED"])
+        pending = _used_days(db, employee_id, lt.id, year, ["PENDING", "REQ_INFO"])
+        remaining = None
+        if lt.default_days is not None:
+            remaining = max(float(lt.default_days) - used, 0.0)
+        balances.append({
+            "leave_type_id": lt.id,
+            "leave_type_name": lt.name,
+            "entitlement": lt.default_days,
+            "used_days": used,
+            "pending_days": pending,
+            "remaining": remaining,
+        })
+    return balances
+
+
+def _enforce_balance(db: Session, employee_id: int, leave_type: LeaveType, requested_days: float,
+                     start_date: date, exclude_request_id: int | None = None) -> None:
+    """Reject the request if it exceeds the remaining entitlement for that year."""
+    if leave_type is None or leave_type.default_days is None:
+        return
+    year = start_date.year
+    used = _used_days(db, employee_id, leave_type.id, year, ["APPROVED"],
+                      exclude_request_id=exclude_request_id)
+    remaining = float(leave_type.default_days) - used
+    if requested_days > remaining:
+        raise ValueError(
+            f"Insufficient {leave_type.name} leave balance: "
+            f"{max(remaining, 0.0):g} day(s) remaining, {requested_days:g} requested"
+        )
 
 
 def has_overlapping_leave(db: Session, employee_id: int, start_date: date, end_date: date) -> bool:
@@ -146,8 +205,10 @@ def create_leave(db: Session, employee_id: int, data: LeaveRequestCreate):
 
     if has_overlapping_leave(db, employee_id, data.start_date, data.end_date):
         raise HTTPException(status_code=400,detail="You already have a leave request for these dates")
-    
+
     total_days = calculate_total_days(data.start_date, data.end_date, data.half_day)
+
+    _enforce_balance(db, employee_id, leave_type, total_days, data.start_date)
 
     req = LeaveRequest(
         employee_id=employee_id,
@@ -392,6 +453,10 @@ def update_leave_request(db: Session, request_id: int, employee_id: int, payload
         raise ValueError("You already have an overlapping leave request for these dates")
 
     total_days = calculate_total_days(payload.start_date, payload.end_date, payload.half_day)
+
+    leave_type = db.query(LeaveType).filter(LeaveType.id == payload.leave_type_id).first()
+    _enforce_balance(db, employee_id, leave_type, total_days, payload.start_date,
+                     exclude_request_id=request_id)
 
     req.leave_type_id = payload.leave_type_id
     req.start_date = payload.start_date

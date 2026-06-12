@@ -6,6 +6,7 @@ import LeaveDatePicker from "./LeaveDatePicker";
 
 interface Props {
   balances: Record<string, number>;
+  onSubmitted?: () => void;
 }
 
 interface LeaveType {
@@ -14,7 +15,7 @@ interface LeaveType {
   description?: string | null;
 }
 
-const ApplyLeaveForm: React.FC<Props> = ({ balances }) => {
+const ApplyLeaveForm: React.FC<Props> = ({ balances, onSubmitted }) => {
   const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
   const [leaveTypeId, setLeaveTypeId] = useState<string>("");
 
@@ -195,6 +196,7 @@ const ApplyLeaveForm: React.FC<Props> = ({ balances }) => {
 
     setSuccess(true);
     resetForm();
+    onSubmitted?.();
 
     setTimeout(() => setSuccess(false), 3000);
   } catch (error) {

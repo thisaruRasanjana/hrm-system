@@ -15,6 +15,7 @@ from app.leave.schemas import (
     LeaveStatusUpdate,
     LeaveTypeCreate,
     LeaveTypeOut,
+    LeaveBalanceOut,
     ApproveLeaveRequest,
     RejectLeaveRequest,
     RequestInfoLeaveRequest,
@@ -23,6 +24,7 @@ from app.leave.schemas import (
 
 from app.leave.service import (
     create_leave,
+    get_leave_balances,
     my_requests,
     get_pending_requests,
     update_status,
@@ -91,7 +93,21 @@ def submit_leave(
     current_user: dict = Depends(leave_actor("leave:request")),
     db: Session = Depends(get_db),
 ):
-    return create_leave(db, current_user["id"], payload)
+    try:
+        return create_leave(db, current_user["id"], payload)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+# -----------------------------
+# MY LEAVE BALANCES
+# -----------------------------
+@router.get("/balance/me", response_model=list[LeaveBalanceOut])
+def get_my_leave_balances(
+    current_user: dict = Depends(leave_actor("leave:request", "leave:view_history")),
+    db: Session = Depends(get_db),
+):
+    return get_leave_balances(db, current_user["id"])
 
 
 # -----------------------------

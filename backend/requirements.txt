@@ -26,6 +26,9 @@ apscheduler
 fastapi-mail==1.4.2
 httpx==0.28.1
 
+# ── Leave reports (PDF export) ─────────────────────────────────────────────────
+reportlab
+
 # ── Testing ────────────────────────────────────────────────────────────────────
 pytest==8.3.5
 pytest-asyncio==0.24.0

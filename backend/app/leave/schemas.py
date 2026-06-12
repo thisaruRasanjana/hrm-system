@@ -57,6 +57,16 @@ class LeaveTypeOut(BaseModel):
     id: int
     name: str
     description: Optional[str] = None
+    default_days: Optional[float] = None
 
     class Config:
         from_attributes = True
+
+
+class LeaveBalanceOut(BaseModel):
+    leave_type_id: int
+    leave_type_name: str
+    entitlement: Optional[float] = None   # None = unlimited
+    used_days: float
+    pending_days: float
+    remaining: Optional[float] = None     # None = unlimited
