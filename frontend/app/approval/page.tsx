@@ -2,8 +2,6 @@
 
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import Sidebar from '../../components/Sidebar';
-import TopBar from '../../components/TopBar';
 import LeaveTabs from '../../components/LeaveTabs';
 import ApprovalRequestCard, {
   ApprovalRequest,
@@ -362,13 +360,8 @@ export default function ApprovalPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Sidebar />
-      <TopBar />
-
-      <div className="ml-64 pt-16">
-        <main className="px-10 pt-4 pb-8 min-h-[calc(100vh-4rem)] overflow-auto">
-          <LeaveTabs />
+    <div>
+      <LeaveTabs />
 
           <div className="mt-8 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
@@ -485,8 +478,6 @@ export default function ApprovalPage() {
               ))}
             </div>
           )}
-        </main>
-      </div>
 
       {selectedRequest && (
         <ApprovalReviewModal

@@ -1,8 +1,6 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import Sidebar from "@/components/Sidebar";
-import TopBar from "@/components/TopBar";
 import LeaveTabs from "@/components/LeaveTabs";
 import ReportSummaryCards from "@/components/reports/ReportSummaryCards";
 import ReportFilterBar from "@/components/reports/ReportFilterBar";
@@ -279,13 +277,8 @@ export default function ReportsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Sidebar />
-      <TopBar />
-
-      <div className="ml-64 pt-16">
-        <main className="min-h-[calc(100vh-4rem)] overflow-auto px-10 pt-4 pb-8">
-          <LeaveTabs />
+    <div>
+      <LeaveTabs />
 
           <section className="mt-6">
             <h1 className="text-2xl font-semibold text-gray-900 md:text-[24px]">
@@ -329,8 +322,6 @@ export default function ReportsPage() {
               </div>
             </>
           )}
-        </main>
-      </div>
     </div>
   );
 }
