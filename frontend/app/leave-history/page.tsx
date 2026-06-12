@@ -1,8 +1,6 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import Sidebar from '@/components/Sidebar';
-import TopBar from '@/components/TopBar';
 import LeaveTabs from '@/components/LeaveTabs';
 import LeaveResubmitModal from '@/components/LeaveResubmitModal';
 import EditLeaveModal from '@/components/EditLeaveModal';
@@ -141,13 +139,8 @@ export default function LeaveHistoryPage() {
 
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Sidebar />
-      <TopBar />
-
-      <div className="ml-64 pt-16">
-        <main className="px-10 pt-4 pb-8 min-h-[calc(100vh-4rem)] overflow-auto">
-          <LeaveTabs />
+    <div>
+      <LeaveTabs />
 
           <div className="mt-6">
             <h1 className="text-2xl font-semibold text-gray-900 mb-1">Leave History</h1>
@@ -295,8 +288,6 @@ export default function LeaveHistoryPage() {
               </div>
             </div>
           </div>
-        </main>
-      </div>
 
       {selectedRequestForInfo && (
         <LeaveResubmitModal
