@@ -17,7 +17,6 @@ export const WIDGET_ANNOUNCEMENTS_VIEW      = "widget.announcements.view";
 export const WIDGET_ANNOUNCEMENTS_MANAGE    = "widget.announcements.manage";
 export const WIDGET_EVENTS_VIEW             = "widget.upcoming_events.view";
 export const WIDGET_EVENTS_MANAGE           = "widget.upcoming_events.manage";
-export const WIDGET_AVAILABILITY_VIEW       = "widget.availability.view";
 
 // Messaging
 export const MESSAGING_SEND = "messaging.send";
@@ -39,5 +38,4 @@ export const WIDGET_META: WidgetMeta[] = [
   { key: "approval_summary", label: "Approval & Req. Summary", description: "Pending approvals",         viewPermission: WIDGET_APPROVAL_VIEW_APPROVALS },
   { key: "announcements",    label: "Announcements",           description: "Company announcements",      viewPermission: WIDGET_ANNOUNCEMENTS_VIEW      },
   { key: "upcoming_events",  label: "Upcoming Events",         description: "Upcoming company events",    viewPermission: WIDGET_EVENTS_VIEW             },
-  { key: "availability",     label: "Team Availability",       description: "Who's in, out or on leave",  viewPermission: WIDGET_AVAILABILITY_VIEW       },
 ];
