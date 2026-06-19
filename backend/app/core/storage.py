@@ -52,11 +52,20 @@ def save_file_locally(file: UploadFile) -> str:
             detail=f"File exceeds the {MAX_FILE_SIZE_BYTES // (1024 * 1024)} MB size limit.",
         )
 
+    # Always resolve UPLOAD_DIR to an absolute path anchored to the backend root
+    # so the path stored in the DB is always valid regardless of working directory.
+    _this_dir = os.path.dirname(os.path.abspath(__file__))   # .../backend/app/core
+    _backend_root = os.path.dirname(os.path.dirname(_this_dir))  # .../backend
+    upload_abs = (
+        UPLOAD_DIR if os.path.isabs(UPLOAD_DIR)
+        else os.path.abspath(os.path.join(_backend_root, UPLOAD_DIR))
+    )
+
     unique_filename = f"{uuid4()}{ext}"
-    file_path = os.path.join(UPLOAD_DIR, unique_filename)
+    file_path = os.path.join(upload_abs, unique_filename)
 
     try:
-        os.makedirs(UPLOAD_DIR, exist_ok=True)
+        os.makedirs(upload_abs, exist_ok=True)
         with open(file_path, "wb") as buffer:
             buffer.write(content)
     except OSError as exc:

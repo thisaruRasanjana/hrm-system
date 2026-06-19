@@ -127,8 +127,16 @@ def serve_file(filename: str):
     if not safe_name or "/" in safe_name or ".." in safe_name:
         raise HTTPException(status_code=400, detail="Invalid filename.")
 
-    file_path = os.path.abspath(os.path.join(UPLOAD_DIR, safe_name))
-    upload_abs = os.path.abspath(UPLOAD_DIR)
+    # Resolve UPLOAD_DIR to an absolute path anchored to this file's package root
+    # so it works regardless of the working directory uvicorn was launched from.
+    _this_dir = os.path.dirname(os.path.abspath(__file__))          # .../backend/app/recruitment
+    _backend_root = os.path.dirname(os.path.dirname(_this_dir))     # .../backend
+    upload_abs = os.path.abspath(
+        UPLOAD_DIR if os.path.isabs(UPLOAD_DIR)
+        else os.path.join(_backend_root, UPLOAD_DIR)
+    )
+
+    file_path = os.path.join(upload_abs, safe_name)
 
     if not file_path.startswith(upload_abs + os.sep):
         raise HTTPException(status_code=400, detail="Access denied.")

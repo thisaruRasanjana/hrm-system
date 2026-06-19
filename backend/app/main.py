@@ -152,9 +152,14 @@ async def lifespan(app: FastAPI):
             conn.execute(text("ALTER TABLE permissions ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT now()"))
             # Copy existing 'name' into 'permission_name' where not already set
             conn.execute(text("""
-                UPDATE permissions
-                SET permission_name = name
-                WHERE permission_name IS NULL AND name IS NOT NULL
+                DO $$ BEGIN
+                    IF EXISTS (SELECT 1 FROM information_schema.columns
+                               WHERE table_name = 'permissions' AND column_name = 'name') THEN
+                        UPDATE permissions
+                        SET permission_name = name
+                        WHERE permission_name IS NULL AND name IS NOT NULL;
+                    END IF;
+                END $$;
             """))
             # Legacy 'name' column is NOT NULL but unmapped in the current model —
             # without this, every new permission INSERT fails and seed_roles is
@@ -173,9 +178,14 @@ async def lifespan(app: FastAPI):
             conn.execute(text("ALTER TABLE roles ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT now()"))
             # Copy existing 'name' into 'role_name' where not already set
             conn.execute(text("""
-                UPDATE roles
-                SET role_name = name
-                WHERE role_name IS NULL AND name IS NOT NULL
+                DO $$ BEGIN
+                    IF EXISTS (SELECT 1 FROM information_schema.columns
+                               WHERE table_name = 'roles' AND column_name = 'name') THEN
+                        UPDATE roles
+                        SET role_name = name
+                        WHERE role_name IS NULL AND name IS NOT NULL;
+                    END IF;
+                END $$;
             """))
             # Same legacy-column guard as permissions.name above
             conn.execute(text("""

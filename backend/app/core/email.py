@@ -33,17 +33,18 @@ def _send(to_email: str, subject: str, body: str, html: bool = False):
         msg["To"] = to_email
 
         if smtp_port == 465:
-            with smtplib.SMTP_SSL(smtp_server, smtp_port) as server:
+            with smtplib.SMTP_SSL(smtp_server, smtp_port, timeout=5) as server:
                 server.login(smtp_user, smtp_password)
                 server.sendmail(mail_from, to_email, msg.as_string())
         else:
-            with smtplib.SMTP(smtp_server, smtp_port) as server:
+            with smtplib.SMTP(smtp_server, smtp_port, timeout=5) as server:
                 server.starttls()
                 server.login(smtp_user, smtp_password)
                 server.sendmail(mail_from, to_email, msg.as_string())
         logger.info(f"Email sent: '{subject}' → {to_email}")
     except Exception as e:
         logger.error(f"[ERROR] Failed to send email: {e}")
+        raise RuntimeError(f"Failed to send email: {str(e)}") from e
 
 
 def send_otp_email(to_email: str, otp: str):
