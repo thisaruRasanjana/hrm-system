@@ -22,7 +22,7 @@ export default function Sidebar() {
     { name: "Dashboard",           path: "/dashboard",                               icon: LayoutGrid },
     { name: "Employee Management", path: "/dashboard/employees",                     icon: Users,     anyPermission: ["employee:view_all", "employee:create", "employee:update", "employee:delete"] },
     { name: "Role Management",     path: "/dashboard/EmployeeManagement/assign-role",icon: Shield,    anyPermission: ["role:view", "role:create", "role:assign"] },
-    { name: "Recruitment",         path: "/recruitment",                             icon: Users,     anyPermission: ["recruitment:view", "recruitment:manage", "recruitment:interview_panel"] },
+    { name: "Recruitment",         path: "/recruitment",                             icon: Users,     anyPermission: ["recruitment:view", "recruitment:manage", "recruitment:interview_panel"], activePrefixes: ["/recruitment"] },
     { name: "Leave",               path: "/apply-leave",                             icon: Calendar,
       anyPermission: ["leave:request", "leave:approve"],
       activePrefixes: ["/apply-leave", "/leave-history", "/approval", "/reports", "/leave-settings"] },

@@ -18,6 +18,11 @@ DATABASE_URL: str = os.getenv(
 # GEMINI_API_KEY lives in ai_service/.env, NOT here.
 AI_SERVICE_URL: str = os.getenv("AI_SERVICE_URL", "http://127.0.0.1:8001")
 
+# ── Google reCAPTCHA v2 ───────────────────────────────────────────────────────
+# Set RECAPTCHA_SECRET_KEY in your .env file.
+# Leave empty to disable verification in local dev (non-empty = always verified).
+RECAPTCHA_SECRET_KEY: str = os.getenv("RECAPTCHA_SECRET_KEY", "")
+
 # ── Email (SMTP) ──────────────────────────────────────────────────────────────
 MAIL_USERNAME: str = os.getenv("MAIL_USERNAME", "")
 MAIL_PASSWORD: str = os.getenv("MAIL_PASSWORD", "")

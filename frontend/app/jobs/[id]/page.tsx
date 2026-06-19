@@ -1,11 +1,9 @@
 "use client";
 import { API_BASE_URL } from "@/lib/constants";
 
-// Page-level SEO title is set dynamically in the component via document.title
-// since this is a client component. For SSR metadata, migrate to a server component.
-
 import { useEffect, useState, useRef } from "react";
 import { useParams } from "next/navigation";
+import ReCAPTCHA from "react-google-recaptcha";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -32,36 +30,52 @@ function daysAgo(dateStr: string): string {
   return `${diff} days ago`;
 }
 
-function formatText(text: string) {
-  return text.split("\n").map((line, i) =>
-    line.trim() ? (
-      <p key={i} className="mb-2 leading-relaxed">
-        {line}
-      </p>
-    ) : (
-      <br key={i} />
-    )
+// ── Field error component (matches create vacancy style) ──────────────────────
+
+function FieldError({ msg }: { msg?: string }) {
+  if (!msg) return null;
+  return (
+    <p className="mt-1.5 text-xs text-red-500 flex items-center gap-1">
+      <svg className="w-3.5 h-3.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+      </svg>
+      {msg}
+    </p>
   );
 }
 
 // ── Drag-and-drop upload zone ─────────────────────────────────────────────────
 
+const ALLOWED_EXTENSIONS = ["pdf", "docx"];
+const MAX_SIZE_BYTES = 5 * 1024 * 1024;
+
 function UploadZone({
   file,
   onFile,
-  error,
+  onError,
+  hasError,
 }: {
   file: File | null;
   onFile: (f: File) => void;
-  error?: string;
+  onError: (msg: string) => void;
+  hasError?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
 
+  const validate = (f: File): string | null => {
+    const ext = f.name.split(".").pop()?.toLowerCase() ?? "";
+    if (!ALLOWED_EXTENSIONS.includes(ext))
+      return `"${f.name}" is not a valid file type. Only PDF and DOCX are accepted.`;
+    if (f.size > MAX_SIZE_BYTES)
+      return `File is too large (${(f.size / 1024 / 1024).toFixed(1)} MB). Maximum allowed size is 5 MB.`;
+    return null;
+  };
+
   const accept = (f: File) => {
-    const ext = f.name.split(".").pop()?.toLowerCase();
-    if (ext !== "pdf" && ext !== "docx") return;
-    if (f.size > 5 * 1024 * 1024) return;
+    const err = validate(f);
+    if (err) { onError(err); return; }
+    onError("");
     onFile(f);
   };
 
@@ -78,8 +92,9 @@ function UploadZone({
       }}
       className={`relative cursor-pointer rounded-2xl border-2 border-dashed transition-all p-8 text-center
         ${dragging ? "border-orange-400 bg-orange-50 scale-[1.01]" : ""}
-        ${file ? "border-green-400 bg-green-50" : !dragging ? "border-gray-200 bg-gray-50 hover:border-orange-300 hover:bg-orange-50/50" : ""}
-        ${error ? "border-red-300 bg-red-50" : ""}
+        ${file && !hasError ? "border-green-400 bg-green-50" : ""}
+        ${hasError ? "border-red-300 bg-red-50" : ""}
+        ${!file && !dragging && !hasError ? "border-gray-200 bg-gray-50 hover:border-orange-300 hover:bg-orange-50/50" : ""}
       `}
     >
       <input
@@ -87,10 +102,10 @@ function UploadZone({
         type="file"
         accept=".pdf,.docx"
         className="hidden"
-        onChange={(e) => { const f = e.target.files?.[0]; if (f) accept(f); }}
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) accept(f); e.target.value = ""; }}
       />
 
-      {file ? (
+      {file && !hasError ? (
         <div className="flex flex-col items-center gap-2">
           <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
             <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -102,6 +117,16 @@ function UploadZone({
             {(file.size / 1024).toFixed(0)} KB — click to change
           </p>
         </div>
+      ) : hasError ? (
+        <div className="flex flex-col items-center gap-2">
+          <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
+            <svg className="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </div>
+          <p className="text-sm font-semibold text-red-600">Invalid file — click to try again</p>
+          <p className="text-xs text-red-400">PDF or DOCX only · max 5 MB</p>
+        </div>
       ) : (
         <div className="flex flex-col items-center gap-3">
           <div className="w-12 h-12 rounded-full bg-orange-100 flex items-center justify-center">
@@ -111,13 +136,13 @@ function UploadZone({
           </div>
           <div>
             <p className="text-sm font-semibold text-gray-700">
-              Drag & drop your CV here
+              Drag &amp; drop your CV here
             </p>
             <p className="text-xs text-gray-400 mt-0.5">
               or <span className="text-orange-500 underline underline-offset-2">browse files</span>
             </p>
           </div>
-          <p className="text-xs text-gray-400">PDF or DOCX · max 5 MB</p>
+          <p className="text-xs text-gray-400">PDF or DOCX only · max 5 MB</p>
         </div>
       )}
     </div>
@@ -129,6 +154,8 @@ function UploadZone({
 export default function PublicJobPage() {
   const { id } = useParams<{ id: string }>();
   const API = API_BASE_URL;
+  const recaptchaRef = useRef<ReCAPTCHA>(null);
+  const SITE_KEY = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY ?? "";
 
   const [pageState, setPageState] = useState<PageState>("loading");
   const [vacancy, setVacancy] = useState<Vacancy | null>(null);
@@ -136,6 +163,9 @@ export default function PublicJobPage() {
   const [cvFile, setCvFile] = useState<File | null>(null);
   const [email, setEmail] = useState("");
   const [fileError, setFileError] = useState("");
+  const [emailError, setEmailError] = useState("");
+  const [captchaError, setCaptchaError] = useState("");
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -150,38 +180,44 @@ export default function PublicJobPage() {
         if (!data) return;
         setVacancy(data);
         setPageState("active");
+        document.title = `Apply — ${data.title}`;
       })
       .catch(() => setPageState("error"));
   }, [id, API]);
 
-  const handleFileSelect = (f: File) => {
-    const ext = f.name.split(".").pop()?.toLowerCase();
-    if (ext !== "pdf" && ext !== "docx") {
-      setFileError("Only PDF and DOCX files are accepted.");
-      return;
-    }
-    if (f.size > 5 * 1024 * 1024) {
-      setFileError("File size must be under 5 MB.");
-      return;
-    }
-    setFileError("");
-    setCvFile(f);
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitError("");
+    let valid = true;
 
+    // Validate: file required
     if (!cvFile) {
       setFileError("Please select your CV to continue.");
-      return;
+      valid = false;
     }
+
+    // Validate: email format (only if provided)
+    if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setEmailError("Please enter a valid email address.");
+      valid = false;
+    } else {
+      setEmailError("");
+    }
+
+    // Validate: CAPTCHA (only if site key is configured)
+    if (SITE_KEY && !captchaToken) {
+      setCaptchaError("Please complete the CAPTCHA verification.");
+      valid = false;
+    }
+
+    if (!valid) return;
 
     setSubmitting(true);
     try {
       const form = new FormData();
-      form.append("cv_file", cvFile);
+      form.append("cv_file", cvFile!);
       if (email.trim()) form.append("applicant_email", email.trim());
+      if (captchaToken) form.append("recaptcha_token", captchaToken);
 
       const res = await fetch(`${API}/public/jobs/${id}/apply`, {
         method: "POST",
@@ -190,11 +226,15 @@ export default function PublicJobPage() {
 
       if (res.status === 409) {
         setSubmitError("It looks like you've already applied for this position.");
+        recaptchaRef.current?.reset();
+        setCaptchaToken(null);
         return;
       }
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         setSubmitError(err.detail || "Something went wrong. Please try again.");
+        recaptchaRef.current?.reset();
+        setCaptchaToken(null);
         return;
       }
 
@@ -347,18 +387,20 @@ export default function PublicJobPage() {
           <h2 className="text-lg font-bold text-gray-800 mb-1">Apply for This Position</h2>
           <p className="text-sm text-gray-400 mb-6">Upload your CV and we'll take it from there.</p>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-5" noValidate>
 
-            <UploadZone file={cvFile} onFile={handleFileSelect} error={fileError} />
-            {fileError && (
-              <p className="text-xs text-red-500 flex items-center gap-1 -mt-2">
-                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                </svg>
-                {fileError}
-              </p>
-            )}
+            {/* CV Upload */}
+            <div>
+              <UploadZone
+                file={cvFile}
+                onFile={(f) => { setCvFile(f); setFileError(""); }}
+                onError={(msg) => { setFileError(msg); if (msg) setCvFile(null); }}
+                hasError={!!fileError}
+              />
+              <FieldError msg={fileError} />
+            </div>
 
+            {/* Email */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
                 Email Address <span className="text-gray-400 font-normal">(optional)</span>
@@ -367,14 +409,35 @@ export default function PublicJobPage() {
                 type="email"
                 placeholder="you@example.com"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-700 placeholder-gray-400 bg-white focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-300 transition"
+                onChange={(e) => { setEmail(e.target.value); setEmailError(""); }}
+                className={`w-full border rounded-xl px-4 py-3 text-sm text-gray-700 placeholder-gray-400 bg-white focus:outline-none focus:ring-2 transition ${
+                  emailError
+                    ? "border-red-300 ring-2 ring-red-100 focus:ring-red-200 focus:border-red-400"
+                    : "border-gray-200 focus:ring-orange-200 focus:border-orange-300"
+                }`}
               />
-              <p className="mt-1 text-xs text-gray-400">
-                Provided as a backup contact. We'll extract your info from your CV automatically.
-              </p>
+              <FieldError msg={emailError} />
+              {!emailError && (
+                <p className="mt-1 text-xs text-gray-400">
+                  Used to prevent duplicate applications. We'll also extract your info from your CV automatically.
+                </p>
+              )}
             </div>
 
+            {/* reCAPTCHA */}
+            {SITE_KEY && (
+              <div>
+                <ReCAPTCHA
+                  ref={recaptchaRef}
+                  sitekey={SITE_KEY}
+                  onChange={(token) => { setCaptchaToken(token); setCaptchaError(""); }}
+                  onExpired={() => { setCaptchaToken(null); setCaptchaError("CAPTCHA expired. Please verify again."); }}
+                />
+                <FieldError msg={captchaError} />
+              </div>
+            )}
+
+            {/* Submit error */}
             {submitError && (
               <div className="flex items-start gap-2.5 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
                 <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
