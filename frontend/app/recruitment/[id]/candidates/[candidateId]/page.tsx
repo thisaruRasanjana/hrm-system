@@ -239,7 +239,9 @@ export default function CandidateProfilePage() {
 
               {candidate.cv_file_path ? (
                 (() => {
-                  const cvFilename = candidate.cv_file_path!.split('/').pop() || candidate.cv_file_path!;
+                  // Stored path may be an OS-absolute path (Windows uses "\", POSIX uses "/"),
+                  // so split on both separators to reliably extract just the UUID filename.
+                  const cvFilename = candidate.cv_file_path!.split(/[\\/]/).pop() || candidate.cv_file_path!;
                   const cvUrl = `${API_BASE_URL}/recruitment/files/${cvFilename}`;
                   const isDocx = cvFilename.toLowerCase().endsWith('.docx');
                   return (
