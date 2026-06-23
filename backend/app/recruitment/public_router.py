@@ -40,13 +40,13 @@ async def verify_recaptcha(token: str) -> bool:
             response = await client.post(
                 RECAPTCHA_VERIFY_URL,
                 data={"secret": RECAPTCHA_SECRET_KEY, "response": token},
-                timeout=5.0,
+                timeout=10.0,
             )
             result = response.json()
             print("[RECAPTCHA] Google Response:", result)
             return result.get("success", False)
     except Exception as e:
-        print("[RECAPTCHA] Error:", e)
+        print(f"[RECAPTCHA] Error ({type(e).__name__}): {e!r}")
         return False
 
 

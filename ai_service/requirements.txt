@@ -1,8 +1,15 @@
 fastapi==0.115.12
 uvicorn==0.34.0
 python-dotenv==1.1.0
-google-genai
-PyMuPDF
-python-docx==1.1.2
 pydantic==2.11.3
 httpx
+
+# ── AI Providers ───────────────────────────────────────────────────────────────
+# All three are installed so switching AI_PROVIDER in .env requires no reinstall.
+google-genai       # AI_PROVIDER=gemini
+openai             # AI_PROVIDER=openai  (ChatGPT, GPT-4o, etc.)
+anthropic          # AI_PROVIDER=claude
+
+# ── CV text extraction ─────────────────────────────────────────────────────────
+PyPDF2
+python-docx==1.1.2

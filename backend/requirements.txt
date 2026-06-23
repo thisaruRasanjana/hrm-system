@@ -22,9 +22,18 @@ python-docx
 jinja2
 apscheduler
 
-# ── Recruitment / Email (from dev) ─────────────────────────────────────────────
+# ── Recruitment / AI / Email ──────────────────────────────────────────────────
 fastapi-mail==1.4.2
 httpx==0.28.1
+PyPDF2
+python-docx
+
+# ── AI Providers (multi-provider support) ─────────────────────────────────
+# Only the package matching AI_PROVIDER in .env will be imported at runtime.
+# All three are installed so switching providers requires no reinstall.
+google-genai          # AI_PROVIDER=gemini
+openai                # AI_PROVIDER=openai   (ChatGPT, GPT-4o, etc.)
+anthropic             # AI_PROVIDER=claude
 
 # ── Leave reports (PDF export) ─────────────────────────────────────────────────
 reportlab
