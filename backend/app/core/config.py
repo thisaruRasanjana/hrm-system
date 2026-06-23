@@ -15,8 +15,31 @@ DATABASE_URL: str = os.getenv(
 
 # ── AI Service (internal) ────────────────────────────────────────────────────
 # The AI screening service runs as a separate process on port 8001.
-# GEMINI_API_KEY lives in ai_service/.env, NOT here.
 AI_SERVICE_URL: str = os.getenv("AI_SERVICE_URL", "http://127.0.0.1:8001")
+
+# ── Multi-Provider AI Configuration ──────────────────────────────────────────
+# Set these three vars in backend/.env to switch between AI providers.
+#
+#   AI_PROVIDER = gemini | openai | claude
+#   AI_MODEL    = any model name supported by the chosen provider
+#   AI_API_KEY  = API key for the chosen provider
+#
+# Examples:
+#   AI_PROVIDER=gemini   AI_MODEL=gemini-2.5-flash
+#   AI_PROVIDER=openai   AI_MODEL=gpt-4o-mini
+#   AI_PROVIDER=claude   AI_MODEL=claude-3-5-haiku-20241022
+
+AI_PROVIDER: str = os.getenv("AI_PROVIDER", "gemini")
+AI_MODEL: str    = os.getenv("AI_MODEL",    "gemini-2.5-flash")
+AI_API_KEY: str  = os.getenv("AI_API_KEY",  "")
+
+# Backward-compat alias: old deployments may only have GEMINI_API_KEY set.
+# If AI_API_KEY is blank but GEMINI_API_KEY exists, use that.
+if not AI_API_KEY:
+    AI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+
+# Expose the old name so any code still importing it won't break.
+GEMINI_API_KEY: str = AI_API_KEY
 
 # ── Google reCAPTCHA v2 ───────────────────────────────────────────────────────
 # Set RECAPTCHA_SECRET_KEY in your .env file.
