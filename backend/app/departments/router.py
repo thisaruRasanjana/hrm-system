@@ -1,10 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from typing import List
 from app.database.database import get_db
 from app.departments.models import Department
-from app.departments.schemas import DepartmentOut
-from app.core.deps import get_current_user
+from app.departments.schemas import DepartmentOut, DepartmentCreate
+from app.core.deps import get_current_user, require_any_permission
 from app.auth.models import User
 
 router = APIRouter()
@@ -14,7 +16,34 @@ def get_departments(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return db.query(Department).all()
+    return db.query(Department).order_by(Department.name).all()
+
+
+@router.post("/", response_model=DepartmentOut, status_code=status.HTTP_201_CREATED)
+def create_department(
+    payload: DepartmentCreate,
+    db: Session = Depends(get_db),
+    # Whoever can add or edit employees may also create the departments they need.
+    current_user: User = Depends(require_any_permission("employee:create", "employee:update")),
+):
+    """Create a new department. Companies define their own — none are hardcoded."""
+    name = (payload.name or "").strip()
+    if not name:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Department name is required")
+
+    existing = db.query(Department).filter(func.lower(Department.name) == name.lower()).first()
+    if existing:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="A department with that name already exists")
+
+    department = Department(name=name)
+    db.add(department)
+    try:
+        db.commit()
+        db.refresh(department)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="A department with that name already exists")
+    return department
 
 @router.get("/{department_id}", response_model=DepartmentOut)
 def get_department(
