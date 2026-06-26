@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Trash2 } from "lucide-react";
 import { api } from "@/lib/api";
 
 interface Department {
@@ -10,17 +11,18 @@ interface Department {
 
 type Props = {
   value: number | null;
-  onChange: (id: number) => void;
+  onChange: (id: number | null) => void;
   /** Tailwind classes for the <select>, so it matches the surrounding form. */
   selectClass?: string;
 };
 
 /**
- * Department picker with inline "add new department".
+ * Department picker with inline "add new department" and a manage/delete mode.
  *
  * Departments are not hardcoded — the list comes from the API. If none exist
- * yet, the user is prompted to add one. The "+ Add new department" control is
- * always available; a created department is persisted, then auto-selected.
+ * yet, the user is prompted to add one. "+ Add new department" is always
+ * available; a created department is persisted, then auto-selected. Departments
+ * with no employees assigned can be deleted from "Manage".
  */
 export default function DepartmentSelect({ value, onChange, selectClass }: Props) {
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -30,6 +32,10 @@ export default function DepartmentSelect({ value, onChange, selectClass }: Props
   const [newName, setNewName] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [managing, setManaging] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [manageError, setManageError] = useState<string | null>(null);
 
   useEffect(() => {
     api
@@ -74,6 +80,21 @@ export default function DepartmentSelect({ value, onChange, selectClass }: Props
     }
   };
 
+  const handleDelete = async (dept: Department) => {
+    if (!confirm(`Delete the "${dept.name}" department?`)) return;
+    setDeletingId(dept.id);
+    setManageError(null);
+    try {
+      await api.delete(`/departments/${dept.id}`);
+      setDepartments((prev) => prev.filter((d) => d.id !== dept.id));
+      if (value === dept.id) onChange(null); // clear selection if it was selected
+    } catch (err: any) {
+      setManageError(err?.message || "Failed to delete department.");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       e.preventDefault();
@@ -84,6 +105,7 @@ export default function DepartmentSelect({ value, onChange, selectClass }: Props
     }
   };
 
+  // ── Add mode ───────────────────────────────────────────────────────────────
   if (adding) {
     return (
       <div>
@@ -119,6 +141,43 @@ export default function DepartmentSelect({ value, onChange, selectClass }: Props
     );
   }
 
+  // ── Manage / delete mode ───────────────────────────────────────────────────
+  if (managing) {
+    return (
+      <div className="mt-1.5 border border-gray-200 rounded-lg overflow-hidden">
+        {departments.length === 0 ? (
+          <p className="px-4 py-3 text-[13px] text-gray-400">No departments to manage.</p>
+        ) : (
+          departments.map((d) => (
+            <div key={d.id} className="flex items-center justify-between px-4 py-2.5 border-b border-gray-100 last:border-b-0">
+              <span className="text-[14px] text-gray-800">{d.name}</span>
+              <button
+                type="button"
+                onClick={() => handleDelete(d)}
+                disabled={deletingId === d.id}
+                className="text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50"
+                aria-label={`Delete ${d.name}`}
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
+          ))
+        )}
+        {manageError && <p className="text-red-500 text-[12px] px-4 py-2">{manageError}</p>}
+        <div className="px-4 py-2 bg-gray-50">
+          <button
+            type="button"
+            onClick={() => { setManaging(false); setManageError(null); }}
+            className="text-[13px] font-medium text-gray-600 hover:text-gray-900 transition-colors"
+          >
+            Done
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Normal select mode ─────────────────────────────────────────────────────
   return (
     <div>
       <select
@@ -140,13 +199,24 @@ export default function DepartmentSelect({ value, onChange, selectClass }: Props
           </option>
         ))}
       </select>
-      <button
-        type="button"
-        onClick={startAdding}
-        className="mt-2 text-[#EE7F22] hover:text-[#d66f1b] text-[13px] font-medium transition-colors"
-      >
-        + Add new department
-      </button>
+      <div className="mt-2 flex items-center gap-4">
+        <button
+          type="button"
+          onClick={startAdding}
+          className="text-[#EE7F22] hover:text-[#d66f1b] text-[13px] font-medium transition-colors"
+        >
+          + Add new department
+        </button>
+        {departments.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setManaging(true)}
+            className="text-gray-500 hover:text-gray-800 text-[13px] font-medium transition-colors"
+          >
+            Manage
+          </button>
+        )}
+      </div>
     </div>
   );
 }

@@ -8,6 +8,7 @@ from app.departments.models import Department
 from app.departments.schemas import DepartmentOut, DepartmentCreate
 from app.core.deps import get_current_user, require_any_permission
 from app.auth.models import User
+from app.employees.models import Employee
 
 router = APIRouter()
 
@@ -44,6 +45,38 @@ def create_department(
         db.rollback()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="A department with that name already exists")
     return department
+
+@router.delete("/{department_id}", status_code=status.HTTP_200_OK)
+def delete_department(
+    department_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_any_permission("employee:create", "employee:update")),
+):
+    """Delete a department. Blocked while employees are still assigned to it."""
+    department = db.query(Department).filter(Department.id == department_id).first()
+    if not department:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Department not found")
+
+    # Only ACTIVE employees block deletion — soft-deleted ones no longer count.
+    assigned = db.query(Employee).filter(
+        Employee.department_id == department_id,
+        (Employee.is_deleted == False) | (Employee.is_deleted == None),
+    ).count()
+    if assigned > 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot delete: {assigned} employee(s) are assigned to this department. Reassign them first.",
+        )
+
+    # Clear the department from any soft-deleted employees still referencing it,
+    # otherwise the foreign key would block the delete.
+    db.query(Employee).filter(Employee.department_id == department_id).update(
+        {Employee.department_id: None}, synchronize_session=False
+    )
+    db.delete(department)
+    db.commit()
+    return {"deleted": True}
+
 
 @router.get("/{department_id}", response_model=DepartmentOut)
 def get_department(
