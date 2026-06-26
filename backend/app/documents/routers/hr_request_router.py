@@ -89,14 +89,15 @@ def assign_employee(
 @router.post("/{request_id}/custom-letter")
 def send_custom_letter(
     request_id: UUID,
-    content: str,
+    data: hr_request_schema.HRCustomLetterRequest,
     db: Session = Depends(get_db),
     current_user = Depends(require_permission("document:template_upload"))
 ):
-    """Generate a completely custom PDF letter and mark the request COMPLETED."""
+    """Generate a PDF letter from raw/edited HTML and mark the request COMPLETED."""
     final_path, html_content = document_generator.generate_from_custom_text(
         str(request_id),
-        content
+        data.content,
+        preserve_whitespace=data.preserve_whitespace,
     )
 
     from app.documents.models.request_model import DocumentRequest, RequestStatus
@@ -107,6 +108,10 @@ def send_custom_letter(
     doc_request.status = RequestStatus.COMPLETED
     doc_request.generated_document_path = final_path.replace("\\", "/") if final_path else None
     db.commit()
+    db.refresh(doc_request)
+
+    # Deliver the custom letter to external requesters, same as template generation.
+    document_generator.notify_external_requester(doc_request, doc_request.generated_document_path)
 
     return {
         "message": "Custom letter generated successfully",

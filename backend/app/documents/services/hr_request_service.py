@@ -63,6 +63,7 @@ def get_all_hr_requests(db: Session, filter_status: str = None) -> list[dict]:
             "status": req.status,
             "source": getattr(req, "source", "INTERNAL"),
             "requester_email": getattr(req, "requester_email", None),
+            "requester_message": getattr(req, "requester_message", None),
             "rejection_reason": req.rejection_reason,
             "generated_document_path": req.generated_document_path,
             "created_at": req.created_at,
