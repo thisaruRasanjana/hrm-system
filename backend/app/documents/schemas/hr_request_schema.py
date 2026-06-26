@@ -26,6 +26,19 @@ class HRGenerateDocumentRequest(BaseModel):
     override_reason: Optional[str] = Field(None, description="Optional custom reason to embed in the letter")
 
 
+class HRCustomLetterRequest(BaseModel):
+    """Input schema for generating a letter from raw HTML.
+
+    Used both for free-form custom letters and for sending an edited preview
+    (where HR tweaked the generated text before issuing it).
+    """
+    content: str = Field(..., description="The letter body as HTML")
+    preserve_whitespace: bool = Field(
+        True,
+        description="True for plain typed text (keeps line breaks); False for rich HTML such as an edited template preview",
+    )
+
+
 class HRRequestResponse(BaseModel):
     """Response schema for a document request viewed by HR."""
     id: UUID
@@ -36,6 +49,7 @@ class HRRequestResponse(BaseModel):
     status: RequestStatus
     source: str = "INTERNAL"
     requester_email: Optional[str] = None
+    requester_message: Optional[str] = None
     rejection_reason: Optional[str] = None
     generated_document_path: Optional[str] = None
     created_at: datetime

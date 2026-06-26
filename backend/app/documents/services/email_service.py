@@ -162,7 +162,10 @@ def fetch_and_process_external_requests(db: Session) -> int:
         processed_ids = []
 
         for e_id in email_ids:
-            res, msg_data = mail.fetch(e_id, "(RFC822)")
+            # BODY.PEEK[] fetches the message WITHOUT setting the \Seen flag, unlike
+            # RFC822. This is what lets us leave emails UNSEEN (for retry) if the DB
+            # commit below fails — we only mark them \Seen once they're safely persisted.
+            res, msg_data = mail.fetch(e_id, "(BODY.PEEK[])")
             if res != "OK":
                 continue
 
@@ -184,7 +187,10 @@ def fetch_and_process_external_requests(db: Session) -> int:
                             reason=subject if subject else "Document Request",
                             status=RequestStatus.PENDING,
                             source="EXTERNAL",
-                            requester_email=requester_email
+                            requester_email=requester_email,
+                            # Keep the full email body so HR can read the real
+                            # context (e.g. which employee the letter is about).
+                            requester_message=body.strip() if body else None,
                         )
                         db.add(new_request)
                         processed_count += 1
@@ -224,12 +230,22 @@ def send_document_to_requester(to_email: str, document_path: str, document_type:
         document_type: Name of the document (used in subject).
 
     Raises:
+        ValueError: If no recipient address is provided.
+        FileNotFoundError: If the document to attach does not exist on disk.
         Exception: If SMTP connection/authentication fails.
     """
     settings = get_settings()
     if not settings.imap_user or not settings.imap_password:
         print("Missing SMTP credentials, cannot send email.")
         return
+
+    if not to_email:
+        raise ValueError("Cannot send document: no recipient email address.")
+
+    # Never send a "please find attached" email without the attachment — that just
+    # confuses the external requester. Fail loudly so the caller can log and retry.
+    if not os.path.exists(document_path):
+        raise FileNotFoundError(f"Generated document not found, email not sent: {document_path}")
 
     msg = MIMEMultipart()
     msg['From'] = settings.imap_user
@@ -239,16 +255,13 @@ def send_document_to_requester(to_email: str, document_path: str, document_type:
     body = f"Hello,\n\nPlease find attached your requested document: {document_type}.\n\nBest regards,\nHR Department"
     msg.attach(MIMEText(body, 'plain'))
 
-    if os.path.exists(document_path):
-        filename = os.path.basename(document_path)
-        with open(document_path, "rb") as attachment:
-            part = MIMEBase('application', 'octet-stream')
-            part.set_payload(attachment.read())
-            encoders.encode_base64(part)
-            part.add_header('Content-Disposition', f"attachment; filename= {filename}")
-            msg.attach(part)
-    else:
-        print(f"Warning: Document path {document_path} not found when sending email.")
+    filename = os.path.basename(document_path)
+    with open(document_path, "rb") as attachment:
+        part = MIMEBase('application', 'octet-stream')
+        part.set_payload(attachment.read())
+        encoders.encode_base64(part)
+        part.add_header('Content-Disposition', f"attachment; filename= {filename}")
+        msg.attach(part)
 
     server = smtplib.SMTP(settings.smtp_server, settings.smtp_port)
     server.starttls()

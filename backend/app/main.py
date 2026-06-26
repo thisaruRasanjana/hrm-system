@@ -65,7 +65,7 @@ except ImportError:
     _recruitment_available = False
     logger.warning("Recruitment module not found — skipping.")
 
-EMAIL_POLL_INTERVAL = 60
+from app.core.config import EMAIL_POLL_INTERVAL_SECONDS
 
 async def email_polling_loop():
     await asyncio.sleep(5)
@@ -73,15 +73,15 @@ async def email_polling_loop():
         try:
             from app.documents.services import email_service
             db = SessionLocal()
-            result = await asyncio.to_thread(email_service.fetch_and_process_external_requests, db)
-            db.close()
+            try:
+                result = await asyncio.to_thread(email_service.fetch_and_process_external_requests, db)
+            finally:
+                db.close()
             if isinstance(result, int) and result > 0:
                 print(f"[Email Poller] Synced {result} new external email request(s).")
-            elif isinstance(result, dict) and result.get("status") == "error":
-                print(f"[Email Poller] Service Error: {result.get('message')}")
         except Exception as e:
             print(f"[Email Poller] Loop Error: {e}")
-        await asyncio.sleep(EMAIL_POLL_INTERVAL)
+        await asyncio.sleep(EMAIL_POLL_INTERVAL_SECONDS)
 
 # ── Seed helpers ───────────────────────────────────────────────────────────────
 from app.roles.seed       import seed_roles
@@ -118,6 +118,9 @@ async def lifespan(app: FastAPI):
             conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS notification_preferences JSONB"))
             conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS quiet_hours_start VARCHAR DEFAULT '22:00'"))
             conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS quiet_hours_end VARCHAR DEFAULT '08:00'"))
+
+            # ── Patch document_requests with the inbound email body column ───
+            conn.execute(text("ALTER TABLE document_requests ADD COLUMN IF NOT EXISTS requester_message TEXT"))
 
             # ── Patch employees table with columns added in dev branch ───────
             conn.execute(text("ALTER TABLE employees ADD COLUMN IF NOT EXISTS department_id INTEGER REFERENCES departments(id)"))
@@ -273,7 +276,7 @@ async def lifespan(app: FastAPI):
         db.close()
 
     email_task = asyncio.create_task(email_polling_loop())
-    print("[Email Poller] Background email polling started (every 60 seconds).")
+    print(f"[Email Poller] Background email polling started (every {EMAIL_POLL_INTERVAL_SECONDS} seconds).")
     yield
     email_task.cancel()
     try:
