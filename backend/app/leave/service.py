@@ -8,6 +8,10 @@ from app.leave.schemas import LeaveRequestCreate
 
 from fastapi import HTTPException
 
+import logging
+_notif_logger = logging.getLogger(__name__)
+
+
 TEAM_MEMBERS = {
     2: [1, 3],
     4: [1, 2, 3],
@@ -342,6 +346,22 @@ def create_leave(db: Session, employee_id: int, data: LeaveRequestCreate):
         db.add(req)
         db.commit()
         db.refresh(req)
+
+        # ── Notify leave approvers ──────────────────────────────────────
+        try:
+            from app.notifications.service import notify_permission, get_employee_name
+            emp_name = get_employee_name(db, employee_id)
+            leave_type_name = leave_type.name if leave_type else "leave"
+            notify_permission(
+                db, "leave:approve",
+                f"{emp_name} requested {leave_type_name} leave ({data.start_date} \u2013 {data.end_date})",
+                category="leave", type="info", link="/approval",
+                entity_type="leave_request", entity_id=str(req.leave_request_id),
+            )
+            db.commit()
+        except Exception as e:
+            _notif_logger.error(f"[Leave] Notification failed for create_leave: {e}")
+
         return req
     except IntegrityError:
         db.rollback()
@@ -404,6 +424,23 @@ def approve_leave_request(
 
     db.commit()
     db.refresh(req)
+
+    # ── Notify requesting employee ────────────────────────────────────
+    try:
+        from app.notifications.service import notify_employee
+        from app.leave.models import LeaveType as _LT
+        lt = db.query(_LT).filter(_LT.id == req.leave_type_id).first()
+        lt_name = lt.name if lt else "leave"
+        notify_employee(
+            db, req.employee_id,
+            f"Your {lt_name} leave request was approved",
+            category="leave", type="success", link="/leave-history",
+            entity_type="leave_request", entity_id=str(req.leave_request_id),
+        )
+        db.commit()
+    except Exception as e:
+        _notif_logger.error(f"[Leave] Notification failed for approve: {e}")
+
     return req
 
 
@@ -432,6 +469,23 @@ def reject_leave_request(
 
     db.commit()
     db.refresh(req)
+
+    # ── Notify requesting employee ────────────────────────────────────
+    try:
+        from app.notifications.service import notify_employee
+        from app.leave.models import LeaveType as _LT
+        lt = db.query(_LT).filter(_LT.id == req.leave_type_id).first()
+        lt_name = lt.name if lt else "leave"
+        notify_employee(
+            db, req.employee_id,
+            f"Your {lt_name} leave request was rejected: {rejection_reason.strip()}",
+            category="leave", type="error", link="/leave-history",
+            entity_type="leave_request", entity_id=str(req.leave_request_id),
+        )
+        db.commit()
+    except Exception as e:
+        _notif_logger.error(f"[Leave] Notification failed for reject: {e}")
+
     return req
 
 
@@ -458,6 +512,20 @@ def request_info_leave_request(
 
     db.commit()
     db.refresh(req)
+
+    # ── Notify requesting employee ────────────────────────────────────
+    try:
+        from app.notifications.service import notify_employee
+        notify_employee(
+            db, req.employee_id,
+            f"More info needed on your leave request: {manager_comment.strip()}",
+            category="leave", type="warning", link="/leave-history",
+            entity_type="leave_request", entity_id=str(req.leave_request_id),
+        )
+        db.commit()
+    except Exception as e:
+        _notif_logger.error(f"[Leave] Notification failed for request_info: {e}")
+
     return req
 
 
@@ -492,6 +560,21 @@ def resubmit_leave_request(
 
     db.commit()
     db.refresh(req)
+
+    # ── Notify leave approvers ──────────────────────────────────────
+    try:
+        from app.notifications.service import notify_permission, get_employee_name
+        emp_name = get_employee_name(db, employee_id)
+        notify_permission(
+            db, "leave:approve",
+            f"{emp_name} resubmitted a leave request",
+            category="leave", type="info", link="/approval",
+            entity_type="leave_request", entity_id=str(req.leave_request_id),
+        )
+        db.commit()
+    except Exception as e:
+        _notif_logger.error(f"[Leave] Notification failed for resubmit: {e}")
+
     return req
 
 
@@ -523,6 +606,20 @@ def update_status(
 
     db.commit()
     db.refresh(req)
+
+    # ── Notify requesting employee ────────────────────────────────────
+    try:
+        from app.notifications.service import notify_employee
+        notify_employee(
+            db, req.employee_id,
+            f"Your leave request status changed to {status}",
+            category="leave", type="info", link="/leave-history",
+            entity_type="leave_request", entity_id=str(req.leave_request_id),
+        )
+        db.commit()
+    except Exception as e:
+        _notif_logger.error(f"[Leave] Notification failed for status change: {e}")
+
     return req
 
 def delete_leave_request(db: Session, request_id: int, employee_id: int):

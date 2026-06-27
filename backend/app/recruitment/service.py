@@ -159,6 +159,20 @@ def process_cv_background(candidate_id: int, vacancy_id: int, file_path: str):
             candidate.ai_score = result.ai_score
             candidate.ai_reasoning = result.ai_reasoning
             db.commit()
+
+            # ── Notify HR ────────────────────────────────────────────────
+            try:
+                from app.notifications.service import notify_permission
+                notify_permission(
+                    db, "recruitment:manage",
+                    f"AI screening completed for {candidate.full_name} ({vacancy.title})",
+                    category="recruitment", type="info", link=f"/dashboard/recruitment/{vacancy.id}",
+                    entity_type="candidate", entity_id=str(candidate.id),
+                )
+                db.commit()
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).error(f"[Recruitment] Notification failed for AI screen: {e}")
     except Exception as exc:
         db.rollback()
         logger.error(
@@ -542,6 +556,23 @@ def create_evaluation(db: Session, application_id: int, data: schemas.Evaluation
     try:
         db.commit()
         db.refresh(evaluation)
+
+        # ── Notify Panel Head ──────────────────────────────────────────
+        try:
+            from app.notifications.service import notify_user
+            panel = db.query(models.InterviewPanel).filter(models.InterviewPanel.vacancy_id == application.vacancy_id).first()
+            if panel and panel.panel_head_id:
+                notify_user(
+                    db, panel.panel_head_id,
+                    f"New evaluation submitted by {data.evaluator_name}",
+                    category="recruitment", type="info", link=f"/dashboard/recruitment/{application.vacancy_id}/applications/{application_id}/evaluate",
+                    entity_type="application", entity_id=str(application_id),
+                )
+                db.commit()
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error(f"[Recruitment] Notification failed for evaluation: {e}")
+
     except Exception:
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to save evaluation.")
@@ -664,6 +695,20 @@ async def submit_final_decision(db: Session, application_id: int, data: schemas.
     db.commit()
     db.refresh(existing)
 
+    # ── Notify HR ────────────────────────────────────────────────────
+    try:
+        from app.notifications.service import notify_permission
+        notify_permission(
+            db, "recruitment:manage",
+            f"Final decision made for application #{application_id}: {data.decision}",
+            category="recruitment", type="info", link=f"/dashboard/recruitment/{application.vacancy_id}",
+            entity_type="application", entity_id=str(application_id),
+        )
+        db.commit()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"[Recruitment] Notification failed for decision: {e}")
+
     # ── Send outcome email to the candidate ───────────────────────────────────
     try:
         candidate = db.query(models.Candidate).filter(models.Candidate.id == application.candidate_id).first()
@@ -720,6 +765,22 @@ def trigger_next_round(db: Session, application_id: int):
     db.query(models.FinalDecision).filter(models.FinalDecision.application_id == application_id).delete()
     
     db.commit()
+
+    # ── Notify HR ────────────────────────────────────────────────────
+    try:
+        from app.notifications.service import notify_permission
+        vacancy = db.query(models.Vacancy).filter(models.Vacancy.id == application.vacancy_id).first()
+        vacancy_title = vacancy.title if vacancy else "vacancy"
+        notify_permission(
+            db, "recruitment:manage",
+            f"Application #{application_id} ({vacancy_title}) was advanced to the next round",
+            category="recruitment", type="info", link=f"/dashboard/recruitment/{application.vacancy_id}",
+            entity_type="application", entity_id=str(application_id),
+        )
+        db.commit()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"[Recruitment] Notification failed for next round: {e}")
     return {"message": "Application advanced to next round"}
 
 

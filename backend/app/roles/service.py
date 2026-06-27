@@ -164,6 +164,21 @@ def assign_roles_to_user(db: Session, payload: AssignRoleRequest) -> dict:
 
     db.commit()
 
+    # ── Notify user of role change ──────────────────────────────────
+    try:
+        from app.notifications.service import notify_user
+        if roles:
+            notify_user(
+                db, user.id,
+                f"Your access roles have been updated. Primary role: {roles[0].role_name}",
+                category="security", type="info", link="/dashboard/settings/security",
+                entity_type="user", entity_id=str(user.id),
+            )
+            db.commit()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"[Roles] Notification failed: {e}")
+
     # Re-fetch with eager loads so the returned object is fully populated
     user = (
         db.query(User)

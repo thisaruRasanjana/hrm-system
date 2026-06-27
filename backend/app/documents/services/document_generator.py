@@ -296,6 +296,21 @@ def _save_generated_document(db: Session, doc_request: DocumentRequest, saved_pa
     db.commit()
     db.refresh(doc_request)
 
+    # ── Notify requesting employee (if internal) ──────────────────────
+    if doc_request.employee_id:
+        try:
+            from app.notifications.service import notify_employee
+            notify_employee(
+                db, doc_request.employee_id,
+                f"Your {doc_request.document_type} document is ready to download",
+                category="document", type="success", link="/dashboard/documents/request",
+                entity_type="document_request", entity_id=str(doc_request.id),
+            )
+            db.commit()
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error(f"[Document Generator] Notification failed: {e}")
+
 
 def notify_external_requester(doc_request: DocumentRequest, final_path: str) -> None:
     """Email the generated document back to an external requester.

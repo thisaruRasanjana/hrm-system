@@ -203,6 +203,21 @@ def fetch_and_process_external_requests(db: Session) -> int:
                 # Only mark as seen if the commit was successful
                 for e_id in processed_ids:
                     mail.store(e_id, '+FLAGS', '\\Seen')
+                
+                # ── Notify HR about external requests ────────────────────────
+                try:
+                    from app.notifications.service import notify_permission
+                    notify_permission(
+                        db, "document:request_manage",
+                        f"Received {processed_count} new external document request(s) via email",
+                        category="document", type="info", link="/dashboard/documents/request_management",
+                        entity_type="document_request",
+                    )
+                    db.commit()
+                except Exception as e:
+                    import logging
+                    logging.getLogger(__name__).error(f"[Email Poller] Notification failed: {e}")
+
             except Exception as e:
                 db.rollback()
                 print(f"[Email Poller] Database commit failed, emails left UNSEEN: {e}")

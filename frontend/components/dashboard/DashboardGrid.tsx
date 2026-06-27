@@ -122,6 +122,7 @@ export default function DashboardGrid({ editMode, onSave, permissions }: Props) 
           return (
             <div
               key={item.i}
+              id={`widget-${item.i}`}
               className={`flex flex-col h-full ${editMode ? "rounded-2xl border-2 border-[#F2924E] relative overflow-hidden" : ""}`}
             >
               {editMode && (

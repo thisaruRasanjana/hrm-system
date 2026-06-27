@@ -127,6 +127,30 @@ def create_event(
     db.add(event)
     db.commit()
     db.refresh(event)
+
+    try:
+        from app.auth.models import User
+        from app.notifications.service import notify_users
+        
+        # Notify all active users about the new event
+        all_users = db.query(User.id).filter(User.is_active == True).all()
+        user_ids = [u[0] for u in all_users if u[0] != current_user.id]
+        
+        if user_ids:
+            notify_users(
+                db, 
+                user_ids, 
+                f"New upcoming event: {event.title}", 
+                category="events",
+                link="/dashboard#widget-upcoming_events",
+                entity_type="event",
+                entity_id=str(event.id)
+            )
+            db.commit()
+    except Exception as e:
+        import logging
+        logging.error(f"Failed to notify users of new event: {e}")
+
     return event
 
 

@@ -94,6 +94,31 @@ export default function Topbar() {
     setActiveIndex(0);
   }, [query]);
 
+  // Fetch unread notifications count periodically and on events
+  useEffect(() => {
+    if (!user) return;
+    
+    const fetchUnreadCount = async () => {
+      try {
+        const res = await apiFetch("/notifications/unread-count");
+        if (res && typeof res.unread_count === "number") {
+          setUnreadNotifs(res.unread_count);
+        }
+      } catch (err) {
+        console.error("Failed to fetch unread notifications count", err);
+      }
+    };
+
+    fetchUnreadCount();
+    const interval = setInterval(fetchUnreadCount, 30000); // 30s polling
+    window.addEventListener("notificationsUpdated", fetchUnreadCount);
+    
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("notificationsUpdated", fetchUnreadCount);
+    };
+  }, [user]);
+
   const goToResult = (item?: SearchItem) => {
     if (!item) return;
     router.push(item.path);
@@ -216,7 +241,7 @@ export default function Topbar() {
         <div className="relative cursor-pointer group" onClick={() => router.push("/dashboard/notifications")}>
           <Bell size={22} className="group-hover:text-[#f08a4b] transition" />
           {unreadNotifs > 0 && (
-            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full border-2 border-white animate-pulse">
+            <span className="absolute -top-1 -right-1 bg-[#f08a4b] text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full border-2 border-white animate-pulse">
               {unreadNotifs > 9 ? "9+" : unreadNotifs}
             </span>
           )}

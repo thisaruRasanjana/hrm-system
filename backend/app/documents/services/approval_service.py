@@ -119,6 +119,21 @@ def approve_document(db: Session, document_id: UUID, reviewer_id: int) -> Employ
     try:
         db.commit()
         db.refresh(document)
+
+        # ── Notify requesting employee ────────────────────────────────────
+        try:
+            from app.notifications.service import notify_employee
+            notify_employee(
+                db, document.employee_id,
+                f"Your {document.document_type} upload was approved",
+                category="document", type="success", link="/dashboard/documents",
+                entity_type="employee_document", entity_id=str(document.id),
+            )
+            db.commit()
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error(f"[Approval] Notification failed for approve: {e}")
+
         return document
     except SQLAlchemyError as exc:
         db.rollback()
@@ -181,6 +196,21 @@ def reject_document(db: Session, document_id: UUID, reviewer_id: int, reason: st
 
     # Attempt to send rejection email, but don't fail the request if email fails
     employee = db.query(Employee).filter(Employee.id == document.employee_id).first()
+    
+    # ── Notify requesting employee ────────────────────────────────────
+    try:
+        from app.notifications.service import notify_employee
+        notify_employee(
+            db, document.employee_id,
+            f"Your {document.document_type} upload was rejected: {reason}",
+            category="document", type="error", link="/dashboard/documents",
+            entity_type="employee_document", entity_id=str(document.id),
+        )
+        db.commit()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"[Approval] Notification failed for reject: {e}")
+
     if employee and employee.email:
         try:
             _send_rejection_email(
