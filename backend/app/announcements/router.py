@@ -36,6 +36,24 @@ def create_announcement(
     db.add(ann)
     db.commit()
     db.refresh(ann)
+
+    # ── Notify everyone ──────────────────────────────────────────────
+    try:
+        # Get all active user IDs
+        active_user_ids = [uid for (uid,) in db.query(User.id).filter(User.is_active == True).all()]
+        if active_user_ids:
+            from app.notifications.service import notify_users
+            notify_users(
+                db, active_user_ids,
+                f"New announcement: {ann.title}",
+                category="announcement", type="info", link="/dashboard#widget-announcements",
+                entity_type="announcement", entity_id=str(ann.id),
+            )
+            db.commit()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"[Announcements] Notification failed: {e}")
+
     return ann
 
 

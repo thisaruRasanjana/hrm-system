@@ -426,6 +426,20 @@ def change_password(
 
     current_user.password_hash = hash_password(data.new_password)
     db.commit()
+
+    # ── Notify user ────────────────────────────────────────────────
+    try:
+        from app.notifications.service import notify_user
+        notify_user(
+            db, current_user.id,
+            "Your password was changed successfully",
+            category="security", type="success", link="/dashboard/settings/security",
+            entity_type="user", entity_id=str(current_user.id),
+        )
+        db.commit()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"[Auth] Notification failed for password change: {e}")
     return {"message": "Password updated successfully"}
 
 
@@ -478,6 +492,20 @@ def verify_and_enable_two_factor(
     current_user.two_factor_enabled = True
     db.commit()
     db.refresh(current_user)
+
+    # ── Notify user ────────────────────────────────────────────────
+    try:
+        from app.notifications.service import notify_user
+        notify_user(
+            db, current_user.id,
+            "Two-factor authentication was enabled",
+            category="security", type="success", link="/dashboard/settings/security",
+            entity_type="user", entity_id=str(current_user.id),
+        )
+        db.commit()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"[Auth] Notification failed for 2FA enable: {e}")
     return current_user
 
 
@@ -494,6 +522,20 @@ def disable_two_factor(
     current_user.totp_secret = None
     db.commit()
     db.refresh(current_user)
+
+    # ── Notify user ────────────────────────────────────────────────
+    try:
+        from app.notifications.service import notify_user
+        notify_user(
+            db, current_user.id,
+            "Two-factor authentication was disabled",
+            category="security", type="warning", link="/dashboard/settings/security",
+            entity_type="user", entity_id=str(current_user.id),
+        )
+        db.commit()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"[Auth] Notification failed for 2FA disable: {e}")
     return current_user
 
 

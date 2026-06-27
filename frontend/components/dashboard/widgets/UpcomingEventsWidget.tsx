@@ -64,7 +64,8 @@ export default function UpcomingEventsWidget({ permissions }: Props) {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const body = { title: formTitle, description: formDesc, event_date: new Date(formDate).toISOString(), location: formLocation };
+      const dateStr = formDate.length === 16 ? formDate + ":00" : formDate;
+      const body = { title: formTitle, description: formDesc, event_date: dateStr, location: formLocation };
       const endpoint = editItem ? `/events/${editItem.id}` : "/events";
       const method = editItem ? "PUT" : "POST";
       
@@ -99,12 +100,13 @@ export default function UpcomingEventsWidget({ permissions }: Props) {
     } catch (e) { console.error(e); }
   };
 
+  const parseLocal = (d: string) => new Date(d.endsWith("Z") ? d.slice(0, -1) : d);
+
   const fmtDate = (d: string) =>
-    new Date(d + (d.endsWith("Z") ? "" : "Z"))
-      .toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+    parseLocal(d).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 
   const daysUntil = (d: string) => {
-    const eventDate = new Date(d + (d.endsWith("Z") ? "" : "Z"));
+    const eventDate = parseLocal(d);
     const today = new Date();
     
     // Normalize to midnight for calendar day comparison
@@ -153,10 +155,10 @@ export default function UpcomingEventsWidget({ permissions }: Props) {
                 {/* Date badge */}
                 <div className="flex-shrink-0 w-10 h-10 bg-orange-50 rounded-xl flex flex-col items-center justify-center">
                   <span className="text-[10px] font-bold text-[#F2924E] uppercase">
-                    {new Date(ev.event_date + (ev.event_date.endsWith("Z") ? "" : "Z")).toLocaleDateString("en", { month: "short" })}
+                    {parseLocal(ev.event_date).toLocaleDateString("en", { month: "short" })}
                   </span>
                   <span className="text-sm font-bold text-gray-900 leading-none">
-                    {new Date(ev.event_date + (ev.event_date.endsWith("Z") ? "" : "Z")).getDate()}
+                    {parseLocal(ev.event_date).getDate()}
                   </span>
                 </div>
                 <div className="flex-1 min-w-0">

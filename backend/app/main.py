@@ -83,6 +83,54 @@ async def email_polling_loop():
             print(f"[Email Poller] Loop Error: {e}")
         await asyncio.sleep(EMAIL_POLL_INTERVAL_SECONDS)
 
+
+async def holiday_reminder_loop():
+    """Background loop that checks once per hour for tomorrow's holidays and notifies all active users."""
+    await asyncio.sleep(30)  # Delay startup to let DB initialize
+    notified_dates: set = set()  # Track which dates we've already notified about today
+    while True:
+        try:
+            from datetime import date, timedelta
+            from app.calendar_holidays.models import Holiday
+            from app.auth.models import User
+            from app.notifications.service import notify_users
+
+            tomorrow = (date.today() + timedelta(days=1)).isoformat()
+            today_key = date.today().isoformat()
+
+            # Only send once per calendar day
+            if today_key not in notified_dates:
+                db = SessionLocal()
+                try:
+                    holidays = db.query(Holiday).filter(Holiday.date == tomorrow).all()
+                    if holidays:
+                        # Get all active user IDs
+                        active_user_ids = [
+                            uid for (uid,) in
+                            db.query(User.id).filter(User.is_active == True).all()
+                        ]
+                        if active_user_ids:
+                            for holiday in holidays:
+                                notify_users(
+                                    db,
+                                    active_user_ids,
+                                    f"\U0001f4c5 Tomorrow is {holiday.name}",
+                                    category="holiday",
+                                    type="info",
+                                    link="/dashboard#widget-calendar",
+                                )
+                            db.commit()
+                            notified_dates.add(today_key)
+                            print(f"[Holiday Reminder] Sent {len(holidays)} holiday reminder(s) to {len(active_user_ids)} users.")
+                finally:
+                    db.close()
+
+            # Clean up old date keys
+            notified_dates.discard((date.today() - timedelta(days=2)).isoformat())
+        except Exception as e:
+            print(f"[Holiday Reminder] Loop Error: {e}")
+        await asyncio.sleep(3600)  # Check every hour
+
 # ── Seed helpers ───────────────────────────────────────────────────────────────
 from app.roles.seed       import seed_roles
 from app.departments.seed import seed_departments
@@ -121,6 +169,11 @@ async def lifespan(app: FastAPI):
 
             # ── Patch document_requests with the inbound email body column ───
             conn.execute(text("ALTER TABLE document_requests ADD COLUMN IF NOT EXISTS requester_message TEXT"))
+
+            # ── Patch notifications table with category + entity columns ────
+            conn.execute(text("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS category VARCHAR"))
+            conn.execute(text("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS entity_type VARCHAR"))
+            conn.execute(text("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS entity_id VARCHAR"))
 
             # ── Patch employees table with columns added in dev branch ───────
             conn.execute(text("ALTER TABLE employees ADD COLUMN IF NOT EXISTS department_id INTEGER REFERENCES departments(id)"))
@@ -277,13 +330,21 @@ async def lifespan(app: FastAPI):
 
     email_task = asyncio.create_task(email_polling_loop())
     print(f"[Email Poller] Background email polling started (every {EMAIL_POLL_INTERVAL_SECONDS} seconds).")
+    holiday_task = asyncio.create_task(holiday_reminder_loop())
+    print("[Holiday Reminder] Background holiday reminder loop started (checks every hour).")
     yield
     email_task.cancel()
+    holiday_task.cancel()
     try:
         await email_task
     except asyncio.CancelledError:
         pass
+    try:
+        await holiday_task
+    except asyncio.CancelledError:
+        pass
     print("[Email Poller] Background email polling stopped.")
+    print("[Holiday Reminder] Background holiday reminder loop stopped.")
 
 
 app = FastAPI(

@@ -33,7 +33,7 @@ export default function CalendarWidget({ permissions }: Props) {
 
   const load = async () => {
     try {
-      const [hr, er] = await Promise.all([apiFetch("/holidays"), apiFetch("/events/my-calendar")]);
+      const [hr, er] = await Promise.all([apiFetch("/holidays"), apiFetch("/events/all")]);
       if (hr.ok) setHolidays(await hr.json());
       if (er.ok) setEvents(await er.json());
     } catch (e) { console.error(e); }
@@ -66,8 +66,9 @@ export default function CalendarWidget({ permissions }: Props) {
   });
 
   const eventMap = new Map<number, string[]>();
-  events.forEach((ev) => {
-    const dt = new Date(ev.event_date + (ev.event_date.endsWith("Z") ? "" : "Z"));
+  events.forEach(ev => {
+    const ds = ev.event_date.endsWith("Z") ? ev.event_date.slice(0, -1) : ev.event_date;
+    const dt = new Date(ds);
     if (dt.getFullYear() === year && dt.getMonth() === month) {
       const d = dt.getDate();
       eventMap.set(d, [...(eventMap.get(d) ?? []), ev.title]);

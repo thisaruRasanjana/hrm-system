@@ -186,6 +186,21 @@ async def apply_for_job(
 
     try:
         db.commit()
+        
+        # ── Notify HR / Recruitment managers ──────────────────────────────
+        try:
+            from app.notifications.service import notify_permission
+            notify_permission(
+                db, "recruitment:manage",
+                f"New application received from {candidate.full_name} for {vacancy.title}",
+                category="recruitment", type="info", link=f"/dashboard/recruitment/{vacancy_id}",
+                entity_type="application", entity_id=str(application.id),
+            )
+            db.commit()
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error(f"[Recruitment] Notification failed for new application: {e}")
+
     except Exception as exc:
         db.rollback()
         raise HTTPException(

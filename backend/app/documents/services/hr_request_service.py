@@ -17,9 +17,12 @@ from uuid import UUID
 from fastapi import HTTPException, status
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
+import logging
 
 from app.documents.models.request_model import DocumentRequest, RequestStatus
 from app.employees.models import Employee
+
+_notif_logger = logging.getLogger(__name__)
 
 
 def get_all_hr_requests(db: Session, filter_status: str = None) -> list[dict]:
@@ -111,6 +114,25 @@ def update_request_status(
     try:
         db.commit()
         db.refresh(request)
+
+        # ── Notify requesting employee (if internal) ──────────────────────
+        if request.employee_id:
+            try:
+                from app.notifications.service import notify_employee
+                msg = f"Your document request ({request.document_type}) status changed to {new_status.value}"
+                if new_status == RequestStatus.REJECTED:
+                    msg = f"Your document request ({request.document_type}) was rejected: {rejection_reason}"
+                notif_type = "error" if new_status == RequestStatus.REJECTED else "info"
+                
+                notify_employee(
+                    db, request.employee_id, msg,
+                    category="document", type=notif_type, link="/dashboard/documents/request",
+                    entity_type="document_request", entity_id=str(request.id),
+                )
+                db.commit()
+            except Exception as e:
+                _notif_logger.error(f"[Documents] Notification failed for HR status update: {e}")
+
     except SQLAlchemyError as exc:
         db.rollback()
         raise HTTPException(

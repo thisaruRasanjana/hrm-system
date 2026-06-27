@@ -138,6 +138,22 @@ def upload_employee_document(
         db.add(new_document)
         db.commit()
         db.refresh(new_document)
+
+        # ── Notify HR ───────────────────────────────────────────────────
+        try:
+            from app.notifications.service import notify_permission, get_employee_name
+            emp_name = get_employee_name(db, employee_id)
+            notify_permission(
+                db, "document:manage",
+                f"{emp_name} uploaded a {document_type_name} for review",
+                category="document", type="info", link="/dashboard/documents/review",
+                entity_type="employee_document", entity_id=str(new_document.id),
+            )
+            db.commit()
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error(f"[Documents] Notification failed for upload: {e}")
+
         return new_document
     except SQLAlchemyError as exc:
         db.rollback()
