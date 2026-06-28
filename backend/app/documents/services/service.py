@@ -12,7 +12,7 @@ Responsibilities:
 """
 
 import os
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import HTTPException, status, UploadFile
 from sqlalchemy.exc import SQLAlchemyError
@@ -25,21 +25,30 @@ from app.documents.constants import ALLOWED_MIME_TYPES, MAX_FILE_SIZE_BYTES, UPL
 
 
 def save_file(file: UploadFile, employee_id: int) -> str:
-    """Save an uploaded file to disk securely.
+    """Save an uploaded file to disk under a safe, unique name.
+
+    The stored name is server-generated (employee id + UUID + extension), never
+    the user-supplied filename — this prevents path traversal (e.g. ``../``) and
+    filename collisions that would otherwise overwrite another document. The
+    original filename is preserved separately on ``EmployeeDocument.file_name``.
+
+    NOTE: This is the single place that writes the file to disk. To migrate to
+    S3, replace the local write with a boto3 upload and return the object key —
+    the rest of the document flow only depends on the returned path string.
 
     Args:
         file: The FastAPI UploadFile object.
-        employee_id: The ID of the employee uploading the file.
+        employee_id: The ID of the employee uploading the file (server-trusted).
 
     Returns:
-        The absolute or relative path to the saved file.
+        The relative path to the saved file.
     """
     os.makedirs(UPLOAD_DIR_DOCUMENTS, exist_ok=True)
 
-    file_path = os.path.join(
-        UPLOAD_DIR_DOCUMENTS,
-        f"{employee_id}_{file.filename}"
-    )
+    # Only keep the extension from the user's filename; the rest is server-generated.
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    stored_name = f"{employee_id}_{uuid4().hex}{ext}"
+    file_path = os.path.join(UPLOAD_DIR_DOCUMENTS, stored_name)
 
     with open(file_path, "wb") as buffer:
         buffer.write(file.file.read())
