@@ -20,6 +20,7 @@ type BackendLeaveRecord = {
   employee_status?: string | null;
   leave_type_id: number;
   leave_type_name?: string | null;
+  allocated?: number | null;
   start_date: string;
   end_date: string;
   total_days: number;
@@ -170,7 +171,9 @@ export default function ReportsPage() {
             record.employee_code || `EMP-${String(record.employee_id).padStart(3, "0")}`,
           role: record.designation || "Staff",
           department: record.department || "N/A",
-          totalLeave: 0,
+          // "Allocated" is the employee's real yearly entitlement, not the sum
+          // of requested days. It is identical on every record for the employee.
+          totalLeave: Number(record.allocated || 0),
           used: 0,
           pending: 0,
           remaining: 0,
@@ -179,8 +182,6 @@ export default function ReportsPage() {
       }
 
       const employee = grouped.get(key)!;
-
-      employee.totalLeave += Number(record.total_days || 0);
 
       if (record.status === "APPROVED") {
         employee.used += Number(record.total_days || 0);

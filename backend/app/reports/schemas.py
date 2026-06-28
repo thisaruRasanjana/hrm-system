@@ -14,6 +14,8 @@ class LeaveReportRow(BaseModel):
     employee_status: Optional[str] = None
     leave_type_id: int
     leave_type_name: Optional[str] = None
+    # Total yearly leave entitlement for this employee (same on every row for them).
+    allocated: Optional[float] = None
     start_date: date
     end_date: date
     total_days: float
