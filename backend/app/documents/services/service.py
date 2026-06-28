@@ -139,16 +139,20 @@ def upload_employee_document(
         db.commit()
         db.refresh(new_document)
 
-        # ── Notify HR ───────────────────────────────────────────────────
+        # ── Notify the eligible reviewers (separation-of-duties routing) ──
         try:
-            from app.notifications.service import notify_permission, get_employee_name
+            from app.notifications.service import notify_users, get_employee_name
+            from app.documents.services.approval_routing import (
+                get_eligible_handler_user_ids, employee_user_id,
+            )
             emp_name = get_employee_name(db, employee_id)
-            notify_permission(
-                db, "document:approve",
+            uploader_uid = employee_user_id(db, employee_id)
+            recipients = get_eligible_handler_user_ids(db, uploader_uid, "document:approve")
+            notify_users(
+                db, recipients,
                 f"{emp_name} uploaded a {document_type_name} for review",
                 category="document", type="info", link="/dashboard/documents/approval",
                 entity_type="employee_document", entity_id=str(new_document.id),
-                exclude_employee_id=employee_id,
             )
             db.commit()
         except Exception as e:

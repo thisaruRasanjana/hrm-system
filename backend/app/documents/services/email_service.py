@@ -204,11 +204,14 @@ def fetch_and_process_external_requests(db: Session) -> int:
                 for e_id in processed_ids:
                     mail.store(e_id, '+FLAGS', '\\Seen')
                 
-                # ── Notify HR about external requests ────────────────────────
+                # ── Notify the eligible managers about external requests ─────
+                # External requesters are not system users → employee-tier → HR.
                 try:
-                    from app.notifications.service import notify_permission
-                    notify_permission(
-                        db, "document:request_manage",
+                    from app.notifications.service import notify_users
+                    from app.documents.services.approval_routing import get_eligible_handler_user_ids
+                    recipients = get_eligible_handler_user_ids(db, None, "document:request_manage")
+                    notify_users(
+                        db, recipients,
                         f"Received {processed_count} new external document request(s) via email",
                         category="document", type="info", link="/dashboard/documents/request_management",
                         entity_type="document_request",

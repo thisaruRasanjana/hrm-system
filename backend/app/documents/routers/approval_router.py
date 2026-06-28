@@ -19,7 +19,7 @@ def get_pending_documents(
     db: Session = Depends(get_db),
     current_user = Depends(require_permission("document:approve"))
 ):
-    return approval_service.get_pending_documents(db)
+    return approval_service.get_pending_documents(db, current_user.id)
 
 
 @router.patch("/{document_id}/approve", response_model=approval_schema.DocumentApprovalResponse)
@@ -30,7 +30,7 @@ def approve_document(
 ):
     emp = db.query(Employee).filter(Employee.user_id == current_user.id).first()
     reviewer_id = emp.id if emp else current_user.id
-    return approval_service.approve_document(db, document_id, reviewer_id)
+    return approval_service.approve_document(db, document_id, reviewer_id, current_user.id)
 
 
 @router.patch("/{document_id}/reject", response_model=approval_schema.DocumentApprovalResponse)
@@ -42,4 +42,4 @@ def reject_document(
 ):
     emp = db.query(Employee).filter(Employee.user_id == current_user.id).first()
     reviewer_id = emp.id if emp else current_user.id
-    return approval_service.reject_document(db, document_id, reviewer_id, request.reason)
+    return approval_service.reject_document(db, document_id, reviewer_id, request.reason, current_user.id)

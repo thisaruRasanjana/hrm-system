@@ -51,15 +51,19 @@ def create_document_request(db: Session, data: CreateRequest) -> DocumentRequest
         db.commit()
         db.refresh(new_request)
 
-        # ── Notify HR ───────────────────────────────────────────────────
+        # ── Notify the eligible managers (separation-of-duties routing) ───
         try:
-            from app.notifications.service import notify_permission
-            notify_permission(
-                db, "document:request_manage",
+            from app.notifications.service import notify_users
+            from app.documents.services.approval_routing import (
+                get_eligible_handler_user_ids, employee_user_id,
+            )
+            requester_uid = employee_user_id(db, data.employee_id)
+            recipients = get_eligible_handler_user_ids(db, requester_uid, "document:request_manage")
+            notify_users(
+                db, recipients,
                 f"{employee.first_name} {employee.last_name} requested a {data.document_type} document",
                 category="document", type="info", link="/dashboard/documents/request_management",
                 entity_type="document_request", entity_id=str(new_request.id),
-                exclude_employee_id=data.employee_id,
             )
             db.commit()
         except Exception as e:
