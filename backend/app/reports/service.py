@@ -36,8 +36,15 @@ def build_leave_report_query(
             Employee.status.label("employee_status"),
             )
         .join(LeaveType, LeaveRequest.leave_type_id == LeaveType.id)
-        .outerjoin(Employee, LeaveRequest.employee_id == Employee.id)
+        # INNER join: only leave requests that belong to a real, existing employee.
+        # (Orphaned requests whose employee was removed are dropped from the report.)
+        .join(Employee, LeaveRequest.employee_id == Employee.id)
         .outerjoin(Department, Employee.department_id == Department.id)
+    )
+
+    # Exclude soft-deleted employees so the report reflects only current staff.
+    query = query.filter(
+        (Employee.is_deleted == False) | (Employee.is_deleted.is_(None))
     )
 
     if employee_id is not None:
