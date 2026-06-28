@@ -69,6 +69,10 @@ SYSTEM_PERMISSIONS = [
 SUPER_ADMIN_EXCLUDES = {
     "document:upload_own", "document:request_own",
     "leave:request", "leave:edit_pending", "leave:view_history",
+    # Self-service dashboard widgets — a super admin has no personal leave
+    # balance or submitted document requests, so these don't apply to them.
+    "widget.leave_balance.view",
+    "widget.approval_summary.view_requests",
 }
 
 # Built-in roles seeded by the system. These are protected — they cannot be

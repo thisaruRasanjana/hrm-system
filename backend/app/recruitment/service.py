@@ -166,7 +166,7 @@ def process_cv_background(candidate_id: int, vacancy_id: int, file_path: str):
                 notify_permission(
                     db, "recruitment:manage",
                     f"AI screening completed for {candidate.full_name} ({vacancy.title})",
-                    category="recruitment", type="info", link=f"/dashboard/recruitment/{vacancy.id}",
+                    category="recruitment", type="info", link=f"/recruitment/{vacancy.id}",
                     entity_type="candidate", entity_id=str(candidate.id),
                 )
                 db.commit()
@@ -565,7 +565,7 @@ def create_evaluation(db: Session, application_id: int, data: schemas.Evaluation
                 notify_user(
                     db, panel.panel_head_id,
                     f"New evaluation submitted by {data.evaluator_name}",
-                    category="recruitment", type="info", link=f"/dashboard/recruitment/{application.vacancy_id}/applications/{application_id}/evaluate",
+                    category="recruitment", type="info", link=f"/recruitment/{application.vacancy_id}",
                     entity_type="application", entity_id=str(application_id),
                 )
                 db.commit()
@@ -701,7 +701,7 @@ async def submit_final_decision(db: Session, application_id: int, data: schemas.
         notify_permission(
             db, "recruitment:manage",
             f"Final decision made for application #{application_id}: {data.decision}",
-            category="recruitment", type="info", link=f"/dashboard/recruitment/{application.vacancy_id}",
+            category="recruitment", type="info", link=f"/recruitment/{application.vacancy_id}",
             entity_type="application", entity_id=str(application_id),
         )
         db.commit()
@@ -774,7 +774,7 @@ def trigger_next_round(db: Session, application_id: int):
         notify_permission(
             db, "recruitment:manage",
             f"Application #{application_id} ({vacancy_title}) was advanced to the next round",
-            category="recruitment", type="info", link=f"/dashboard/recruitment/{application.vacancy_id}",
+            category="recruitment", type="info", link=f"/recruitment/{application.vacancy_id}",
             entity_type="application", entity_id=str(application_id),
         )
         db.commit()

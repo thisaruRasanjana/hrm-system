@@ -126,34 +126,67 @@ def _should_send_email(user, category: Optional[str]) -> bool:
 
 def get_user_ids_with_permission(db: Session, permission: str) -> List[int]:
     """
-    Return a list of user IDs that hold a given permission via their roles.
-    Also includes superadmins (who implicitly have all permissions).
+    Return the user IDs that effectively hold `permission`.
+
+    This MIRRORS the authoritative resolver app.core.deps.get_user_permissions
+    so notifications reach exactly the people who can act on them:
+
+    - Users assigned to a role that grants the permission — via the many-to-many
+      ``user_roles`` join table OR the scalar ``users.role_id`` fallback column
+      (legacy / migration rows that were never inserted into the join table).
+    - Superadmins, EXCEPT for self-service permissions in SUPER_ADMIN_EXCLUDES
+      (which superadmins are not treated as holding).
+    - Only active, non-deleted accounts are returned.
     """
     from app.auth.models import User
     from app.roles.models import Permission, role_permissions, user_roles
+    from app.roles.seed import SUPER_ADMIN_EXCLUDES
 
     try:
-        # Users who have the permission via role → role_permissions → permissions
-        user_ids_via_roles = (
-            db.query(user_roles.c.user_id)
-            .join(role_permissions, user_roles.c.role_id == role_permissions.c.role_id)
-            .join(Permission, role_permissions.c.permission_id == Permission.id)
-            .filter(Permission.permission_name == permission)
-            .distinct()
-        ).all()
+        # Roles that grant this permission
+        role_ids = [
+            rid for (rid,) in (
+                db.query(role_permissions.c.role_id)
+                .join(Permission, role_permissions.c.permission_id == Permission.id)
+                .filter(Permission.permission_name == permission)
+                .distinct()
+                .all()
+            )
+        ]
 
-        result = {uid for (uid,) in user_ids_via_roles}
+        user_ids: set[int] = set()
+        if role_ids:
+            # Primary path — many-to-many user_roles join table
+            for (uid,) in (
+                db.query(user_roles.c.user_id)
+                .filter(user_roles.c.role_id.in_(role_ids))
+                .distinct()
+                .all()
+            ):
+                user_ids.add(uid)
+            # Fallback — scalar role_id column (legacy / migration gaps)
+            for (uid,) in db.query(User.id).filter(User.role_id.in_(role_ids)).all():
+                user_ids.add(uid)
 
-        # Also include superadmins
-        superadmins = (
+        # Superadmins implicitly hold every permission except self-service ones
+        if permission not in SUPER_ADMIN_EXCLUDES:
+            for (uid,) in db.query(User.id).filter(User.is_superadmin == True).all():
+                user_ids.add(uid)
+
+        if not user_ids:
+            return []
+
+        # Restrict to active, non-deleted accounts
+        rows = (
             db.query(User.id)
-            .filter(User.is_superadmin == True, User.is_active == True)
+            .filter(
+                User.id.in_(user_ids),
+                (User.is_active == True) | (User.is_active.is_(None)),
+                (User.is_deleted == False) | (User.is_deleted.is_(None)),
+            )
             .all()
         )
-        for (uid,) in superadmins:
-            result.add(uid)
-
-        return list(result)
+        return [uid for (uid,) in rows]
     except Exception as e:
         logger.error(f"[Notifications] Failed to resolve permission '{permission}': {e}")
         return []
@@ -215,10 +248,14 @@ def notify_users(
     link: Optional[str] = None,
     entity_type: Optional[str] = None,
     entity_id: Optional[str] = None,
+    exclude_user_id: Optional[int] = None,
 ) -> int:
     """
     Bulk-create in-app notifications for multiple users.
     Uses a single add_all for performance (e.g. announcement fan-out).
+
+    ``exclude_user_id`` drops the acting user so people are never notified
+    about their own action.
 
     Returns count of notifications created. Never raises exceptions.
     """
@@ -229,6 +266,8 @@ def notify_users(
 
         notifications = []
         for uid in user_ids:
+            if exclude_user_id is not None and uid == exclude_user_id:
+                continue
             user = user_map.get(uid)
             if not user:
                 continue
@@ -300,10 +339,17 @@ def notify_permission(
     link: Optional[str] = None,
     entity_type: Optional[str] = None,
     entity_id: Optional[str] = None,
+    exclude_user_id: Optional[int] = None,
+    exclude_employee_id: Optional[int] = None,
 ) -> int:
     """
     Notify all users who hold a given permission (via their roles).
     This is how "notify HR/approvers" works.
+
+    The acting user is excluded so they're never notified about their own
+    action — pass ``exclude_user_id`` (a user id) or ``exclude_employee_id``
+    (an employee id, resolved to its linked user) for the person who triggered
+    the event.
 
     Returns count of notifications created. Never raises exceptions.
     """
@@ -311,6 +357,14 @@ def notify_permission(
         user_ids = get_user_ids_with_permission(db, permission)
         if not user_ids:
             return 0
+
+        # Resolve the acting user so they don't get notified about their own action
+        actor_user_id = exclude_user_id
+        if actor_user_id is None and exclude_employee_id is not None:
+            from app.employees.models import Employee
+            emp = db.query(Employee).filter(Employee.id == exclude_employee_id).first()
+            if emp:
+                actor_user_id = emp.user_id
 
         return notify_users(
             db,
@@ -321,6 +375,7 @@ def notify_permission(
             link=link,
             entity_type=entity_type,
             entity_id=entity_id,
+            exclude_user_id=actor_user_id,
         )
     except Exception as e:
         logger.error(f"[Notifications] Failed to notify by permission '{permission}': {e}")

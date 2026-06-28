@@ -101,8 +101,9 @@ export default function Topbar() {
     const fetchUnreadCount = async () => {
       try {
         const res = await apiFetch("/notifications/unread-count");
-        if (res && typeof res.unread_count === "number") {
-          setUnreadNotifs(res.unread_count);
+        if (res.ok) {
+          const data = await res.json();
+          if (typeof data.count === "number") setUnreadNotifs(data.count);
         }
       } catch (err) {
         console.error("Failed to fetch unread notifications count", err);
@@ -144,16 +145,6 @@ export default function Topbar() {
   const profileImage = user?.profile_image_url ?? null;
   const initials = `${user?.first_name?.[0] || ""}${user?.last_name?.[0] || ""}`.toUpperCase() || user?.email?.[0]?.toUpperCase() || "?";
 
-  const fetchUnreadCount = async () => {
-    try {
-      const res = await apiFetch("/notifications/recent");
-      if (res.ok) {
-        const data = await res.json();
-        setUnreadNotifs(data.filter((n: any) => !n.is_read).length);
-      }
-    } catch (err) {}
-  };
-
   const fetchUnreadMessages = async () => {
     try {
       const res = await apiFetch("/messages/inbox");
@@ -165,12 +156,8 @@ export default function Topbar() {
   };
 
   useEffect(() => {
-    fetchUnreadCount();
     fetchUnreadMessages();
-    const interval = setInterval(() => {
-      fetchUnreadCount();
-      fetchUnreadMessages();
-    }, 60000);
+    const interval = setInterval(fetchUnreadMessages, 60000);
     return () => clearInterval(interval);
   }, []);
 

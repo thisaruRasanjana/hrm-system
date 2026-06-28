@@ -71,7 +71,7 @@ export default function ApprovalSummaryWidget({ permissions }: Props) {
         {/* Requests Submitted */}
         {canViewRequests && (
           <div
-            onClick={() => router.push("/dashboard/documents/requests")}
+            onClick={() => router.push("/dashboard/documents/request")}
             className="flex items-center justify-between p-3 rounded-xl hover:bg-gray-50 transition cursor-pointer"
           >
             <div className="flex items-center gap-3">

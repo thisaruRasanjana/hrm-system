@@ -357,6 +357,7 @@ def create_leave(db: Session, employee_id: int, data: LeaveRequestCreate):
                 f"{emp_name} requested {leave_type_name} leave ({data.start_date} \u2013 {data.end_date})",
                 category="leave", type="info", link="/approval",
                 entity_type="leave_request", entity_id=str(req.leave_request_id),
+                exclude_employee_id=employee_id,
             )
             db.commit()
         except Exception as e:
@@ -570,6 +571,7 @@ def resubmit_leave_request(
             f"{emp_name} resubmitted a leave request",
             category="leave", type="info", link="/approval",
             entity_type="leave_request", entity_id=str(req.leave_request_id),
+            exclude_employee_id=employee_id,
         )
         db.commit()
     except Exception as e:

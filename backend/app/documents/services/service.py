@@ -144,10 +144,11 @@ def upload_employee_document(
             from app.notifications.service import notify_permission, get_employee_name
             emp_name = get_employee_name(db, employee_id)
             notify_permission(
-                db, "document:manage",
+                db, "document:approve",
                 f"{emp_name} uploaded a {document_type_name} for review",
-                category="document", type="info", link="/dashboard/documents/review",
+                category="document", type="info", link="/dashboard/documents/approval",
                 entity_type="employee_document", entity_id=str(new_document.id),
+                exclude_employee_id=employee_id,
             )
             db.commit()
         except Exception as e:
