@@ -84,7 +84,9 @@ HR_PERMISSIONS = {
     "employee:create", "employee:update", "employee:delete", "employee:view_all", "employee:view_own",
     "role:create", "role:view", "role:assign",
     "document:upload_own", "document:request_own", "document:approve", "document:request_manage", "document:template_upload", "document:type_manage",
-    "leave:request", "leave:edit_pending", "leave:view_history", "leave:approve", "leave:reject", "leave:report", "leave:type_manage",
+    # leave:type_manage is intentionally NOT granted to HR — Leave Settings
+    # (leave types & entitlements) is a super-admin-only area.
+    "leave:request", "leave:edit_pending", "leave:view_history", "leave:approve", "leave:reject", "leave:report",
     "recruitment:manage", "recruitment:view",
     "messaging.send", "messaging.receive"
 }
