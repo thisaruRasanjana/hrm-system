@@ -91,7 +91,7 @@ export default function LeaveBalanceWidget(_: Props) {
       {/* Footer */}
       <div className="mt-auto pt-4 border-t border-gray-100 flex justify-end">
         <button 
-          onClick={() => router.push("/dashboard/leave")}
+          onClick={() => router.push("/leave-history")}
           className="text-[#f2924e] text-[10px] font-bold uppercase tracking-wider hover:underline"
         >
           View All

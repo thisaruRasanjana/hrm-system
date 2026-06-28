@@ -193,7 +193,7 @@ async def apply_for_job(
             notify_permission(
                 db, "recruitment:manage",
                 f"New application received from {candidate.full_name} for {vacancy.title}",
-                category="recruitment", type="info", link=f"/dashboard/recruitment/{vacancy_id}",
+                category="recruitment", type="info", link=f"/recruitment/{vacancy_id}",
                 entity_type="application", entity_id=str(application.id),
             )
             db.commit()

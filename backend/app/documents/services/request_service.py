@@ -59,6 +59,7 @@ def create_document_request(db: Session, data: CreateRequest) -> DocumentRequest
                 f"{employee.first_name} {employee.last_name} requested a {data.document_type} document",
                 category="document", type="info", link="/dashboard/documents/request_management",
                 entity_type="document_request", entity_id=str(new_request.id),
+                exclude_employee_id=data.employee_id,
             )
             db.commit()
         except Exception as e:
