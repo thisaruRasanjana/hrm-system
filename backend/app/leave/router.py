@@ -114,6 +114,16 @@ def get_my_leave_balances(
     return get_leave_balances(db, current_user["id"])
 
 
+@router.get("/balance/{employee_id}", response_model=list[LeaveBalanceOut])
+def get_employee_leave_balances(
+    employee_id: int,
+    current_user: dict = Depends(leave_actor("leave:approve", "leave:report")),
+    db: Session = Depends(get_db),
+):
+    """Leave balances for a specific employee — used by reviewers in the approval panel."""
+    return get_leave_balances(db, employee_id)
+
+
 # -----------------------------
 # UPDATE OWN PENDING LEAVE
 # -----------------------------
