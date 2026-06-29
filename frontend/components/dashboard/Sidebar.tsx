@@ -29,7 +29,7 @@ export default function Sidebar() {
     { name: "Documents",           path: "/dashboard/documents",                     icon: FileText,
       anyPermission: ["document:upload_own", "document:request_own", "document:approve", "document:request_manage", "document:template_upload", "document:type_manage"],
       activePrefixes: ["/dashboard/documents", "/dashboard/employee/documents"] },
-    { name: "Settings",            path: "/dashboard/settings",                      icon: Settings },
+    { name: "Settings",            path: "/dashboard/settings",                      icon: Settings, activePrefixes: ["/dashboard/settings", "/settings"] },
   ];
 
   return (

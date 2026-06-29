@@ -25,7 +25,7 @@ const NAV_ITEMS = [
     anyPermission: ["document:upload_own", "document:request_own", "document:approve",
       "document:request_manage", "document:template_upload", "document:type_manage"],
     activePrefixes: ["/dashboard/documents", "/documents"] },
-  { label: "Settings",             icon: <IconSettings />,    href: "/settings" },
+  { label: "Settings",             icon: <IconSettings />,    href: "/settings", activePrefixes: ["/settings", "/dashboard/settings"] },
 ];
 
 export default function Sidebar() {
