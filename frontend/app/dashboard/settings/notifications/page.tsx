@@ -1,31 +1,37 @@
 "use client";
 
-import { useState } from "react";
-import { Bell, Clock } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Bell, Clock, Loader2 } from "lucide-react";
+import { useAuth } from "@/context/auth-context";
+import { apiFetch } from "@/lib/api";
 
 type NotificationType = {
   id: string;
   title: string;
   desc: string;
   email: boolean;
-  push: boolean;
+  inApp: boolean;
+  forceInApp?: boolean;
 };
 
 const Toggle = ({ 
   checked, 
-  onChange 
+  onChange,
+  disabled = false
 }: { 
   checked: boolean; 
   onChange: () => void; 
+  disabled?: boolean;
 }) => (
   <button
     type="button"
     role="switch"
     aria-checked={checked}
-    onClick={onChange}
+    onClick={disabled ? undefined : onChange}
+    disabled={disabled}
     className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
       checked ? "bg-[#f08a4b]" : "bg-gray-300"
-    }`}
+    } ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
   >
     <span
       aria-hidden="true"
@@ -36,25 +42,48 @@ const Toggle = ({
   </button>
 );
 
-export default function NotificationSettingsPage() {
-  const [notifications, setNotifications] = useState<NotificationType[]>([
-    { id: "leave", title: "Leave Request Updates", desc: "Notifications about your leave request status", email: true, push: true },
-    { id: "attendance", title: "Attendance Reminders", desc: "Notifications about your leave request status", email: true, push: false },
-    { id: "recruit", title: "Recruitment Updates", desc: "Notifications about applicants and interviews", email: true, push: false },
-    { id: "company", title: "Company Announcements", desc: "Important company-wide announcements", email: true, push: true },
-    { id: "holiday", title: "Holiday Reminders", desc: "Upcoming holidays and events", email: true, push: false },
-    { id: "document", title: "Document Expiry Alerts", desc: "Alerts when documents are about to expire", email: true, push: true },
-  ]);
+const NOTIFICATION_CATEGORIES = [
+  { id: "leave", title: "Leave Request Updates", desc: "Notifications about your leave request status" },
+  { id: "attendance", title: "Attendance Reminders", desc: "Clock-in/out and timesheet reminders" },
+  { id: "recruitment", title: "Recruitment Updates", desc: "Notifications about applicants and interviews" },
+  { id: "announcement", title: "Company Announcements", desc: "Important company-wide announcements" },
+  { id: "holiday", title: "Holiday Reminders", desc: "Upcoming holidays and events" },
+  { id: "document", title: "Document & Request Alerts", desc: "Alerts for document requests and reviews" },
+  { id: "system", title: "System Updates", desc: "Core system changes and welcome messages", forceInApp: true },
+  { id: "security", title: "Security Alerts", desc: "Password changes, 2FA updates, new logins", forceInApp: true },
+];
 
+export default function NotificationSettingsPage() {
+  const { user, refreshUser } = useAuth();
+  
+  const [notifications, setNotifications] = useState<NotificationType[]>([]);
   const [quietHours, setQuietHours] = useState({
-    start: "10:00 PM",
-    end: "8:00 AM"
+    start: "22:00",
+    end: "08:00"
   });
 
   const [isSaving, setIsSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState("");
 
-  const toggleSetting = (index: number, type: "email" | "push") => {
+  // Load preferences from user context on mount
+  useEffect(() => {
+    if (user) {
+      const prefs = user.notification_preferences || {};
+      const mapped = NOTIFICATION_CATEGORIES.map(cat => ({
+        ...cat,
+        email: prefs[cat.id] ? prefs[cat.id].email : true,
+        inApp: prefs[cat.id] ? prefs[cat.id].inApp : true,
+      }));
+      setNotifications(mapped);
+
+      if (user.quiet_hours_start) setQuietHours(prev => ({ ...prev, start: user.quiet_hours_start as string }));
+      if (user.quiet_hours_end) setQuietHours(prev => ({ ...prev, end: user.quiet_hours_end as string }));
+    }
+  }, [user]);
+
+  const toggleSetting = (index: number, type: "email" | "inApp") => {
     const newSettings = [...notifications];
+    if (type === "inApp" && newSettings[index].forceInApp) return; // cannot disable forceInApp
     newSettings[index][type] = !newSettings[index][type];
     setNotifications(newSettings);
   };
@@ -62,31 +91,63 @@ export default function NotificationSettingsPage() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
+    setSaveMessage("");
+    
     try {
-      // Simulate API call to PUT /auth/notifications
-      await new Promise((res) => setTimeout(res, 600));
+      const preferencesPayload: Record<string, any> = {};
+      notifications.forEach(n => {
+        preferencesPayload[n.id] = { email: n.email, inApp: n.inApp };
+      });
+
+      await apiFetch("/auth/notifications", {
+        method: "PUT",
+        body: JSON.stringify({
+          notification_preferences: preferencesPayload,
+          quiet_hours_start: quietHours.start,
+          quiet_hours_end: quietHours.end
+        })
+      });
+      
+      await refreshUser();
+      setSaveMessage("Settings saved successfully");
+      setTimeout(() => setSaveMessage(""), 3000);
+    } catch (err) {
+      setSaveMessage("Failed to save settings");
     } finally {
       setIsSaving(false);
     }
   };
 
+  if (!notifications.length) {
+    return <div className="p-8">Loading...</div>;
+  }
+
   return (
     <div className="w-full max-h-full pb-10">
-      <div className="flex items-center gap-3 mb-1">
-        <Bell size={20} className="text-gray-800" />
-        <h2 className="text-xl font-bold text-gray-900">Notification Settings</h2>
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <div className="flex items-center gap-3 mb-1">
+            <Bell size={20} className="text-gray-800" />
+            <h2 className="text-xl font-bold text-gray-900">Notification Settings</h2>
+          </div>
+          <p className="text-gray-400 text-sm font-medium tracking-wide">Manage what notifications you receive from the system</p>
+        </div>
+        {saveMessage && (
+          <span className={`text-sm font-medium ${saveMessage.includes("Failed") ? "text-red-500" : "text-green-500"}`}>
+            {saveMessage}
+          </span>
+        )}
       </div>
-      <p className="text-gray-400 text-sm font-medium ml-8 mb-8">Manage what notifications you receive from the system</p>
       
       <form onSubmit={handleSave}>
         
         {/* Notifications Table Box */}
-        <div className="ml-8 border border-gray-100 rounded-xl overflow-hidden mb-12 shadow-sm">
+        <div className="border border-gray-100 rounded-xl overflow-hidden mb-12 shadow-sm">
           {/* Header */}
           <div className="grid grid-cols-12 items-center px-6 py-4 bg-white border-b border-gray-100">
             <div className="col-span-8 font-bold text-sm text-gray-900 tracking-wide">Notification Type</div>
             <div className="col-span-2 font-bold text-sm text-gray-900 tracking-wide text-center">Email</div>
-            <div className="col-span-2 font-bold text-sm text-gray-900 tracking-wide text-center">Push</div>
+            <div className="col-span-2 font-bold text-sm text-gray-900 tracking-wide text-center">In-App</div>
           </div>
           
           {/* Rows */}
@@ -101,7 +162,11 @@ export default function NotificationSettingsPage() {
                   <Toggle checked={item.email} onChange={() => toggleSetting(idx, "email")} />
                 </div>
                 <div className="col-span-2 flex justify-center">
-                  <Toggle checked={item.push} onChange={() => toggleSetting(idx, "push")} />
+                  <Toggle 
+                    checked={item.forceInApp ? true : item.inApp} 
+                    onChange={() => toggleSetting(idx, "inApp")} 
+                    disabled={item.forceInApp}
+                  />
                 </div>
               </div>
             ))}
@@ -109,43 +174,45 @@ export default function NotificationSettingsPage() {
         </div>
 
         {/* Quiet Hours */}
-        <div className="ml-8 mb-8 border-t border-gray-100 pt-10">
+        <div className="mb-8 border-t border-gray-100 pt-10">
           <div className="flex items-center gap-3 mb-1">
             <Clock size={20} className="text-gray-800" />
             <h2 className="text-xl font-bold text-gray-900">Quiet Hours</h2>
           </div>
-          <p className="text-gray-400 text-sm font-medium ml-8 mb-8 tracking-wide">Mute non-urgent notifications during specific hours</p>
+          <p className="text-gray-400 text-sm font-medium mb-8 tracking-wide">
+            Mute non-urgent notifications during specific hours. Security alerts will bypass quiet hours.
+          </p>
 
-          <div className="ml-8 grid grid-cols-2 gap-8">
+          <div className="grid grid-cols-2 gap-8 max-w-lg">
             <div>
-              <label className="block text-sm font-bold text-gray-900 mb-2 tracking-wide">Start Time</label>
-              <input 
-                type="text" 
+              <label className="block text-xs font-semibold text-gray-600 tracking-wider uppercase mb-2">Start Time</label>
+              <input
+                type="time"
                 value={quietHours.start}
-                onChange={(e) => setQuietHours({...quietHours, start: e.target.value})}
-                className="w-full border border-gray-200 rounded-lg p-3 text-sm text-gray-900 font-medium focus:outline-none focus:border-[#f08a4b] bg-white transition"
+                onChange={(e) => setQuietHours({ ...quietHours, start: e.target.value })}
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#f08a4b]/20 focus:border-[#f08a4b] transition-all"
               />
             </div>
             <div>
-              <label className="block text-sm font-bold text-gray-900 mb-2 tracking-wide">End Time</label>
-              <input 
-                type="text" 
+              <label className="block text-xs font-semibold text-gray-600 tracking-wider uppercase mb-2">End Time</label>
+              <input
+                type="time"
                 value={quietHours.end}
-                onChange={(e) => setQuietHours({...quietHours, end: e.target.value})}
-                className="w-full border border-gray-200 rounded-lg p-3 text-sm text-gray-900 font-medium focus:outline-none focus:border-[#f08a4b] bg-white transition"
+                onChange={(e) => setQuietHours({ ...quietHours, end: e.target.value })}
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#f08a4b]/20 focus:border-[#f08a4b] transition-all"
               />
             </div>
           </div>
-          <p className="text-gray-300 text-xs font-medium mt-4 ml-8">* All times are available</p>
         </div>
 
-        <div className="flex justify-end pt-2">
-          <button 
+        <div className="flex justify-end pt-6 border-t border-gray-100">
+          <button
             type="submit"
             disabled={isSaving}
-            className="bg-[#f08a4b] hover:bg-[#e07a3b] text-white px-8 py-2.5 rounded-lg text-sm font-semibold transition disabled:opacity-50"
+            className="flex items-center gap-2 px-8 py-3 bg-[#f08a4b] hover:bg-[#e0793a] text-white text-sm font-semibold rounded-lg transition-colors shadow-sm disabled:opacity-70 disabled:cursor-not-allowed"
           >
-             {isSaving ? "Saving..." : "Save Changes"}
+            {isSaving && <Loader2 size={16} className="animate-spin" />}
+            {isSaving ? "Saving..." : "Save Preferences"}
           </button>
         </div>
       </form>

@@ -26,8 +26,8 @@ def get_all_hr_requests(
     db: Session = Depends(get_db),
     current_user = Depends(require_permission("document:request_manage"))
 ):
-    """List all document requests with their linked employee details."""
-    requests = hr_request_service.get_all_hr_requests(db, filter_status)
+    """List the document requests this manager is allowed to handle."""
+    requests = hr_request_service.get_all_hr_requests(db, current_user.id, filter_status)
     return {"data": requests}
 
 
@@ -39,6 +39,11 @@ def generate_document(
     current_user = Depends(require_permission("document:template_upload"))
 ):
     """Generate a document from a template for a specific request."""
+    from app.documents.models.request_model import DocumentRequest
+    doc_req = db.query(DocumentRequest).filter(DocumentRequest.id == request_id).first()
+    if not doc_req:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Request not found")
+    hr_request_service.ensure_can_handle_request(db, doc_req, current_user.id)
     try:
         req, html_content = document_generator.generate_document_from_request(
             db=db,
@@ -71,7 +76,8 @@ def update_request_status(
         db,
         request_id,
         data.status,
-        data.rejection_reason
+        data.rejection_reason,
+        current_user.id,
     )
 
 
@@ -89,24 +95,31 @@ def assign_employee(
 @router.post("/{request_id}/custom-letter")
 def send_custom_letter(
     request_id: UUID,
-    content: str,
+    data: hr_request_schema.HRCustomLetterRequest,
     db: Session = Depends(get_db),
     current_user = Depends(require_permission("document:template_upload"))
 ):
-    """Generate a completely custom PDF letter and mark the request COMPLETED."""
-    final_path, html_content = document_generator.generate_from_custom_text(
-        str(request_id),
-        content
-    )
-
+    """Generate a PDF letter from raw/edited HTML and mark the request COMPLETED."""
     from app.documents.models.request_model import DocumentRequest, RequestStatus
     doc_request = db.query(DocumentRequest).filter(DocumentRequest.id == request_id).first()
     if not doc_request:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Request not found")
 
+    hr_request_service.ensure_can_handle_request(db, doc_request, current_user.id)
+
+    final_path, html_content = document_generator.generate_from_custom_text(
+        str(request_id),
+        data.content,
+        preserve_whitespace=data.preserve_whitespace,
+    )
+
     doc_request.status = RequestStatus.COMPLETED
     doc_request.generated_document_path = final_path.replace("\\", "/") if final_path else None
     db.commit()
+    db.refresh(doc_request)
+
+    # Deliver the custom letter to external requesters, same as template generation.
+    document_generator.notify_external_requester(doc_request, doc_request.generated_document_path)
 
     return {
         "message": "Custom letter generated successfully",

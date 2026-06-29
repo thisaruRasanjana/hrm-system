@@ -22,6 +22,7 @@ interface Notification {
   type: "success" | "warning" | "error" | "info";
   is_read: boolean;
   created_at: string;
+  category: string;
   link?: string;
 }
 
@@ -53,6 +54,7 @@ export default function NotificationsPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [filter, setFilter] = useState<"all" | "unread">("all");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
 
   const fetchNotifications = async () => {
     try {
@@ -71,6 +73,7 @@ export default function NotificationsPage() {
     try {
       await apiFetch("/notifications/read-all", { method: "PUT" });
       setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+      window.dispatchEvent(new Event("notificationsUpdated"));
     } catch (err) { console.error(err); }
   };
 
@@ -79,6 +82,7 @@ export default function NotificationsPage() {
       try {
         await apiFetch(`/notifications/${n.id}/read`, { method: "PUT" });
         setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, is_read: true } : x));
+        window.dispatchEvent(new Event("notificationsUpdated"));
       } catch (err) { console.error(err); }
     }
     if (n.link) router.push(n.link);
@@ -89,8 +93,11 @@ export default function NotificationsPage() {
   const filtered = notifications.filter(n => {
     const matchesSearch = n.message.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesFilter = filter === "all" || !n.is_read;
-    return matchesSearch && matchesFilter;
+    const matchesCategory = categoryFilter === "all" || n.category === categoryFilter;
+    return matchesSearch && matchesFilter && matchesCategory;
   });
+
+  const uniqueCategories = Array.from(new Set(notifications.map(n => n.category))).filter(Boolean);
 
   // Group by date
   const grouped = filtered.reduce<Record<string, Notification[]>>((acc, n) => {
@@ -150,16 +157,28 @@ export default function NotificationsPage() {
             className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-[#f08a4b] transition"
           />
         </div>
-        <div className="flex items-center bg-white border border-gray-200 rounded-xl p-1 shadow-sm">
-          {(["all", "unread"] as const).map((f) => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={`px-4 py-1.5 text-sm font-semibold rounded-lg capitalize transition ${filter === f ? "bg-[#f08a4b] text-white shadow-md" : "text-gray-500 hover:bg-gray-50"}`}
-            >
-              {f}
-            </button>
-          ))}
+        <div className="flex items-center gap-3">
+          <select
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+            className="px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-semibold text-gray-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-[#f08a4b] cursor-pointer"
+          >
+            <option value="all">All Categories</option>
+            {uniqueCategories.map(cat => (
+              <option key={cat} value={cat}>{cat.charAt(0).toUpperCase() + cat.slice(1)}</option>
+            ))}
+          </select>
+          <div className="flex items-center bg-white border border-gray-200 rounded-xl p-1 shadow-sm">
+            {(["all", "unread"] as const).map((f) => (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={`px-4 py-1.5 text-sm font-semibold rounded-lg capitalize transition ${filter === f ? "bg-[#f08a4b] text-white shadow-md" : "text-gray-500 hover:bg-gray-50"}`}
+              >
+                {f}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 

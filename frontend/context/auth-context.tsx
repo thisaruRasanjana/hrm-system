@@ -26,6 +26,9 @@ export interface User {
   department?: string;
   profile_image_url?: string;
   two_factor_enabled?: boolean;
+  notification_preferences?: Record<string, { email: boolean; inApp: boolean }>;
+  quiet_hours_start?: string;
+  quiet_hours_end?: string;
 }
 
 interface AuthContextType {

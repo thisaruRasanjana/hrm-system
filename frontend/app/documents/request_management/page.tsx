@@ -17,6 +17,7 @@ type RequestType = {
   status: string;
   source: string;
   requester_email: string | null;
+  requester_message: string | null;
   rejection_reason: string | null;
   generated_document_path: string | null;
   created_at: string;
@@ -33,6 +34,13 @@ export default function HRRequestManagementPage() {
 
   const [showGenerateModal, setShowGenerateModal] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
+
+  // Employee picker for assigning the correct subject employee to an external request
+  type EmployeeOption = { id: number; first_name: string; last_name: string; designation?: string | null };
+  const [employees, setEmployees] = useState<EmployeeOption[]>([]);
+  const [assigning, setAssigning] = useState(false);
+
+  const isExternal = (r: RequestType | null) => (r?.source ?? "INTERNAL") === "EXTERNAL";
 
   const fetchRequests = async () => {
     setLoading(true);
@@ -61,6 +69,33 @@ export default function HRRequestManagementPage() {
     const interval = setInterval(fetchRequests, 30000);
     return () => clearInterval(interval);
   }, [user]);
+
+  // Load the active employee list once, to power the external-request assignment picker
+  useEffect(() => {
+    if (!user) return;
+    apiFetch("/employees/panel-options")
+      .then((res) => res.json())
+      .then((data) => setEmployees(Array.isArray(data) ? data : []))
+      .catch((err) => console.error("Failed to load employees", err));
+  }, [user]);
+
+  const handleAssignEmployee = async (requestId: string, employeeId: string) => {
+    if (!employeeId) return;
+    setAssigning(true);
+    try {
+      const res = await apiFetch(
+        `/hr-document-requests/${requestId}/assign-employee?employee_id=${employeeId}`,
+        { method: "POST" }
+      );
+      if (!res.ok) throw new Error("Assign failed");
+      await fetchRequests();
+    } catch (err) {
+      console.error("Failed to assign employee", err);
+      alert("Failed to assign employee to this request.");
+    } finally {
+      setAssigning(false);
+    }
+  };
 
   const handleMarkInProgress = async (id: string) => {
     try {
@@ -105,7 +140,8 @@ export default function HRRequestManagementPage() {
           completedRequests
   ).filter(r =>
     (r.employee_id && r.employee_id.toString().includes(searchQuery)) ||
-    (r.document_type && r.document_type.toLowerCase().includes(searchQuery.toLowerCase()))
+    (r.document_type && r.document_type.toLowerCase().includes(searchQuery.toLowerCase())) ||
+    (r.requester_email && r.requester_email.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   return (
@@ -205,7 +241,11 @@ export default function HRRequestManagementPage() {
                       <div className={`mt-2 w-1.5 h-1.5 rounded-full shrink-0 ${isNew ? 'bg-[#F2924E]' : 'bg-transparent'}`} />
                       <div>
                         <div className="flex items-center gap-2 mb-1">
-                          <h3 className="font-bold text-gray-900 text-[15px]">Employee ID: {req.employee_id}</h3>
+                          <h3 className="font-bold text-gray-900 text-[15px]">
+                            {isExternal(req)
+                              ? (req.requester_email || "External Requester")
+                              : `Employee ID: ${req.employee_id}`}
+                          </h3>
                         </div>
                         <p className="text-sm text-gray-500 mb-2.5 tracking-tight">{req.document_type}</p>
                         <div className="flex items-center gap-2">
@@ -213,6 +253,11 @@ export default function HRRequestManagementPage() {
                             }`}>
                             {req.status}
                           </span>
+                          {isExternal(req) && (
+                            <span className="px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider bg-purple-100 text-purple-700 border border-purple-200 flex items-center gap-1">
+                              <Mail size={10} /> External
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -243,22 +288,83 @@ export default function HRRequestManagementPage() {
               <span className={`px-3 py-1 rounded-full text-[11px] uppercase tracking-wider font-bold ${selectedRequest.status === 'PENDING' ? 'bg-[#F2924E]/10 text-[#F2924E]' : 'bg-gray-100 text-gray-700'}`}>
                 {selectedRequest.status}
               </span>
+              {isExternal(selectedRequest) && (
+                <span className="px-3 py-1 rounded-full text-[11px] uppercase tracking-wider font-bold bg-purple-100 text-purple-700 flex items-center gap-1.5">
+                  <Mail size={12} /> External Request
+                </span>
+              )}
             </div>
           </div>
 
-          <div className="bg-white shadow-md border border-gray-100 rounded-2xl p-8 mb-4">
-            <h3 className="text-[13px] font-bold text-gray-900 mb-6 tracking-wide">Requester Information</h3>
-            <div className="flex">
-              <div className="flex-1">
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">EMPLOYEE ID</p>
-                <p className="font-bold text-gray-800">{selectedRequest.employee_id}</p>
+          {isExternal(selectedRequest) ? (
+            <div className="bg-white shadow-md border border-purple-100 rounded-2xl p-8 mb-4">
+              <h3 className="text-[13px] font-bold text-gray-900 mb-6 tracking-wide flex items-center gap-2">
+                <Mail size={14} className="text-purple-600" /> External Email Request
+              </h3>
+
+              <div className="flex mb-6">
+                <div className="flex-1">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">FROM (REQUESTER)</p>
+                  <p className="font-bold text-gray-800">{selectedRequest.requester_email || "Unknown"}</p>
+                </div>
+                <div className="flex-1">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">SUBJECT</p>
+                  <p className="font-bold text-gray-800">{selectedRequest.reason}</p>
+                </div>
               </div>
-              <div className="flex-1">
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">NAME</p>
-                <p className="font-bold text-gray-800">{selectedRequest.employee_name || "N/A"}</p>
+
+              {/* The full email body so HR can read who/what the request is about */}
+              <div className="mb-6">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">EMAIL CONTENT</p>
+                <div className="bg-gray-50 border border-gray-100 rounded-xl p-4 text-[13px] text-gray-700 leading-relaxed whitespace-pre-wrap max-h-64 overflow-y-auto">
+                  {selectedRequest.requester_message?.trim() || "No email body was captured for this request."}
+                </div>
+              </div>
+
+              {/* Assign the actual subject employee (the person the letter is about) */}
+              <div className="bg-purple-50/60 border border-purple-100 rounded-xl p-4">
+                <p className="text-[10px] font-bold text-purple-700 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                  <User size={12} /> SUBJECT EMPLOYEE
+                </p>
+                {selectedRequest.employee_id ? (
+                  <p className="text-[13px] font-bold text-gray-800 mb-3">
+                    Assigned: {selectedRequest.employee_name} (ID {selectedRequest.employee_id})
+                  </p>
+                ) : (
+                  <p className="text-[13px] text-purple-700 font-medium mb-3 flex items-center gap-1.5">
+                    <AlertCircle size={13} /> No employee assigned yet — pick the employee this letter is about before generating.
+                  </p>
+                )}
+                <select
+                  value={selectedRequest.employee_id || ""}
+                  disabled={assigning}
+                  onChange={(e) => handleAssignEmployee(selectedRequest.id, e.target.value)}
+                  className="w-full bg-white border border-purple-200 rounded-lg px-4 py-2.5 text-[13px] font-medium text-gray-800 focus:outline-none focus:ring-2 focus:ring-purple-300 transition disabled:opacity-60"
+                >
+                  <option value="">{assigning ? "Assigning..." : "Select an employee..."}</option>
+                  {employees.map((emp) => (
+                    <option key={emp.id} value={emp.id}>
+                      {emp.first_name} {emp.last_name}{emp.designation ? ` — ${emp.designation}` : ""}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
-          </div>
+          ) : (
+            <div className="bg-white shadow-md border border-gray-100 rounded-2xl p-8 mb-4">
+              <h3 className="text-[13px] font-bold text-gray-900 mb-6 tracking-wide">Requester Information</h3>
+              <div className="flex">
+                <div className="flex-1">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">EMPLOYEE ID</p>
+                  <p className="font-bold text-gray-800">{selectedRequest.employee_id}</p>
+                </div>
+                <div className="flex-1">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">NAME</p>
+                  <p className="font-bold text-gray-800">{selectedRequest.employee_name || "N/A"}</p>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="bg-white shadow-md border border-gray-100 rounded-2xl p-8 mb-6">
             <h3 className="text-[13px] font-bold text-gray-900 mb-6 tracking-wide">Request Details</h3>

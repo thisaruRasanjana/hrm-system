@@ -6,11 +6,7 @@ import { useRouter } from "next/navigation";
 import { IconArrowLeft } from "@/components/Icons";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/auth-context";
-
-interface Department {
-  id: number;
-  name: string;
-}
+import DepartmentSelect from "@/components/DepartmentSelect";
 
 export default function EmployeeAddPage() {
   const router = useRouter();
@@ -54,7 +50,6 @@ export default function EmployeeAddPage() {
     },
   });
 
-  const [departments, setDepartments] = useState<Department[]>([]);
   const [roles, setRoles] = useState<{ id: number; role_name: string }[]>([]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -70,19 +65,13 @@ export default function EmployeeAddPage() {
       }));
 
       try {
-        const [deps, roleData] = await Promise.all([
-          api.get<Department[]>("/departments/"),
-          api.get<{ id: number; role_name: string }[]>("/roles/")
-        ]);
-
-        setDepartments(deps);
+        const roleData = await api.get<{ id: number; role_name: string }[]>("/roles/");
         setRoles(roleData);
 
         setFormData(prev => ({
           ...prev,
           work: {
             ...prev.work,
-            departmentId: deps.length > 0 ? deps[0].id : null,
             roleId: roleData.length > 0 ? roleData[0].id : null
           }
         }));
@@ -223,10 +212,11 @@ export default function EmployeeAddPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
             <div>
               <label className={labelClass}>DEPARTMENT {requiredAsterisk}</label>
-              <select value={formData.work.departmentId || ""} onChange={(e) => setFormData({ ...formData, work: { ...formData.work, departmentId: parseInt(e.target.value) } })} className={selectClass}>
-                <option value="" disabled>Select Department</option>
-                {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-              </select>
+              <DepartmentSelect
+                value={formData.work.departmentId}
+                onChange={(id) => setFormData({ ...formData, work: { ...formData.work, departmentId: id } })}
+                selectClass={selectClass}
+              />
             </div>
             <div>
               <label className={labelClass}>INITIAL ROLE {requiredAsterisk}</label>

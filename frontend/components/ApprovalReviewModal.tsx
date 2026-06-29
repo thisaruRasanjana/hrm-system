@@ -75,7 +75,7 @@ export default function ApprovalReviewModal({
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/35 px-4">
-      <div className="relative w-full max-w-[560px] rounded-[20px] bg-white shadow-2xl flex flex-col max-h-[90vh]">
+      <div className="relative w-full max-w-[760px] rounded-[20px] bg-white shadow-2xl flex flex-col max-h-[90vh]">
 
         {/* ── Fixed header ── */}
         <div className="p-5 md:p-6 pb-4 flex-shrink-0 border-b border-[#F2F4F7]">

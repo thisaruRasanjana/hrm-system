@@ -20,17 +20,17 @@ export default function ApprovalSummaryWidget({ permissions }: Props) {
   const canViewRequests  = permissions.includes(WIDGET_APPROVAL_VIEW_REQUESTS);
 
   useEffect(() => {
-    // Graceful fallback — shows 0 if document module not merged yet
+    // Counts are derived from the real list endpoints (no dedicated /count routes exist).
     if (canViewApprovals) {
-      apiFetch("/documents/approvals/count")
+      apiFetch("/documents/review/pending")
         .then((r) => r.ok ? r.json() : null)
-        .then((d) => d?.count != null && setApprovalCount(d.count))
+        .then((d) => Array.isArray(d) && setApprovalCount(d.length))
         .catch(() => {});
     }
     if (canViewRequests) {
-      apiFetch("/documents/requests/count")
+      apiFetch("/document-requests/my")
         .then((r) => r.ok ? r.json() : null)
-        .then((d) => d?.count != null && setRequestCount(d.count))
+        .then((d) => Array.isArray(d) && setRequestCount(d.length))
         .catch(() => {});
     }
   }, [canViewApprovals, canViewRequests]);
@@ -71,7 +71,7 @@ export default function ApprovalSummaryWidget({ permissions }: Props) {
         {/* Requests Submitted */}
         {canViewRequests && (
           <div
-            onClick={() => router.push("/dashboard/documents/requests")}
+            onClick={() => router.push("/dashboard/documents/request")}
             className="flex items-center justify-between p-3 rounded-xl hover:bg-gray-50 transition cursor-pointer"
           >
             <div className="flex items-center gap-3">

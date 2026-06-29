@@ -38,6 +38,10 @@ export default function GenerateDocumentModal({ request, onClose, onSuccess }: P
   const [loadingGenerate, setLoadingGenerate] = useState(false);
   const [error, setError] = useState("");
 
+  // The preview is editable — HR can tweak the generated text before issuing it.
+  const previewRef = useRef<HTMLDivElement>(null);
+  const [previewEdited, setPreviewEdited] = useState(false);
+
   // Derive selected template object
   const selectedTemplateObj = templates.find(t => t.id.toString() === selectedTemplate);
   const selectedType = selectedTemplateObj?.template_type?.toUpperCase() ?? "";
@@ -71,6 +75,7 @@ export default function GenerateDocumentModal({ request, onClose, onSuccess }: P
     setSelectedTemplate(val);
     setPreviewMode(false);
     setPreviewHtml("");
+    setPreviewEdited(false);
     setError("");
   };
 
@@ -103,6 +108,7 @@ export default function GenerateDocumentModal({ request, onClose, onSuccess }: P
       if (!res.ok) throw new Error("Preview failed");
 
       setPreviewHtml(data.preview_html || "");
+      setPreviewEdited(false);
       setPreviewMode(true);
     } catch (err: any) {
       setError(err.message || "Failed to fetch preview");
@@ -126,6 +132,22 @@ export default function GenerateDocumentModal({ request, onClose, onSuccess }: P
     setError("");
 
     try {
+      // If HR edited the preview, issue exactly what they see (their edits),
+      // not a fresh re-render of the template.
+      const editedContent = previewRef.current?.innerHTML?.trim();
+      if (previewMode && previewEdited && editedContent) {
+        const res = await apiFetch(`/hr-document-requests/${request.id}/custom-letter`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content: editedContent, preserve_whitespace: false }),
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        if (!res.ok) throw new Error("Generation failed");
+        onSuccess();
+        return;
+      }
+
       const res = await apiFetch(`/hr-document-requests/${request.id}/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -467,7 +489,7 @@ export default function GenerateDocumentModal({ request, onClose, onSuccess }: P
               </div>
             ) : (
               <div className="bg-white rounded-3xl p-6 shadow-sm flex flex-col h-full text-left">
-                <div className="flex justify-between items-center mb-6 pb-4">
+                <div className="flex justify-between items-center mb-3 pb-1">
                   <h3 className="font-bold text-gray-900 text-[15px] flex items-center gap-2">
                     <FileText size={18} className="text-[#F2924E]" />
                     Document Preview
@@ -479,8 +501,19 @@ export default function GenerateDocumentModal({ request, onClose, onSuccess }: P
                     <EyeOff size={16} /> Hide Preview
                   </button>
                 </div>
+                <div className="flex items-center gap-1.5 mb-4 text-[12px] font-semibold text-[#F2924E]">
+                  <PenLine size={13} />
+                  {previewEdited
+                    ? "Edited — your changes will be sent as the final letter."
+                    : "You can click the text below and edit it before sending."}
+                </div>
+                {/* Editable preview: HR can tweak the generated text in place. */}
                 <div
-                  className="flex-1 w-full overflow-y-auto text-left prose prose-sm max-w-none bg-gray-50/50 rounded-xl"
+                  ref={previewRef}
+                  contentEditable
+                  suppressContentEditableWarning
+                  onInput={() => setPreviewEdited(true)}
+                  className="flex-1 w-full overflow-y-auto text-left prose prose-sm max-w-none bg-gray-50/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#F2924E]/30 focus:bg-white transition"
                   style={{ minHeight: "350px", padding: "24px" }}
                   dangerouslySetInnerHTML={{ __html: previewHtml }}
                 />

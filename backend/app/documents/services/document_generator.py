@@ -232,16 +232,23 @@ def _generate_from_docx(template: DocumentTemplate, context: dict, preview: bool
     return final_output_path, None
 
 
-def generate_from_custom_text(request_id: str, content: str) -> tuple[str, str]:
+def generate_from_custom_text(
+    request_id: str, content: str, preserve_whitespace: bool = True
+) -> tuple[str, str]:
     """Generate a PDF document from a raw HTML string.
 
     Args:
         request_id: The ID of the document request.
         content: The raw text/HTML to place in the document body.
+        preserve_whitespace: True for plain typed text (keeps literal line breaks
+            via ``white-space: pre-wrap``). False for rich HTML — e.g. an edited
+            template preview — where the markup already carries its own line breaks
+            and pre-wrap would inject spurious blank lines.
 
     Returns:
         Tuple of (saved_file_path, raw_html_content)
     """
+    white_space = "pre-wrap" if preserve_whitespace else "normal"
     html_content = f"""<!DOCTYPE html>
 <html>
 <head>
@@ -250,7 +257,7 @@ def generate_from_custom_text(request_id: str, content: str) -> tuple[str, str]:
       @page {{ margin: 1in; }}
       body {{ font-family: 'Helvetica', 'Arial', sans-serif; font-size: 11pt; line-height: 1.4; color: #333; }}
       p {{ margin: 0 0 12pt 0; }}
-      .letter-body {{ white-space: pre-wrap; word-break: break-word; text-align: justify; }}
+      .letter-body {{ white-space: {white_space}; word-break: break-word; text-align: justify; }}
     </style>
 </head>
 <body>
@@ -289,19 +296,42 @@ def _save_generated_document(db: Session, doc_request: DocumentRequest, saved_pa
     db.commit()
     db.refresh(doc_request)
 
-
-def _notify_external_requester(doc_request: DocumentRequest, final_path: str) -> None:
-    """Send the generated PDF via email to the external requester."""
-    if getattr(doc_request, "source", "INTERNAL") == "EXTERNAL" and doc_request.requester_email and final_path:
+    # ── Notify requesting employee (if internal) ──────────────────────
+    if doc_request.employee_id:
         try:
-            abs_path = os.path.join(os.getcwd(), final_path.replace("/", os.sep))
-            send_document_to_requester(
-                to_email=doc_request.requester_email,
-                document_path=abs_path,
-                document_type=doc_request.document_type
+            from app.notifications.service import notify_employee
+            notify_employee(
+                db, doc_request.employee_id,
+                f"Your {doc_request.document_type} document is ready to download",
+                category="document", type="success", link="/dashboard/documents/request",
+                entity_type="document_request", entity_id=str(doc_request.id),
             )
+            db.commit()
         except Exception as e:
-            print(f"[Document Generator] Warning: Could not email document to requester: {e}")
+            import logging
+            logging.getLogger(__name__).error(f"[Document Generator] Notification failed: {e}")
+
+
+def notify_external_requester(doc_request: DocumentRequest, final_path: str) -> None:
+    """Email the generated document back to an external requester.
+
+    No-op for internal requests or when there is no recipient/path. Failures are
+    swallowed (and logged) so a flaky mailbox never breaks the generation flow —
+    HR can always re-send from the request page.
+    """
+    if getattr(doc_request, "source", "INTERNAL") != "EXTERNAL":
+        return
+    if not doc_request.requester_email or not final_path:
+        return
+    try:
+        abs_path = os.path.join(os.getcwd(), final_path.replace("/", os.sep))
+        send_document_to_requester(
+            to_email=doc_request.requester_email,
+            document_path=abs_path,
+            document_type=doc_request.document_type
+        )
+    except Exception as e:
+        print(f"[Document Generator] Warning: Could not email document to requester: {e}")
 
 
 def generate_document_from_request(
@@ -363,6 +393,6 @@ def generate_document_from_request(
         return doc_request, html_content
 
     _save_generated_document(db, doc_request, saved_path)
-    _notify_external_requester(doc_request, doc_request.generated_document_path)
+    notify_external_requester(doc_request, doc_request.generated_document_path)
 
     return doc_request, html_content

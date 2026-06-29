@@ -45,6 +45,7 @@ export default function NotificationsWidget() {
     const item = items.find(n => n.id === id);
     await apiFetch(`/notifications/${id}/read`, { method: "PUT" });
     setItems((prev) => prev.map((n) => (n.id === id ? { ...n, is_read: true } : n)));
+    window.dispatchEvent(new Event("notificationsUpdated"));
     if (item?.link) router.push(item.link);
   };
 
@@ -52,6 +53,7 @@ export default function NotificationsWidget() {
     e.stopPropagation();
     await apiFetch("/notifications/read-all", { method: "PUT" });
     setItems((prev) => prev.map((n) => ({ ...n, is_read: true })));
+    window.dispatchEvent(new Event("notificationsUpdated"));
   };
 
   const unreadCount = items.filter((n) => !n.is_read).length;

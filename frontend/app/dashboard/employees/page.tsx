@@ -5,6 +5,7 @@ import Link from "next/link";
 import { IconSearch, IconChevron, IconEye, IconEdit, IconTrash } from "@/components/Icons";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/auth-context";
+import DeleteEmployeeModal, { DeletableEmployee } from "@/components/DeleteEmployeeModal";
 
 /**
  * Reusable Select Filter component with custom chevron
@@ -45,25 +46,32 @@ interface Employee {
 
 export default function EmployeeManagementPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [departments, setDepartments] = useState<{ id: number; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [department, setDepartment] = useState("all");
   const [role, setRole] = useState("all");
+  const [employeeToDelete, setEmployeeToDelete] = useState<DeletableEmployee | null>(null);
 
   const { hasPermission } = useAuth();
 
+  const fetchEmployees = async () => {
+    try {
+      const data = await api.get<Employee[]>("/employees/");
+      setEmployees(data);
+    } catch (error) {
+      console.error("Failed to fetch employees:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchEmployees = async () => {
-      try {
-        const data = await api.get<Employee[]>("/employees/");
-        setEmployees(data);
-      } catch (error) {
-        console.error("Failed to fetch employees:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchEmployees();
+    // Departments power the filter dropdown — fetched, never hardcoded.
+    api.get<{ id: number; name: string }[]>("/departments/")
+      .then((data) => setDepartments(data))
+      .catch((err) => console.error("Failed to fetch departments:", err));
   }, []);
 
   const filteredEmployees = employees.filter((emp) => {
@@ -101,13 +109,9 @@ export default function EmployeeManagementPage() {
         </div>
         <FilterSelect className="w-44" value={department} onChange={setDepartment}>
           <option value="all">All Departments</option>
-          <option value="Human Resources">Human Resources</option>
-          <option value="Engineering">Engineering</option>
-          <option value="Design">Design</option>
-          <option value="Marketing">Marketing</option>
-          <option value="Sales">Sales</option>
-          <option value="Finance">Finance</option>
-          <option value="Operations">Operations</option>
+          {departments.map((d) => (
+            <option key={d.id} value={d.name}>{d.name}</option>
+          ))}
         </FilterSelect>
         <FilterSelect className="w-36" value={role} onChange={setRole}>
           <option value="all">All Roles</option>
@@ -184,9 +188,21 @@ export default function EmployeeManagementPage() {
                           </Link>
                         )}
                         {hasPermission("employee:delete") && (
-                          <Link href={`/dashboard/EmployeeManagement/delete?id=${emp.id}`} className="hover:text-red-500 transition-colors" aria-label="Delete">
+                          <button
+                            type="button"
+                            onClick={() => setEmployeeToDelete({
+                              id: emp.id,
+                              employee_id: emp.employee_id,
+                              first_name: emp.first_name,
+                              last_name: emp.last_name,
+                              department: emp.department_rel?.name,
+                              designation: emp.designation,
+                            })}
+                            className="hover:text-red-500 transition-colors"
+                            aria-label="Delete"
+                          >
                             <IconTrash />
-                          </Link>
+                          </button>
                         )}
                       </div>
                     </td>
@@ -209,6 +225,17 @@ export default function EmployeeManagementPage() {
             Add Employee
           </Link>
         </div>
+      )}
+
+      {employeeToDelete && (
+        <DeleteEmployeeModal
+          employee={employeeToDelete}
+          onClose={() => setEmployeeToDelete(null)}
+          onDeleted={() => {
+            setEmployeeToDelete(null);
+            fetchEmployees();
+          }}
+        />
       )}
     </div>
   );
