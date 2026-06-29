@@ -17,6 +17,37 @@ export default function DashboardPage() {
     }
   }, [user, loading, router]);
 
+  // Handle scrolling to widget hash after loading completes or hash changes
+  useEffect(() => {
+    const scrollToWidget = () => {
+      if (!loading && window.location.hash) {
+        const id = window.location.hash.substring(1);
+        setTimeout(() => {
+          const el = document.getElementById(id);
+          if (el) {
+            el.scrollIntoView({ behavior: "smooth", block: "center" });
+            el.classList.add("ring-4", "ring-[#F2924E]/50", "transition-all", "duration-1000");
+            setTimeout(() => el.classList.remove("ring-4", "ring-[#F2924E]/50"), 2000);
+          }
+        }, 300);
+      }
+    };
+
+    // Run initially on load
+    scrollToWidget();
+
+    // Run when hash changes dynamically (e.g., clicking notification while already on dashboard)
+    window.addEventListener("hashchange", scrollToWidget);
+    
+    // Some Next.js router transitions might not trigger standard hashchange, so we also listen to popstate
+    window.addEventListener("popstate", scrollToWidget);
+
+    return () => {
+      window.removeEventListener("hashchange", scrollToWidget);
+      window.removeEventListener("popstate", scrollToWidget);
+    };
+  }, [loading]);
+
   if (loading) {
     return (
       <div className="flex flex-col gap-6">

@@ -6,11 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { IconArrowLeft } from "@/components/Icons";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/auth-context";
-
-interface Department {
-  id: number;
-  name: string;
-}
+import DepartmentSelect from "@/components/DepartmentSelect";
 
 interface Role {
   id: number;
@@ -56,7 +52,6 @@ function EmployeeEditContent() {
     },
   });
 
-  const [departments, setDepartments] = useState<Department[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [showAdditionalInfo, setShowAdditionalInfo] = useState(true); // Default true for edit
 
@@ -68,13 +63,11 @@ function EmployeeEditContent() {
     if (!id) return;
     const init = async () => {
       try {
-        const [deps, roleData, employeeData] = await Promise.all([
-          api.get<Department[]>("/departments/"),
+        const [roleData, employeeData] = await Promise.all([
           api.get<Role[]>("/roles/"),
           api.get<Employee>(`/employees/${id}`)
         ]);
 
-        setDepartments(deps);
         setRoles(roleData);
         setFormData({
           employeeId: employeeData.employee_id,
@@ -225,10 +218,11 @@ function EmployeeEditContent() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
             <div>
               <label className={labelClass}>DEPARTMENT {requiredAsterisk}</label>
-              <select value={formData.work.departmentId || ""} onChange={(e) => setFormData({ ...formData, work: { ...formData.work, departmentId: parseInt(e.target.value) } })} className={selectClass}>
-                <option value="" disabled>Select Department</option>
-                {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-              </select>
+              <DepartmentSelect
+                value={formData.work.departmentId}
+                onChange={(id) => setFormData({ ...formData, work: { ...formData.work, departmentId: id } })}
+                selectClass={selectClass}
+              />
             </div>
             <div>
               <label className={labelClass}>ROLE {requiredAsterisk}</label>

@@ -45,15 +45,37 @@ def _write_audit_log(
     db.add(audit)
 
 
-def get_pending_documents(db: Session) -> list[dict]:
-    """Retrieve all documents currently awaiting HR review.
+def _ensure_can_review(db: Session, uploader_employee_id: int, current_user_id: int) -> None:
+    """Raise 403 if current_user is not allowed to review this employee's upload
+    (separation of duties — no self/peer approval; HR documents escalate to a super admin)."""
+    from app.documents.services.approval_routing import can_user_handle, employee_user_id
+    uploader_uid = employee_user_id(db, uploader_employee_id)
+    if not can_user_handle(db, current_user_id, uploader_uid, "document:approve"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not allowed to review this document. It must be handled by a higher authority.",
+        )
+
+
+def get_pending_documents(db: Session, current_user_id: int) -> list[dict]:
+    """Retrieve documents awaiting review that ``current_user_id`` may handle.
+
+    Applies separation-of-duties routing: a reviewer only sees uploads they are
+    allowed to approve — never their own, never a peer's (those escalate to a
+    super admin), and employees' uploads go to HR.
 
     Args:
         db: Active database session.
+        current_user_id: The user id of the reviewer requesting the list.
 
     Returns:
         List of dictionaries containing document data and employee names.
     """
+    from app.documents.services.approval_routing import (
+        get_super_admin_user_ids, eligible_handlers_from_sets,
+    )
+    from app.notifications.service import get_user_ids_with_permission
+
     documents = (
         db.query(EmployeeDocument, Employee)
         .join(Employee, Employee.id == EmployeeDocument.employee_id)
@@ -61,9 +83,16 @@ def get_pending_documents(db: Session) -> list[dict]:
         .order_by(EmployeeDocument.uploaded_at.desc())
         .all()
     )
-    
+
+    # Resolve approver/super-admin sets once, then filter each document.
+    approver_ids = set(get_user_ids_with_permission(db, "document:approve"))
+    super_admin_ids = get_super_admin_user_ids(db)
+
     result = []
     for doc, emp in documents:
+        eligible = eligible_handlers_from_sets(emp.user_id, approver_ids, super_admin_ids)
+        if current_user_id not in eligible:
+            continue
         result.append({
             "id": doc.id,
             "employee_id": doc.employee_id,
@@ -77,13 +106,14 @@ def get_pending_documents(db: Session) -> list[dict]:
     return result
 
 
-def approve_document(db: Session, document_id: UUID, reviewer_id: int) -> EmployeeDocument:
+def approve_document(db: Session, document_id: UUID, reviewer_id: int, current_user_id: int) -> EmployeeDocument:
     """Approve a pending employee document.
 
     Args:
         db: Active database session.
         document_id: UUID of the document to approve.
         reviewer_id: Employee ID of the HR user approving the document.
+        current_user_id: User id of the reviewer (for separation-of-duties check).
 
     Returns:
         The updated EmployeeDocument ORM object.
@@ -91,6 +121,7 @@ def approve_document(db: Session, document_id: UUID, reviewer_id: int) -> Employ
     Raises:
         HTTPException 404: If document is not found.
         HTTPException 400: If document is already approved/rejected.
+        HTTPException 403: If the reviewer is not allowed to handle this upload.
         HTTPException 500: If the database commit fails.
     """
     document = db.query(EmployeeDocument).filter(EmployeeDocument.id == document_id).first()
@@ -102,6 +133,8 @@ def approve_document(db: Session, document_id: UUID, reviewer_id: int) -> Employ
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Document cannot be approved from current status: {document.status.value}"
         )
+
+    _ensure_can_review(db, document.employee_id, current_user_id)
 
     old_status_val = document.status.value
     document.status = DocumentStatus.APPROVED
@@ -119,6 +152,21 @@ def approve_document(db: Session, document_id: UUID, reviewer_id: int) -> Employ
     try:
         db.commit()
         db.refresh(document)
+
+        # ── Notify requesting employee ────────────────────────────────────
+        try:
+            from app.notifications.service import notify_employee
+            notify_employee(
+                db, document.employee_id,
+                f"Your {document.document_type} upload was approved",
+                category="document", type="success", link="/dashboard/documents",
+                entity_type="employee_document", entity_id=str(document.id),
+            )
+            db.commit()
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error(f"[Approval] Notification failed for approve: {e}")
+
         return document
     except SQLAlchemyError as exc:
         db.rollback()
@@ -128,7 +176,7 @@ def approve_document(db: Session, document_id: UUID, reviewer_id: int) -> Employ
         ) from exc
 
 
-def reject_document(db: Session, document_id: UUID, reviewer_id: int, reason: str) -> EmployeeDocument:
+def reject_document(db: Session, document_id: UUID, reviewer_id: int, reason: str, current_user_id: int) -> EmployeeDocument:
     """Reject a pending employee document and notify the employee.
 
     Args:
@@ -136,6 +184,7 @@ def reject_document(db: Session, document_id: UUID, reviewer_id: int, reason: st
         document_id: UUID of the document to reject.
         reviewer_id: Employee ID of the HR user rejecting the document.
         reason: Text explaining why the document was rejected.
+        current_user_id: User id of the reviewer (for separation-of-duties check).
 
     Returns:
         The updated EmployeeDocument ORM object.
@@ -143,6 +192,7 @@ def reject_document(db: Session, document_id: UUID, reviewer_id: int, reason: st
     Raises:
         HTTPException 404: If document is not found.
         HTTPException 400: If document is already approved/rejected.
+        HTTPException 403: If the reviewer is not allowed to handle this upload.
         HTTPException 500: If the database commit fails.
     """
     document = db.query(EmployeeDocument).filter(EmployeeDocument.id == document_id).first()
@@ -154,6 +204,8 @@ def reject_document(db: Session, document_id: UUID, reviewer_id: int, reason: st
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Document cannot be rejected from current status: {document.status.value}"
         )
+
+    _ensure_can_review(db, document.employee_id, current_user_id)
 
     old_status_val = document.status.value
     document.status = DocumentStatus.REJECTED
@@ -181,6 +233,21 @@ def reject_document(db: Session, document_id: UUID, reviewer_id: int, reason: st
 
     # Attempt to send rejection email, but don't fail the request if email fails
     employee = db.query(Employee).filter(Employee.id == document.employee_id).first()
+    
+    # ── Notify requesting employee ────────────────────────────────────
+    try:
+        from app.notifications.service import notify_employee
+        notify_employee(
+            db, document.employee_id,
+            f"Your {document.document_type} upload was rejected: {reason}",
+            category="document", type="error", link="/dashboard/documents",
+            entity_type="employee_document", entity_id=str(document.id),
+        )
+        db.commit()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"[Approval] Notification failed for reject: {e}")
+
     if employee and employee.email:
         try:
             _send_rejection_email(

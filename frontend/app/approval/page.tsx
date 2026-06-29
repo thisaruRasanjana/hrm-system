@@ -225,7 +225,31 @@ export default function ApprovalPage() {
       }
 
       const data: BackendLeaveRequest = await response.json();
-      setSelectedRequest(mapBackendToFrontend(data));
+      const mapped = mapBackendToFrontend(data);
+
+      // Fetch the requesting employee's current leave balances for the modal.
+      try {
+        const balRes = await apiFetch(`/leave/balance/${data.employee_id}`, {
+          method: 'GET',
+          cache: 'no-store',
+        });
+        if (balRes.ok) {
+          const balances: { leave_type_name?: string; remaining?: number | null }[] =
+            await balRes.json();
+          const remainingFor = (re: RegExp) => {
+            const b = balances.find((x) => re.test(x.leave_type_name || ''));
+            return b && b.remaining != null ? String(b.remaining) : '--';
+          };
+          mapped.balances = {
+            annual: remainingFor(/annual/i),
+            casual: remainingFor(/casual/i),
+          };
+        }
+      } catch (balErr) {
+        console.error('Failed to load leave balances:', balErr);
+      }
+
+      setSelectedRequest(mapped);
       setModalMode('review');
     } catch (error) {
       console.error('openReview error:', error);

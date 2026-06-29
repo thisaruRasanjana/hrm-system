@@ -11,10 +11,13 @@ Responsibilities:
 from fastapi import HTTPException, status
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
+import logging
 
 from app.documents.models.request_model import DocumentRequest, RequestStatus
 from app.documents.schemas.request_schema import CreateRequest
 from app.employees.models import Employee
+
+_notif_logger = logging.getLogger(__name__)
 
 
 def create_document_request(db: Session, data: CreateRequest) -> DocumentRequest:
@@ -47,6 +50,25 @@ def create_document_request(db: Session, data: CreateRequest) -> DocumentRequest
         db.add(new_request)
         db.commit()
         db.refresh(new_request)
+
+        # ── Notify the eligible managers (separation-of-duties routing) ───
+        try:
+            from app.notifications.service import notify_users
+            from app.documents.services.approval_routing import (
+                get_eligible_handler_user_ids, employee_user_id,
+            )
+            requester_uid = employee_user_id(db, data.employee_id)
+            recipients = get_eligible_handler_user_ids(db, requester_uid, "document:request_manage")
+            notify_users(
+                db, recipients,
+                f"{employee.first_name} {employee.last_name} requested a {data.document_type} document",
+                category="document", type="info", link="/dashboard/documents/request_management",
+                entity_type="document_request", entity_id=str(new_request.id),
+            )
+            db.commit()
+        except Exception as e:
+            _notif_logger.error(f"[Documents] Notification failed for new request: {e}")
+
         return new_request
     except SQLAlchemyError as exc:
         db.rollback()

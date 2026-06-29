@@ -69,14 +69,24 @@ SYSTEM_PERMISSIONS = [
 SUPER_ADMIN_EXCLUDES = {
     "document:upload_own", "document:request_own",
     "leave:request", "leave:edit_pending", "leave:view_history",
+    # Self-service dashboard widgets — a super admin has no personal leave
+    # balance or submitted document requests, so these don't apply to them.
+    "widget.leave_balance.view",
+    "widget.approval_summary.view_requests",
 }
+
+# Built-in roles seeded by the system. These are protected — they cannot be
+# deleted via the API (only custom, user-defined roles may be removed).
+SYSTEM_ROLE_NAMES = {"Super Admin", "HR", "Manager", "Employee"}
 
 # HR — Specific list + all dashboard except interview_panel
 HR_PERMISSIONS = {
     "employee:create", "employee:update", "employee:delete", "employee:view_all", "employee:view_own",
     "role:create", "role:view", "role:assign",
     "document:upload_own", "document:request_own", "document:approve", "document:request_manage", "document:template_upload", "document:type_manage",
-    "leave:request", "leave:edit_pending", "leave:view_history", "leave:approve", "leave:reject", "leave:report", "leave:type_manage",
+    # leave:type_manage is intentionally NOT granted to HR — Leave Settings
+    # (leave types & entitlements) is a super-admin-only area.
+    "leave:request", "leave:edit_pending", "leave:view_history", "leave:approve", "leave:reject", "leave:report",
     "recruitment:manage", "recruitment:view",
     "messaging.send", "messaging.receive"
 }
@@ -125,24 +135,22 @@ def seed_roles(db: Session) -> None:
     db.flush()
 
     # 2. Cleanup orphaned permissions and roles
+    #    Delete permissions that are no longer part of the system definition.
+    #    These are leftovers from earlier seed versions (e.g. the old dashboard:*
+    #    set replaced by widget.*, or resource-less names like employee:view).
+    #    Deleting cascades to role_permissions, so every role loses the stale
+    #    link cleanly. No current code references these names, so removal is safe
+    #    — and it keeps the Role Management permission list accurate.
     system_perm_names = {p[0] for p in SYSTEM_PERMISSIONS}
     db_perms = db.query(Permission).all()
     for p in db_perms:
         if p.permission_name not in system_perm_names:
-            p.description = "DEPRECATED"
-            p.roles = [] # Remove from all roles
+            db.delete(p)
 
-    system_role_names = {"Super Admin", "HR", "Manager", "Employee"}
-    db_roles = db.query(Role).all()
-    for r in db_roles:
-        if r.role_name not in system_role_names:
-            # We don't necessarily want to delete them if users are assigned, 
-            # but we'll clear their permissions to indicate they are legacy
-            desc = r.description or ""
-            while desc.startswith("LEGACY: "):
-                desc = desc[8:]
-            r.description = f"LEGACY: {desc}"[:255]
-            r.permissions = []
+    # NOTE: We intentionally do NOT touch non-system roles here. Custom,
+    # user-defined roles are a supported feature (created via Role Management),
+    # so the seeder must leave them — and their permissions — completely alone.
+    # Only the four built-in roles below are (re)synced.
 
     db.flush()
 

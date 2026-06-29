@@ -51,6 +51,11 @@ class DocumentRequest(Base):
     # Email address of the person who sent an external email request
     requester_email = Column(String(255), nullable=True)
 
+    # Full body of the inbound email (external requests only). Lets HR read the
+    # actual context — e.g. which employee the letter is about — since the system
+    # does not auto-extract that. Text: email bodies can be arbitrarily long.
+    requester_message = Column(Text, nullable=True)
+
     # Human-readable document type (e.g. "Service Letter", "Salary Confirmation")
     document_type = Column(String(150), nullable=False)
 

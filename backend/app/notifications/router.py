@@ -43,6 +43,24 @@ def get_recent(
     )
 
 
+# ── GET unread count ──────────────────────────────────────────────────────────
+@router.get("/unread-count")
+def get_unread_count(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Returns the total number of unread notifications for the bell badge"""
+    count = (
+        db.query(Notification)
+        .filter(
+            Notification.user_id == current_user.id,
+            Notification.is_read == False,
+        )
+        .count()
+    )
+    return {"count": count}
+
+
 # ── PUT mark single notification as read ──────────────────────────────────────
 @router.put("/{notification_id}/read", response_model=NotificationResponse)
 def mark_read(
@@ -96,7 +114,10 @@ def internal_push(
         user_id=data.user_id,
         message=data.message,
         type=data.type,
-        link=data.link
+        link=data.link,
+        category=data.category,
+        entity_type=data.entity_type,
+        entity_id=data.entity_id,
     )
     db.add(notif)
     db.commit()

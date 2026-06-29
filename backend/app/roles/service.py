@@ -81,6 +81,54 @@ def update_role(db: Session, role_id: int, payload: RoleUpdate) -> Role:
     return role
 
 
+def delete_role(db: Session, role_id: int) -> int:
+    """
+    Delete a custom (user-defined) role, detaching it from any users first.
+
+    - Built-in system roles (Super Admin, HR, Manager, Employee) cannot be deleted.
+    - Any users currently holding the role are unassigned before deletion: the
+      role is removed from their role list, and the scalar users.role_id column
+      (a plain FK with no cascade) is repointed to a remaining role, or cleared.
+      This must happen first or the DELETE would violate the role_id FK.
+
+    Returns the number of users that were unassigned.
+    """
+    from sqlalchemy import or_
+    from app.auth.models import User
+    from app.roles.seed import SYSTEM_ROLE_NAMES
+
+    role = get_role_by_id(db, role_id)  # 404 if not found
+
+    if role.role_name in SYSTEM_ROLE_NAMES:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"'{role.role_name}' is a built-in system role and cannot be deleted.",
+        )
+
+    # Detach the role from every user that holds it — via the user_roles join
+    # table and/or the scalar users.role_id column.
+    affected = (
+        db.query(User)
+        .filter(or_(User.roles.any(Role.id == role_id), User.role_id == role_id))
+        .all()
+    )
+    for user in affected:
+        user.roles = [r for r in user.roles if r.id != role_id]
+        if user.role_id == role_id:
+            # Fall back to a remaining role if the user still has one, else clear.
+            if user.roles:
+                user.role_id = user.roles[0].id
+                user.role = user.roles[0].role_name
+            else:
+                user.role_id = None
+                user.role = None
+    db.flush()
+
+    db.delete(role)  # role_permissions rows cascade automatically
+    db.commit()
+    return len(affected)
+
+
 # ---------------------------------------------------------------------------
 # Assign roles to user
 # ---------------------------------------------------------------------------
@@ -115,6 +163,21 @@ def assign_roles_to_user(db: Session, payload: AssignRoleRequest) -> dict:
         user.role = None
 
     db.commit()
+
+    # ── Notify user of role change ──────────────────────────────────
+    try:
+        from app.notifications.service import notify_user
+        if roles:
+            notify_user(
+                db, user.id,
+                f"Your access roles have been updated. Primary role: {roles[0].role_name}",
+                category="security", type="info", link="/dashboard/settings/security",
+                entity_type="user", entity_id=str(user.id),
+            )
+            db.commit()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"[Roles] Notification failed: {e}")
 
     # Re-fetch with eager loads so the returned object is fully populated
     user = (

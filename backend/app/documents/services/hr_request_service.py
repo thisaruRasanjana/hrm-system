@@ -17,24 +17,47 @@ from uuid import UUID
 from fastapi import HTTPException, status
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
+import logging
 
 from app.documents.models.request_model import DocumentRequest, RequestStatus
 from app.employees.models import Employee
 
+_notif_logger = logging.getLogger(__name__)
 
-def get_all_hr_requests(db: Session, filter_status: str = None) -> list[dict]:
-    """Retrieve all document requests, optionally filtered by status.
 
-    Performs an outer-join with the Employee table so that external requests
-    (which have no linked employee) are still returned.
+def ensure_can_handle_request(db: Session, request: DocumentRequest, current_user_id: int) -> None:
+    """Raise 403 if current_user is not allowed to act on this request
+    (separation of duties — no self/peer handling; HR requests escalate to a super admin)."""
+    from app.documents.services.approval_routing import can_user_handle, employee_user_id
+    requester_uid = employee_user_id(db, request.employee_id)  # None for external requests
+    if not can_user_handle(db, current_user_id, requester_uid, "document:request_manage"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not allowed to handle this request. It must be handled by a higher authority.",
+        )
+
+
+def get_all_hr_requests(db: Session, current_user_id: int, filter_status: str = None) -> list[dict]:
+    """Retrieve the document requests that ``current_user_id`` may handle.
+
+    Applies separation-of-duties routing: a manager only sees requests they are
+    allowed to act on — never their own, never a peer's (those escalate to a
+    super admin); employees' and external requests go to HR. Performs an
+    outer-join with Employee so external requests (no linked employee) are kept.
 
     Args:
         db: Active SQLAlchemy database session.
+        current_user_id: The user id of the manager requesting the list.
         filter_status: Optional status string matching a RequestStatus enum key.
 
     Returns:
         List of request dictionaries including employee display name.
     """
+    from app.documents.services.approval_routing import (
+        get_super_admin_user_ids, eligible_handlers_from_sets,
+    )
+    from app.notifications.service import get_user_ids_with_permission
+
     query = (
         db.query(DocumentRequest, Employee)
         .outerjoin(Employee, Employee.id == DocumentRequest.employee_id)
@@ -51,8 +74,17 @@ def get_all_hr_requests(db: Session, filter_status: str = None) -> list[dict]:
 
     requests = query.all()
 
+    # Resolve manager/super-admin sets once, then filter each request.
+    manager_ids = set(get_user_ids_with_permission(db, "document:request_manage"))
+    super_admin_ids = get_super_admin_user_ids(db)
+
     result = []
     for req, emp in requests:
+        # External requests have no linked user → treated as employee-tier (→ HR).
+        requester_uid = emp.user_id if emp else None
+        eligible = eligible_handlers_from_sets(requester_uid, manager_ids, super_admin_ids)
+        if current_user_id not in eligible:
+            continue
         employee_name = f"{emp.first_name} {emp.last_name}" if emp else "External / Unknown"
         result.append({
             "id": req.id,
@@ -63,6 +95,7 @@ def get_all_hr_requests(db: Session, filter_status: str = None) -> list[dict]:
             "status": req.status,
             "source": getattr(req, "source", "INTERNAL"),
             "requester_email": getattr(req, "requester_email", None),
+            "requester_message": getattr(req, "requester_message", None),
             "rejection_reason": req.rejection_reason,
             "generated_document_path": req.generated_document_path,
             "created_at": req.created_at,
@@ -76,6 +109,7 @@ def update_request_status(
     request_id: UUID,
     new_status: RequestStatus,
     rejection_reason: str = None,
+    current_user_id: int = None,
 ) -> DocumentRequest:
     """Update the status of a document request.
 
@@ -97,6 +131,9 @@ def update_request_status(
     if not request:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Request not found")
 
+    if current_user_id is not None:
+        ensure_can_handle_request(db, request, current_user_id)
+
     if new_status == RequestStatus.REJECTED and not rejection_reason:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -110,6 +147,25 @@ def update_request_status(
     try:
         db.commit()
         db.refresh(request)
+
+        # ── Notify requesting employee (if internal) ──────────────────────
+        if request.employee_id:
+            try:
+                from app.notifications.service import notify_employee
+                msg = f"Your document request ({request.document_type}) status changed to {new_status.value}"
+                if new_status == RequestStatus.REJECTED:
+                    msg = f"Your document request ({request.document_type}) was rejected: {rejection_reason}"
+                notif_type = "error" if new_status == RequestStatus.REJECTED else "info"
+                
+                notify_employee(
+                    db, request.employee_id, msg,
+                    category="document", type=notif_type, link="/dashboard/documents/request",
+                    entity_type="document_request", entity_id=str(request.id),
+                )
+                db.commit()
+            except Exception as e:
+                _notif_logger.error(f"[Documents] Notification failed for HR status update: {e}")
+
     except SQLAlchemyError as exc:
         db.rollback()
         raise HTTPException(

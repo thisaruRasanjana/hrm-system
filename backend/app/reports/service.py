@@ -36,8 +36,15 @@ def build_leave_report_query(
             Employee.status.label("employee_status"),
             )
         .join(LeaveType, LeaveRequest.leave_type_id == LeaveType.id)
-        .outerjoin(Employee, LeaveRequest.employee_id == Employee.id)
+        # INNER join: only leave requests that belong to a real, existing employee.
+        # (Orphaned requests whose employee was removed are dropped from the report.)
+        .join(Employee, LeaveRequest.employee_id == Employee.id)
         .outerjoin(Department, Employee.department_id == Department.id)
+    )
+
+    # Exclude soft-deleted employees so the report reflects only current staff.
+    query = query.filter(
+        (Employee.is_deleted == False) | (Employee.is_deleted.is_(None))
     )
 
     if employee_id is not None:
@@ -130,6 +137,22 @@ def get_leave_report(
             "rejection_reason": leave.rejection_reason,
             "manager_comment": leave.manager_comment,
         })
+
+    # Attach each employee's real yearly leave entitlement (the "allocated" total)
+    # so the report can show a correct balance instead of summing requested days.
+    from app.leave.service import get_leave_balances
+    alloc_cache: dict[int, float] = {}
+    for rec in records:
+        eid = rec["employee_id"]
+        if eid not in alloc_cache:
+            try:
+                bals = get_leave_balances(db, eid)
+                alloc_cache[eid] = sum(
+                    float(b["entitlement"]) for b in bals if b.get("entitlement") is not None
+                )
+            except Exception:
+                alloc_cache[eid] = 0.0
+        rec["allocated"] = alloc_cache[eid]
 
     summary = {
         "total_requests": len(records),
@@ -249,12 +272,14 @@ def generate_leave_report_pdf(data):
     ]
 
     for r in data["records"]:
+        # Coalesce to strings — reportlab can't render None cells (e.g. a leave
+        # request whose employee/department was removed → outer-join nulls).
         table_data.append([
-            r["employee_name"],
-            r["department"],
-            r["leave_type_name"],
-            str(r["total_days"]),
-            r["status"],
+            str(r.get("employee_name") or "N/A"),
+            str(r.get("department") or "N/A"),
+            str(r.get("leave_type_name") or "N/A"),
+            str(r.get("total_days") if r.get("total_days") is not None else 0),
+            str(r.get("status") or "N/A"),
         ])
 
     table = Table(table_data)

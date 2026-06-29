@@ -73,7 +73,9 @@ UPLOAD_DIR_DOCUMENTS: str = os.getenv("UPLOAD_DIR_DOCUMENTS", "uploads/documents
 UPLOAD_DIR_TEMPLATES: str = os.getenv("UPLOAD_DIR_TEMPLATES", "uploads/templates")
 UPLOAD_DIR_GENERATED: str = os.getenv("UPLOAD_DIR_GENERATED", "uploads/generated_documents")
 MAX_FILE_SIZE_BYTES: int = int(os.getenv("MAX_FILE_SIZE_BYTES", str(10 * 1024 * 1024)))
-EMAIL_POLL_INTERVAL_SECONDS: int = int(os.getenv("EMAIL_POLL_INTERVAL_SECONDS", "60"))
+# External document requests are low-urgency (HR actions them over hours), so a
+# few minutes between polls is plenty and avoids hammering Gmail's IMAP login limits.
+EMAIL_POLL_INTERVAL_SECONDS: int = int(os.getenv("EMAIL_POLL_INTERVAL_SECONDS", "300"))
 
 
 class _Settings:

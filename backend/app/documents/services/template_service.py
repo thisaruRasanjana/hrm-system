@@ -12,6 +12,7 @@ Responsibilities:
 import os
 import shutil
 from datetime import datetime
+from uuid import uuid4
 
 from fastapi import HTTPException, status, UploadFile
 from sqlalchemy.exc import SQLAlchemyError
@@ -73,7 +74,10 @@ def create_template(
         os.makedirs(UPLOAD_DIR_TEMPLATES, exist_ok=True)
         # Auto-detect correct type from the actual uploaded file extension
         template_type = _detect_type_from_file(file.filename, template_type)
-        file_location = os.path.join(UPLOAD_DIR_TEMPLATES, file.filename)
+        # Store under a server-generated unique name (never the user filename) to
+        # avoid path traversal and overwriting another template with the same name.
+        ext = os.path.splitext(file.filename or "")[1].lower()
+        file_location = os.path.join(UPLOAD_DIR_TEMPLATES, f"{uuid4().hex}{ext}")
 
         with open(file_location, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
@@ -177,7 +181,9 @@ def update_template(
     if file and file.filename:
         os.makedirs(UPLOAD_DIR_TEMPLATES, exist_ok=True)
         template.template_type = _detect_type_from_file(file.filename, template.template_type)
-        file_location = os.path.join(UPLOAD_DIR_TEMPLATES, file.filename)
+        # Server-generated unique name (see create_template) — no traversal/collision.
+        ext = os.path.splitext(file.filename or "")[1].lower()
+        file_location = os.path.join(UPLOAD_DIR_TEMPLATES, f"{uuid4().hex}{ext}")
 
         with open(file_location, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)

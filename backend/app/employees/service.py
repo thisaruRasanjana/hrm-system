@@ -146,6 +146,19 @@ def create_employee(db: Session, employee: EmployeeCreate, background_tasks: Bac
         db.commit()
         db.refresh(db_employee)
 
+        # ── Notify the new employee ──────────────────────────────────────
+        try:
+            from app.notifications.service import notify_user
+            notify_user(
+                db, db_user.id,
+                f"Welcome to the team, {db_employee.first_name}!",
+                category="system", type="success", link="/dashboard",
+                entity_type="employee", entity_id=str(db_employee.id),
+            )
+            db.commit()
+        except Exception as e:
+            logger.error(f"Notification failed for new employee: {e}")
+
         full_name = f"{db_employee.first_name} {db_employee.last_name}"
         background_tasks.add_task(_email_module.send_welcome_email, db_employee.email, full_name, temp_password)
 

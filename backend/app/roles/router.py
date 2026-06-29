@@ -34,6 +34,12 @@ def update_role(role_id: int, payload: schemas.RoleUpdate, db: Session = Depends
     return service.update_role(db, role_id, payload)
 
 
+@router.delete("/{role_id}", summary="Delete a custom role", dependencies=[Depends(require_permission("role:create"))])
+def delete_role(role_id: int, db: Session = Depends(get_db)):
+    unassigned = service.delete_role(db, role_id)
+    return {"deleted": True, "unassigned_users": unassigned}
+
+
 @router.post("/assign", summary="Assign roles to a user (replaces existing roles)", dependencies=[Depends(require_permission("role:assign"))])
 def assign_roles(payload: schemas.AssignRoleRequest, db: Session = Depends(get_db)):
     return service.assign_roles_to_user(db, payload)
