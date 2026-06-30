@@ -24,52 +24,42 @@ type Vacancy = {
 
 type Panel = {
   panel_head_id: number | null;
-  panel_member_1_id: number | null;
-  panel_member_2_id: number | null;
+  panel_head_name: string | null;
   interview_link: string | null;
+  members: { user_id: number; full_name: string }[];
 };
 
-type User = {
+type EligibleUser = {
   id: number;
   first_name: string;
   last_name: string;
+  full_name: string;
+  email: string;
 };
 
-// Searchable employee autocomplete — identical to create page
-function EmployeeSearch({
-  users,
-  onSelect,
-  placeholder,
-  initialName,
-}: {
-  users: User[];
-  onSelect: (id: string) => void;
-  placeholder: string;
-  initialName?: string;
+// Searchable autocomplete for panel-eligible users only
+function UserSearch({ users, selectedId, onSelect, placeholder, excludeIds = [] }: {
+  users: EligibleUser[]; selectedId: string; onSelect: (id: string) => void;
+  placeholder: string; excludeIds?: number[];
 }) {
-  const [query, setQuery] = useState(initialName ?? "");
+  const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Update displayed name when initial data loads
   useEffect(() => {
-    if (initialName) setQuery(initialName);
-  }, [initialName]);
+    if (!selectedId) { setQuery(""); return; }
+    const u = users.find((u) => String(u.id) === selectedId);
+    if (u) setQuery(u.full_name);
+  }, [selectedId, users]);
 
-  const filtered = users.filter((u) =>
-    `${u.first_name} ${u.last_name}`
-      .toLowerCase()
-      .includes(query.toLowerCase())
+  const filtered = users.filter(
+    (u) => !excludeIds.includes(u.id) &&
+      `${u.first_name} ${u.last_name}`.toLowerCase().includes(query.toLowerCase())
   );
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (
-        containerRef.current &&
-        !containerRef.current.contains(event.target as Node)
-      ) {
-        setOpen(false);
-      }
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) setOpen(false);
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
@@ -77,32 +67,23 @@ function EmployeeSearch({
 
   return (
     <div ref={containerRef} className="relative">
-      <input
-        type="text"
-        placeholder={placeholder}
-        className={inputCls}
-        value={query}
-        onChange={(e) => {
-          setQuery(e.target.value);
-          setOpen(true);
-        }}
-      />
-
-      {open && filtered.length > 0 && (
-        <div className="absolute z-20 w-full bg-white border border-gray-200 rounded-xl mt-2 max-h-52 overflow-y-auto shadow-lg">
-          {filtered.map((u) => (
-            <div
-              key={u.id}
-              onClick={() => {
-                onSelect(String(u.id));
-                setQuery(`${u.first_name} ${u.last_name}`);
-                setOpen(false);
-              }}
-              className="px-4 py-2 text-sm text-gray-700 hover:bg-orange-50 cursor-pointer"
-            >
-              {u.first_name} {u.last_name}
+      <input type="text" placeholder={placeholder} className={inputCls} value={query}
+        onChange={(e) => { setQuery(e.target.value); setOpen(true); onSelect(""); }}
+        onFocus={() => setOpen(true)} />
+      {open && (
+        <div className="absolute z-50 w-full bg-white border border-gray-200 rounded-xl mt-2 max-h-52 overflow-y-auto shadow-lg">
+          {filtered.length > 0 ? filtered.map((u) => (
+            <div key={u.id}
+              onClick={() => { onSelect(String(u.id)); setQuery(u.full_name); setOpen(false); }}
+              className="px-4 py-2.5 text-sm text-gray-700 hover:bg-orange-50 cursor-pointer flex justify-between items-center">
+              <span className="font-medium">{u.full_name}</span>
+              <span className="text-gray-400 text-xs">{u.email}</span>
             </div>
-          ))}
+          )) : (
+            <div className="px-4 py-3 text-sm text-gray-400">
+              {query.length > 0 ? "No eligible users found. Assign Interview Panel permission via Role Management." : "No users with Interview Panel permission found."}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -115,7 +96,7 @@ export default function EditVacancyPage() {
   const vacancyId = params.id as string;
 
   const [vacancy, setVacancy] = useState<Vacancy | null>(null);
-  const [users, setUsers] = useState<User[]>([]);
+  const [eligibleUsers, setEligibleUsers] = useState<EligibleUser[]>([]);
   const [panelOpen, setPanelOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -128,25 +109,10 @@ export default function EditVacancyPage() {
     status: "Active",
   });
 
-  // Panel fields — pre-filled after load
-  const [panel, setPanel] = useState<{
-    panel_head_id: string;
-    panel_member_1_id: string;
-    panel_member_2_id: string;
-    interview_link: string;
-  }>({
-    panel_head_id: "",
-    panel_member_1_id: "",
-    panel_member_2_id: "",
-    interview_link: "",
-  });
-
-  // Names for pre-filling EmployeeSearch fields
-  const [panelNames, setPanelNames] = useState({
-    head: "",
-    member1: "",
-    member2: "",
-  });
+  // Panel state — pre-filled after load
+  const [panelHeadId, setPanelHeadId] = useState("");
+  const [interviewLink, setInterviewLink] = useState("");
+  const [memberIds, setMemberIds] = useState<string[]>([]);
 
   useEffect(() => {
     if (!vacancyId) return;
@@ -165,43 +131,18 @@ export default function EditVacancyPage() {
           status: v.status ?? "Active",
         });
 
-        // Fetch employees for panel search
-        const empRes = await apiFetch(`/employees/`);
+        // Fetch panel-eligible users for panel search
+        const empRes = await apiFetch(`/recruitment/panel-eligible-users`);
         const empData = await empRes.json();
-        const empList: User[] = Array.isArray(empData) ? empData : [];
-        setUsers(empList);
+        setEligibleUsers(Array.isArray(empData) ? empData : []);
 
         // Fetch existing panel (may return 404 — that's fine)
-        const panelRes = await apiFetch(`/recruitment/vacancies/${vacancyId}/panel`
-        );
-
+        const panelRes = await apiFetch(`/recruitment/vacancies/${vacancyId}/panel`);
         if (panelRes.ok) {
           const p: Panel = await panelRes.json();
-          setPanel({
-            panel_head_id: p.panel_head_id ? String(p.panel_head_id) : "",
-            panel_member_1_id: p.panel_member_1_id
-              ? String(p.panel_member_1_id)
-              : "",
-            panel_member_2_id: p.panel_member_2_id
-              ? String(p.panel_member_2_id)
-              : "",
-            interview_link: p.interview_link ?? "",
-          });
-
-          // Resolve names for the search fields
-          const getName = (id: number | null) => {
-            if (!id) return "";
-            const emp = empList.find((e) => e.id === id);
-            return emp ? `${emp.first_name} ${emp.last_name}` : "";
-          };
-
-          setPanelNames({
-            head: getName(p.panel_head_id),
-            member1: getName(p.panel_member_1_id),
-            member2: getName(p.panel_member_2_id),
-          });
-
-          // Auto-open the panel section if one already exists
+          setPanelHeadId(p.panel_head_id ? String(p.panel_head_id) : "");
+          setInterviewLink(p.interview_link ?? "");
+          setMemberIds(p.members.map((m) => String(m.user_id)));
           setPanelOpen(true);
         }
       } catch (err) {
@@ -238,22 +179,20 @@ export default function EditVacancyPage() {
       }
 
       // Save the panel whenever a panel head has been selected
-      if (panel.panel_head_id) {
-        const panelRes = await apiFetch(`/recruitment/vacancies/${vacancyId}/panel`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              panel_head_id: Number(panel.panel_head_id),
-              panel_member_1_id: panel.panel_member_1_id ? Number(panel.panel_member_1_id) : null,
-              panel_member_2_id: panel.panel_member_2_id ? Number(panel.panel_member_2_id) : null,
-              interview_link: panel.interview_link || null,
-            }),
-          }
-        );
+      if (panelHeadId) {
+        const validMembers = memberIds.filter(Boolean).map(Number);
+        const panelRes = await apiFetch(`/recruitment/vacancies/${vacancyId}/panel`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            panel_head_id: Number(panelHeadId),
+            interview_link: interviewLink || null,
+            member_ids: validMembers,
+          }),
+        });
         if (!panelRes.ok) {
           const panelErr = await panelRes.json().catch(() => null);
-          setError(panelErr?.detail ?? "Panel saved failed.");
+          setError(panelErr?.detail ?? "Panel save failed.");
           setSaving(false);
           return;
         }
@@ -390,53 +329,87 @@ export default function EditVacancyPage() {
 
               {/* Interview Panel */}
               <div className="border border-gray-200 rounded-xl">
-                <button
-                  type="button"
-                  onClick={() => setPanelOpen(!panelOpen)}
-                  className="w-full flex justify-between items-center px-4 py-3 text-sm font-medium text-gray-700"
-                >
-                  Interview Panel
+                <button type="button" onClick={() => setPanelOpen(!panelOpen)}
+                  className="w-full flex justify-between items-center px-5 py-3.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition rounded-xl">
+
+                  <span className="flex items-center gap-2">
+                    Interview Panel
+                    {panelHeadId && (
+                      <span className="bg-orange-100 text-orange-600 text-xs font-medium px-2 py-0.5 rounded-full">
+                        {eligibleUsers.find(u => String(u.id) === panelHeadId)?.full_name ?? "Head selected"}
+                        {memberIds.filter(Boolean).length > 0 && ` + ${memberIds.filter(Boolean).length} member${memberIds.filter(Boolean).length > 1 ? "s" : ""}`}
+                      </span>
+                    )}
+                  </span>
                   <span>{panelOpen ? "−" : "+"}</span>
                 </button>
 
                 {panelOpen && (
-                  <div className="p-6 border-t border-gray-200 space-y-4">
-                    <EmployeeSearch
-                      users={users}
-                      onSelect={(id) =>
-                        setPanel({ ...panel, panel_head_id: id })
-                      }
-                      placeholder="Search panel head"
-                      initialName={panelNames.head}
-                    />
+                  <div className="p-6 border-t border-gray-200 space-y-5 bg-gray-50/50">
 
-                    <EmployeeSearch
-                      users={users}
-                      onSelect={(id) =>
-                        setPanel({ ...panel, panel_member_1_id: id })
-                      }
-                      placeholder="Search panel member"
-                      initialName={panelNames.member1}
-                    />
+                    {/* Panel Head */}
+                    <div>
+                      <label className="block mb-1 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                        Panel Head <span className="text-red-400">*</span>
+                      </label>
+                      <p className="text-xs text-gray-400 mb-2">
+                        Only users with the "Interview Panel" permission are shown.
+                      </p>
+                      <UserSearch users={eligibleUsers} selectedId={panelHeadId}
+                        onSelect={setPanelHeadId} placeholder="Search panel head by name…"
+                        excludeIds={memberIds.filter(Boolean).map(Number)} />
+                    </div>
 
-                    <EmployeeSearch
-                      users={users}
-                      onSelect={(id) =>
-                        setPanel({ ...panel, panel_member_2_id: id })
-                      }
-                      placeholder="Search panel member"
-                      initialName={panelNames.member2}
-                    />
+                    {/* Calendly / Interview Link */}
+                    <div>
+                      <label className="block mb-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Calendly / Interview Link</label>
+                      <input type="url" placeholder="https://calendly.com/your-link" className={inputCls}
+                        value={interviewLink} onChange={(e) => setInterviewLink(e.target.value)} />
+                    </div>
 
-                    <input
-                      type="text"
-                      placeholder="Interview Link (Google Meet / Zoom)"
-                      className={inputCls}
-                      value={panel.interview_link}
-                      onChange={(e) =>
-                        setPanel({ ...panel, interview_link: e.target.value })
-                      }
-                    />
+                    {/* Dynamic Panel Members */}
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <div>
+                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Panel Members</p>
+                          <p className="text-xs text-gray-400 mt-0.5">Additional evaluators — must also have the Interview Panel permission.</p>
+                        </div>
+                        <button type="button" onClick={() => setMemberIds(prev => [...prev, ""])}
+                          className="flex items-center gap-1.5 text-xs font-medium text-orange-500 hover:text-orange-600 border border-orange-200 hover:border-orange-300 rounded-lg px-3 py-1.5 hover:bg-orange-50 transition">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                          </svg>
+                          Add Member
+                        </button>
+                      </div>
+                      {memberIds.length === 0 ? (
+                        <p className="text-xs text-gray-400 italic">No additional members added yet.</p>
+                      ) : (
+                        <div className="space-y-2.5">
+                          {memberIds.map((memberId, idx) => (
+                            <div key={idx} className="flex items-center gap-2">
+                              <span className="text-xs text-gray-400 w-6 text-right shrink-0">{idx + 1}.</span>
+                              <div className="flex-1">
+                                <UserSearch users={eligibleUsers} selectedId={memberId}
+                                  onSelect={(id) => setMemberIds(prev => prev.map((v, i) => i === idx ? id : v))}
+                                  placeholder={`Search member ${idx + 1}…`}
+                                  excludeIds={[
+                                    panelHeadId ? Number(panelHeadId) : 0,
+                                    ...memberIds.filter((_, i) => i !== idx).filter(Boolean).map(Number),
+                                  ].filter(Boolean)} />
+                              </div>
+                              <button type="button"
+                                onClick={() => setMemberIds(prev => prev.filter((_, i) => i !== idx))}
+                                className="p-2 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition shrink-0">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>

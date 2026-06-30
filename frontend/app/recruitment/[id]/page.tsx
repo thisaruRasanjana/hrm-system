@@ -413,19 +413,11 @@ export default function VacancyDetailPage() {
                         </td>
                         <td className="px-6 py-4 text-sm text-center">
                           <div className="flex items-center justify-center gap-4">
-                            {c.status === "Second Round" && (
-                              <Link
-                                href={`/recruitment/${vacancyId}/candidates/${c.candidate_id}/evaluate?role=head`}
-                                className="text-blue-500 hover:text-blue-600 font-medium transition-colors"
-                              >
-                                Evaluate
-                              </Link>
-                            )}
                             <Link
                               href={`/recruitment/${vacancyId}/candidates/${c.candidate_id}/final-decision?from=evaluated`}
                               className="text-orange-500 hover:text-orange-600 font-medium transition-colors"
                             >
-                              Final Decision
+                              View &amp; Decide
                             </Link>
                           </div>
                         </td>
