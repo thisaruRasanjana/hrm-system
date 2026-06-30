@@ -160,6 +160,7 @@ class CandidateResponse(BaseModel):
     email:        Optional[str] = None
     phone:        Optional[str] = None
     status:       Optional[str] = None
+    active_round: int = 1
     ai_score:     Optional[float] = None
     ai_reasoning: Optional[str] = None
 
@@ -196,28 +197,39 @@ class ApplicationUpdate(BaseModel):
 
 # ── Interview Panel Schemas ────────────────────────────────────────────────────
 
+class InterviewPanelMemberInfo(BaseModel):
+    """Lightweight member record returned inside the panel response."""
+    user_id:    int
+    full_name:  str
+
+    model_config = {"from_attributes": True}
+
+
 class InterviewPanelCreate(BaseModel):
     """
     Payload for creating or updating an interview panel for a vacancy.
-    panel_head_id is required before any scheduling link can be sent.
+
+    panel_head_id is required and must belong to a user who has the
+    'recruitment:interview_panel' permission (validated server-side).
+    member_ids is an ordered list of additional panel member user IDs —
+    all must also have the 'recruitment:interview_panel' permission.
+    interview_link is an optional Calendly / scheduling URL for the panel.
     """
 
-    panel_head_id:     Optional[int] = None
-    panel_member_1_id: Optional[int] = None
-    panel_member_2_id: Optional[int] = None
-    # interview_link is a Calendly / Google Calendar URL.
-    interview_link:    Optional[str] = Field(None, max_length=2048)
+    panel_head_id:  int             = Field(..., description="User ID of the panel head.")
+    interview_link: Optional[str]   = Field(None, max_length=2048)
+    member_ids:     list[int]       = Field(default_factory=list)
 
 
 class InterviewPanelResponse(BaseModel):
     """Read model for an interview panel configuration."""
 
-    id:                int
-    vacancy_id:        int
-    panel_head_id:     Optional[int]
-    panel_member_1_id: Optional[int]
-    panel_member_2_id: Optional[int]
-    interview_link:    Optional[str]
+    id:             int
+    vacancy_id:     int
+    panel_head_id:  Optional[int]
+    panel_head_name: Optional[str]  = None
+    interview_link:  Optional[str]
+    members:         list[InterviewPanelMemberInfo] = []
 
     model_config = {"from_attributes": True}
 
@@ -241,6 +253,7 @@ class EvaluationCreate(BaseModel):
     comments:         Optional[str]  = Field(None, max_length=5_000)
     needs_another_round: bool        = False
     evaluator_name:   Optional[str]  = Field(None, max_length=255)
+    evaluator_user_id: Optional[int] = None
 
 
 class EvaluationResponse(BaseModel):
@@ -258,6 +271,7 @@ class EvaluationResponse(BaseModel):
     comments:           Optional[str]
     needs_another_round: bool
     evaluator_name:     Optional[str]
+    evaluator_user_id:  Optional[int]
     created_at:         datetime
 
     model_config = {"from_attributes": True}

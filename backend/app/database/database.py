@@ -24,7 +24,21 @@ if not DATABASE_URL:
 
 print("DATABASE URL USED BY FASTAPI:", DATABASE_URL)
 
-engine = create_engine(DATABASE_URL)
+engine = create_engine(
+    DATABASE_URL,
+    # Health-check each connection before use — drops stale/closed connections
+    # instead of returning them to the caller and causing timeouts.
+    pool_pre_ping=True,
+    # Allow up to 10 concurrent connections per worker (default is 5).
+    pool_size=10,
+    # Allow an additional 20 temporary connections under burst load.
+    max_overflow=20,
+    # Recycle connections that have been open for more than 30 minutes
+    # to avoid issues with PostgreSQL's idle-connection limits.
+    pool_recycle=1800,
+    # Wait up to 60 s for a pool slot before raising TimeoutError.
+    pool_timeout=60,
+)
 
 SessionLocal = sessionmaker(
     autocommit=False,
