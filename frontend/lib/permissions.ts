@@ -23,6 +23,7 @@ export const MESSAGING_SEND = "messaging.send";
 
 // Time Tracking / Attendance
 export const ATTENDANCE_VIEW_OTHERS = "attendance:view_others";
+export const TIME_TRACKING_EDIT_OVERTIME_THRESHOLD = "time_tracking:edit_overtime_threshold";
 
 // ── Widget metadata used by DashboardGrid ────────────────────────────────────
 export interface WidgetMeta {

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import desc
 from typing import List, Optional
 from datetime import datetime, timezone, timedelta, date as date_type
@@ -641,55 +641,74 @@ def get_all_attendance(
     start_date_only = start_date.date()
     end_date_only = end_date.date()
 
-    # Query all active users
-    users = db.query(User).filter(User.is_active == True, User.is_deleted == False).all()
-    
-    # Query time entries in the range
+    # Source the roster from real EMPLOYEE records (not raw users). This excludes
+    # non-employee accounts such as super admins, and lets us read the AUTHORITATIVE
+    # department (employees.department_id → departments.name) and role
+    # (users.roles → role_name) instead of the stale/backward-compat
+    # users.department and users.role scalar columns.
+    from app.employees.models import Employee
+    employees = (
+        db.query(Employee)
+        .options(
+            joinedload(Employee.department_rel),
+            joinedload(Employee.user).joinedload(User.roles),
+        )
+        .filter(Employee.is_deleted == False)
+        .all()
+    )
+
+    # Query time entries in the range, grouped by the owning user
     entries = db.query(TimeEntry).filter(
         TimeEntry.date >= start_date_only,
         TimeEntry.date <= end_date_only,
     ).all()
-    
-    # Group entries by user
-    entries_by_user = {}
+    entries_by_user: dict = {}
     for e in entries:
         entries_by_user.setdefault(e.user_id, []).append(e)
-        
+
     items = []
-    for user in users:
+    for emp in employees:
+        user = emp.user
+        # Skip employees with no linked login, or whose account is inactive/deleted
+        if not user or not user.is_active or user.is_deleted:
+            continue
+
         user_entries = entries_by_user.get(user.id, [])
         total_hours = 0.0
         overtime = 0.0
-        
         for e in user_entries:
-            # Need to compute hours if active/paused (like in _day_entry_response)
+            # Live total for in-progress days (mirrors _day_entry_response)
             if e.status in ("active", "paused") and e.date:
                 completed_secs = _accumulated_seconds(db, e.user_id, e.date)
                 e_hours = round(completed_secs / 3600, 4) if completed_secs else 0.0
             else:
                 e_hours = float(e.total_hours) if e.total_hours is not None else 0.0
-            
-            e_overtime = float(e.overtime) if e.overtime is not None else 0.0
-            
+
             total_hours += e_hours
-            overtime += e_overtime
-            
+            overtime += float(e.overtime) if e.overtime is not None else 0.0
+
+        # Authoritative role: first role assigned via the RBAC join table; only
+        # fall back to the legacy scalar when no role is linked.
+        role_name = user.roles[0].role_name if user.roles else (user.role or None)
+        # Authoritative department: from the employee's department FK.
+        dept_name = emp.department_rel.name if emp.department_rel else None
+
         items.append({
             "user_id": user.id,
-            "first_name": user.first_name,
-            "last_name": user.last_name,
-            "employee_id": user.employee_id,
-            "department": user.department,
-            "role": user.role,
+            "first_name": emp.first_name,
+            "last_name": emp.last_name,
+            "employee_id": emp.employee_id,
+            "department": dept_name,
+            "role": role_name,
             "total_hours": round(total_hours, 4),
-            "overtime": round(overtime, 4)
+            "overtime": round(overtime, 4),
         })
-        
+
     return {
         "period": period,
         "start_date": start_date_only.isoformat(),
         "end_date": end_date_only.isoformat(),
-        "items": items
+        "items": items,
     }
 
 
