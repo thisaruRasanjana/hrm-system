@@ -291,6 +291,11 @@ async def lifespan(app: FastAPI):
             conn.execute(text("ALTER TABLE candidates ADD COLUMN IF NOT EXISTS ai_reasoning TEXT"))
             conn.execute(text("ALTER TABLE applications ADD COLUMN IF NOT EXISTS notes TEXT"))
             conn.execute(text("ALTER TABLE applications ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT now()"))
+            # Multi-round panel evaluation columns (added with the panel workflow refactor)
+            conn.execute(text("ALTER TABLE applications ADD COLUMN IF NOT EXISTS active_round INTEGER NOT NULL DEFAULT 1"))
+            conn.execute(text("ALTER TABLE interview_evaluations ADD COLUMN IF NOT EXISTS round_number SMALLINT NOT NULL DEFAULT 1"))
+            conn.execute(text("ALTER TABLE interview_evaluations ADD COLUMN IF NOT EXISTS needs_another_round BOOLEAN NOT NULL DEFAULT FALSE"))
+            conn.execute(text("ALTER TABLE interview_evaluations ADD COLUMN IF NOT EXISTS evaluator_user_id INTEGER"))
             # Migrate data from the old column names where present
             conn.execute(text("""
                 DO $$ BEGIN
