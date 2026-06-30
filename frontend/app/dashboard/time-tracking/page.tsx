@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/context/auth-context";
+import { TIME_TRACKING_EDIT_OVERTIME_THRESHOLD } from "@/lib/permissions";
 
 // ── Types ────────────────────────────────────────────────────────────────────────
 interface CheckPair {
@@ -106,7 +107,7 @@ export default function TimeTrackingPage() {
   const [thresholdValue, setThresholdValue] = useState("");
   const [thresholdSaving, setThresholdSaving] = useState(false);
 
-  const canEditThreshold = hasPermission("time_tracking:edit_overtime_threshold");
+  const canEditThreshold = hasPermission(TIME_TRACKING_EDIT_OVERTIME_THRESHOLD);
 
   // ── Tick from accumulated + live delta ────────────────────────────────────────
   const startTick = useCallback((clockIn: Date, accumulated: number) => {
