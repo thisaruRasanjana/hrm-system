@@ -45,6 +45,7 @@ def create_document_type(db: Session, data: DocumentTypeCreate) -> DocumentType:
         name=data.name,
         description=data.description,
         is_mandatory=data.is_mandatory,
+        category=data.category,
         is_active=True,
     )
 
@@ -61,33 +62,38 @@ def create_document_type(db: Session, data: DocumentTypeCreate) -> DocumentType:
         ) from exc
 
 
-def list_all_document_types(db: Session) -> list[DocumentType]:
+def list_all_document_types(db: Session, category: str | None = None) -> list[DocumentType]:
     """Retrieve all document types (active and inactive) for HR admins.
 
     Args:
         db: Active database session.
+        category: Optional catalogue filter ('UPLOAD' or 'REQUEST'). When None,
+            every category is returned.
 
     Returns:
         List of DocumentType ORM objects ordered by creation date descending.
     """
-    return db.query(DocumentType).order_by(DocumentType.created_at.desc()).all()
+    query = db.query(DocumentType)
+    if category:
+        query = query.filter(DocumentType.category == category)
+    return query.order_by(DocumentType.created_at.desc()).all()
 
 
-def list_active_document_types(db: Session) -> list[DocumentType]:
+def list_active_document_types(db: Session, category: str | None = None) -> list[DocumentType]:
     """Retrieve only active document types (for employee-facing dropdowns).
 
     Args:
         db: Active database session.
+        category: Optional catalogue filter ('UPLOAD' or 'REQUEST'). When None,
+            every category is returned.
 
     Returns:
         List of DocumentType ORM objects ordered by creation date descending.
     """
-    return (
-        db.query(DocumentType)
-        .filter(DocumentType.is_active == True)
-        .order_by(DocumentType.created_at.desc())
-        .all()
-    )
+    query = db.query(DocumentType).filter(DocumentType.is_active == True)
+    if category:
+        query = query.filter(DocumentType.category == category)
+    return query.order_by(DocumentType.created_at.desc()).all()
 
 
 def update_document_type(db: Session, type_id: UUID, data: DocumentTypeUpdate) -> DocumentType:
@@ -173,3 +179,38 @@ def delete_document_type(db: Session, type_id: UUID) -> dict:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete document type."
         ) from exc
+
+
+# Names previously hard-coded in the "Request Document" dropdowns. Seeded as
+# REQUEST-category types so existing installs keep a populated dropdown (and
+# template matching by document_type keeps working) after the move to DB-driven
+# request types. HR can edit/deactivate/extend these from the Document Types tab.
+DEFAULT_REQUEST_DOCUMENT_TYPES = [
+    "Service Letter",
+    "Salary Confirmation",
+    "Employment Confirmation",
+    "Bank Letter",
+]
+
+
+def seed_request_document_types(db: Session) -> None:
+    """Ensure the default REQUEST document types exist. Idempotent.
+
+    Only inserts a name that is missing entirely, so HR edits/deletions are
+    never resurrected on restart (we don't re-add a type the admin removed,
+    unless it never existed at all). Safe to call on every startup.
+    """
+    # Check against every name (not just REQUEST): 'name' is globally unique, so
+    # a name already used by an UPLOAD type must not be re-inserted.
+    existing_names = {name for (name,) in db.query(DocumentType.name).all()}
+    created = False
+    for name in DEFAULT_REQUEST_DOCUMENT_TYPES:
+        if name in existing_names:
+            continue
+        db.add(DocumentType(name=name, category="REQUEST", is_mandatory=False, is_active=True))
+        created = True
+    if created:
+        try:
+            db.commit()
+        except SQLAlchemyError:
+            db.rollback()

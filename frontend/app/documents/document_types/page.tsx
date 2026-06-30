@@ -15,14 +15,22 @@ type DocType = {
   description: string | null;
   is_mandatory: boolean;
   is_active: boolean;
+  category: string;
   created_at: string;
 };
+
+type Category = "UPLOAD" | "REQUEST";
 
 
 export default function DocumentTypesPage() {
   const { user } = useAuth();
+  const [category, setCategory] = useState<Category>("UPLOAD");
   const [types, setTypes] = useState<DocType[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // "REQUEST" types are for the Request Document dropdown — the mandatory flag
+  // (which only governs required uploads) doesn't apply to them.
+  const isRequest = category === "REQUEST";
 
   // Create form state
   const [name, setName] = useState("");
@@ -45,7 +53,7 @@ export default function DocumentTypesPage() {
 
   const fetchTypes = () => {
     setLoading(true);
-    apiFetch("/api/document-types/")
+    apiFetch(`/api/document-types/?category=${category}`)
       .then((r) => r.json())
       .then((data) => setTypes(Array.isArray(data) ? data : []))
       .catch(console.error)
@@ -55,7 +63,11 @@ export default function DocumentTypesPage() {
   useEffect(() => {
     if (!user) return;
     fetchTypes();
-  }, [user]);
+    // Switching catalogues clears any in-progress create/edit state.
+    setEditId(null);
+    setCreateError("");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, category]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,7 +78,12 @@ export default function DocumentTypesPage() {
       const res = await apiFetch("/api/document-types/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), description: description.trim() || null, is_mandatory: isMandatory }),
+        body: JSON.stringify({
+          name: name.trim(),
+          description: description.trim() || null,
+          is_mandatory: isRequest ? false : isMandatory,
+          category,
+        }),
       });
       if (!res.ok) {
         const err = await res.json();
@@ -147,8 +164,31 @@ export default function DocumentTypesPage() {
       <div>
         <h1 className="text-2xl font-semibold text-gray-900">Document Types</h1>
         <p className="text-sm text-gray-500 mt-1">
-          Create and manage document types that employees are required or allowed to upload.
+          {isRequest
+            ? "Manage the document types employees can choose when requesting a document."
+            : "Create and manage document types that employees are required or allowed to upload."}
         </p>
+      </div>
+
+      {/* Catalogue switcher: upload types ("My Documents") vs request types */}
+      <div className="flex bg-gray-50/70 rounded-xl border border-gray-100 p-1.5 w-max shadow-sm">
+        {([
+          { key: "UPLOAD", label: "My Document Types" },
+          { key: "REQUEST", label: "Request Document Types" },
+        ] as { key: Category; label: string }[]).map((opt) => (
+          <button
+            key={opt.key}
+            type="button"
+            onClick={() => setCategory(opt.key)}
+            className={`px-5 py-2 text-sm font-bold rounded-lg transition-all duration-300 ${
+              category === opt.key
+                ? "bg-[#F2924E] text-white shadow-md"
+                : "text-gray-500 hover:text-gray-700 hover:bg-gray-100/50"
+            }`}
+          >
+            {opt.label}
+          </button>
+        ))}
       </div>
 
       {/* Create Form */}
@@ -180,6 +220,7 @@ export default function DocumentTypesPage() {
               className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#F2924E]/40 focus:border-[#F2924E]"
             />
           </div>
+          {!isRequest && (
           <div className="flex flex-col gap-1.5">
             <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider">
               Type
@@ -189,8 +230,8 @@ export default function DocumentTypesPage() {
                 type="button"
                 onClick={() => setIsMandatory(true)}
                 className={`px-6 py-2 text-sm font-bold rounded-lg transition-all duration-300 ${
-                  isMandatory 
-                    ? 'bg-[#F2924E] text-white shadow-md' 
+                  isMandatory
+                    ? 'bg-[#F2924E] text-white shadow-md'
                     : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100/50'
                 }`}
               >
@@ -200,8 +241,8 @@ export default function DocumentTypesPage() {
                 type="button"
                 onClick={() => setIsMandatory(false)}
                 className={`px-6 py-2 text-sm font-bold rounded-lg transition-all duration-300 ${
-                  !isMandatory 
-                    ? 'bg-[#F2924E] text-white shadow-md' 
+                  !isMandatory
+                    ? 'bg-[#F2924E] text-white shadow-md'
                     : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100/50'
                 }`}
               >
@@ -209,6 +250,7 @@ export default function DocumentTypesPage() {
               </button>
             </div>
          </div>
+          )}
           <div className="flex items-end justify-end gap-3">
             {createError && <p className="text-xs text-red-500">{createError}</p>}
             <button
@@ -226,21 +268,27 @@ export default function DocumentTypesPage() {
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
           <FileType size={16} className="text-gray-400" />
-          <span className="text-sm font-semibold text-gray-700">All Document Types</span>
+          <span className="text-sm font-semibold text-gray-700">
+            {isRequest ? "All Request Document Types" : "All Upload Document Types"}
+          </span>
           <span className="ml-auto text-xs text-gray-400">{types.length} types</span>
         </div>
 
         {loading ? (
           <div className="p-8 text-center text-sm text-gray-400">Loading...</div>
         ) : types.length === 0 ? (
-          <div className="p-8 text-center text-sm text-gray-400">No document types created yet.</div>
+          <div className="p-8 text-center text-sm text-gray-400">
+            {isRequest
+              ? "No request document types yet. Add one above so employees can request it."
+              : "No document types created yet."}
+          </div>
         ) : (
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-xs text-gray-400 uppercase tracking-wider">
               <tr>
                 <th className="px-6 py-3 text-left">Name</th>
                 <th className="px-6 py-3 text-left">Description</th>
-                <th className="px-6 py-3 text-center">Mandatory</th>
+                {!isRequest && <th className="px-6 py-3 text-center">Mandatory</th>}
                 <th className="px-6 py-3 text-center">Status</th>
                 <th className="px-6 py-3 text-center">Actions</th>
               </tr>
@@ -265,14 +313,15 @@ export default function DocumentTypesPage() {
                           className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#F2924E]/40"
                         />
                       </td>
+                      {!isRequest && (
                       <td className="px-6 py-3">
                         <div className="flex bg-gray-50/50 rounded-lg border border-gray-100 p-1 w-max mx-auto shadow-sm">
                           <button
                             type="button"
                             onClick={() => setEditMandatory(true)}
                             className={`px-3 py-1 text-[11px] font-bold rounded-md transition-all duration-300 ${
-                              editMandatory 
-                                ? 'bg-[#F2924E] text-white shadow-sm' 
+                              editMandatory
+                                ? 'bg-[#F2924E] text-white shadow-sm'
                                 : 'text-gray-500 hover:text-gray-700'
                             }`}
                           >
@@ -282,8 +331,8 @@ export default function DocumentTypesPage() {
                             type="button"
                             onClick={() => setEditMandatory(false)}
                             className={`px-3 py-1 text-[11px] font-bold rounded-md transition-all duration-300 ${
-                              !editMandatory 
-                                ? 'bg-[#F2924E] text-white shadow-sm' 
+                              !editMandatory
+                                ? 'bg-[#F2924E] text-white shadow-sm'
                                 : 'text-gray-500 hover:text-gray-700'
                             }`}
                           >
@@ -291,6 +340,7 @@ export default function DocumentTypesPage() {
                           </button>
                         </div>
                       </td>
+                      )}
                       <td className="px-6 py-3 text-center">—</td>
                       <td className="px-6 py-3">
                         <div className="flex items-center justify-center gap-2">
@@ -307,11 +357,13 @@ export default function DocumentTypesPage() {
                     <>
                       <td className="px-6 py-3 font-semibold text-gray-800">{type.name}</td>
                       <td className="px-6 py-3 text-gray-500">{type.description || "—"}</td>
+                      {!isRequest && (
                       <td className="px-6 py-3 text-center">
                         {type.is_mandatory
                           ? <span className="px-2 py-0.5 bg-[#F2924E]/10 text-[#F2924E] text-xs font-bold rounded-full">Mandatory</span>
                           : <span className="px-2 py-0.5 bg-gray-100 text-gray-500 text-xs font-bold rounded-full">Optional</span>}
                       </td>
+                      )}
                       <td className="px-6 py-3 text-center">
                         <button onClick={() => toggleActive(type)} className="focus:outline-none" title={type.is_active ? "Deactivate" : "Activate"}>
                           {type.is_active
