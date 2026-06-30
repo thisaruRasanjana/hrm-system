@@ -19,6 +19,7 @@ type Candidate = {
   application_id: number;
   status: string;
   notes?: string;
+  active_round?: number;
 };
 
 // SelectBox removed — status is now automatically managed by the backend workflow
