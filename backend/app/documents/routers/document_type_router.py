@@ -1,3 +1,5 @@
+from typing import Optional
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from uuid import UUID
@@ -9,7 +11,7 @@ from app.documents.schemas.document_type_schema import (
     DocumentTypeResponse,
 )
 from app.documents.services import document_type_service
-from app.core.deps import get_current_user, require_permission
+from app.core.deps import get_current_user, require_permission, require_any_permission
 
 router = APIRouter(prefix="/api/document-types", tags=["Document Types"])
 
@@ -25,18 +27,22 @@ def create_document_type(
 
 @router.get("/", response_model=list[DocumentTypeResponse])
 def list_all_document_types(
+    category: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user = Depends(require_permission("document:type_manage"))
 ):
-    return document_type_service.list_all_document_types(db)
+    return document_type_service.list_all_document_types(db, category)
 
 
 @router.get("/active/", response_model=list[DocumentTypeResponse])
 def list_active_document_types(
+    category: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user = Depends(require_permission("document:upload_own"))
+    # Upload dropdown needs upload_own; request dropdown needs request_own —
+    # either is enough to read the active catalogue.
+    current_user = Depends(require_any_permission("document:upload_own", "document:request_own"))
 ):
-    return document_type_service.list_active_document_types(db)
+    return document_type_service.list_active_document_types(db, category)
 
 
 @router.patch("/{type_id}", response_model=DocumentTypeResponse)

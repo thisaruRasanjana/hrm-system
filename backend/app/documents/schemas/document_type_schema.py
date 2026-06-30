@@ -5,12 +5,16 @@ Pydantic schemas for document type management.
 """
 
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field
 
 from app.documents.constants import DOCUMENT_TYPE_NAME_MAX_LENGTH
+
+# 'UPLOAD'  → "My Documents" upload catalogue
+# 'REQUEST' → "Request Document" catalogue
+DocumentTypeCategory = Literal["UPLOAD", "REQUEST"]
 
 
 class DocumentTypeCreate(BaseModel):
@@ -23,6 +27,10 @@ class DocumentTypeCreate(BaseModel):
     )
     description: Optional[str] = Field(None, max_length=500)
     is_mandatory: bool = False
+    category: DocumentTypeCategory = Field(
+        "UPLOAD",
+        description="Which catalogue the type belongs to: 'UPLOAD' or 'REQUEST'"
+    )
 
 
 class DocumentTypeUpdate(BaseModel):
@@ -40,6 +48,7 @@ class DocumentTypeResponse(BaseModel):
     description: Optional[str] = None
     is_mandatory: bool
     is_active: bool
+    category: str = "UPLOAD"
     created_at: datetime
 
     class Config:

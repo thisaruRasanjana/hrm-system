@@ -170,6 +170,9 @@ async def lifespan(app: FastAPI):
             # ── Patch document_requests with the inbound email body column ───
             conn.execute(text("ALTER TABLE document_requests ADD COLUMN IF NOT EXISTS requester_message TEXT"))
 
+            # ── Patch document_types with the upload/request catalogue column ─
+            conn.execute(text("ALTER TABLE document_types ADD COLUMN IF NOT EXISTS category VARCHAR(20) DEFAULT 'UPLOAD'"))
+
             # ── Patch notifications table with category + entity columns ────
             conn.execute(text("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS category VARCHAR"))
             conn.execute(text("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS entity_type VARCHAR"))
@@ -325,6 +328,11 @@ async def lifespan(app: FastAPI):
             seed_leave_types(db)
         except Exception as e:
             print(f"[WARNING] seed_leave_types skipped: {e}")
+        try:
+            from app.documents.services.document_type_service import seed_request_document_types
+            seed_request_document_types(db)
+        except Exception as e:
+            print(f"[WARNING] seed_request_document_types skipped: {e}")
     finally:
         db.close()
 
