@@ -8,7 +8,7 @@
 export const WIDGET_TIME_TRACKING_VIEW      = "widget.time_tracking.view";
 export const WIDGET_LEAVE_BALANCE_VIEW      = "widget.leave_balance.view";
 export const WIDGET_NOTIFICATIONS_VIEW      = "widget.notifications.view";
-export const WIDGET_WEEKLY_HOURS_VIEW       = "widget.weekly_hours.view";
+export const WIDGET_ATTENDANCE_VIEW         = "widget.attendance.view";
 export const WIDGET_CALENDAR_VIEW           = "widget.calendar.view";
 export const WIDGET_CALENDAR_EDIT           = "widget.calendar.edit";
 export const WIDGET_APPROVAL_VIEW_APPROVALS = "widget.approval_summary.view_approvals";
@@ -20,6 +20,10 @@ export const WIDGET_EVENTS_MANAGE           = "widget.upcoming_events.manage";
 
 // Messaging
 export const MESSAGING_SEND = "messaging.send";
+
+// Time Tracking / Attendance
+export const ATTENDANCE_VIEW_OTHERS = "attendance:view_others";
+export const TIME_TRACKING_EDIT_OVERTIME_THRESHOLD = "time_tracking:edit_overtime_threshold";
 
 // ── Widget metadata used by DashboardGrid ────────────────────────────────────
 export interface WidgetMeta {
@@ -33,7 +37,7 @@ export const WIDGET_META: WidgetMeta[] = [
   { key: "time_tracking",    label: "Time Tracking",           description: "Track your work hours",      viewPermission: WIDGET_TIME_TRACKING_VIEW      },
   { key: "leave_balance",    label: "Leave Balance",           description: "View your leave status",     viewPermission: WIDGET_LEAVE_BALANCE_VIEW      },
   { key: "notifications",    label: "Notifications",           description: "System notifications",       viewPermission: WIDGET_NOTIFICATIONS_VIEW      },
-  { key: "weekly_hours",     label: "Weekly Hours",            description: "Weekly hours bar chart",     viewPermission: WIDGET_WEEKLY_HOURS_VIEW       },
+  { key: "weekly_hours",     label: "Attendance",              description: "Weekly hours bar chart",     viewPermission: WIDGET_ATTENDANCE_VIEW         },
   { key: "calendar",         label: "Calendar",                description: "Monthly calendar & holidays",viewPermission: WIDGET_CALENDAR_VIEW           },
   { key: "approval_summary", label: "Approval & Req. Summary", description: "Pending approvals",         viewPermission: WIDGET_APPROVAL_VIEW_APPROVALS },
   { key: "announcements",    label: "Announcements",           description: "Company announcements",      viewPermission: WIDGET_ANNOUNCEMENTS_VIEW      },

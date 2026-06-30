@@ -40,13 +40,13 @@ const SYSTEM_ROLE_NAMES = ["Super Admin", "HR", "Manager", "Employee"];
 // Map a permission's `resource` field to a friendly category label + sort order.
 // Resources come from backend/app/roles/seed.py (employee, role, document, …).
 const RESOURCE_META: Record<string, { label: string; order: number }> = {
-  employee:    { label: "Employee Management", order: 1 },
-  role:        { label: "Roles & Permissions", order: 2 },
-  recruitment: { label: "Recruitment",         order: 3 },
-  document:    { label: "Document Management",  order: 4 },
-  leave:       { label: "Leave Management",     order: 5 },
-  dashboard:   { label: "Dashboard & Widgets",  order: 6 },
-  messaging:   { label: "Messaging",            order: 7 },
+  employee:      { label: "Employee Management", order: 1 },
+  role:          { label: "Roles & Permissions", order: 2 },
+  recruitment:   { label: "Recruitment",         order: 3 },
+  document:      { label: "Document Management",  order: 4 },
+  leave:         { label: "Leave Management",     order: 5 },
+  dashboard:     { label: "Dashboard & Widgets",  order: 6 },
+  messaging:     { label: "Messaging",            order: 7 },
 };
 
 /** Group permissions by their `resource` into ordered [resource, permissions] pairs. */
