@@ -48,7 +48,7 @@ SYSTEM_PERMISSIONS = [
     ("widget.time_tracking.view", "dashboard", "view", "View time tracking"),
     ("widget.leave_balance.view", "dashboard", "view", "View leave balance"),
     ("widget.notifications.view", "dashboard", "view", "View notifications"),
-    ("widget.weekly_hours.view", "dashboard", "view", "View weekly hours"),
+    ("widget.attendance.view", "dashboard", "view", "View Attendance"),
     ("widget.calendar.view", "dashboard", "view", "View calendar"),
     ("widget.calendar.edit", "dashboard", "edit", "Edit calendar"),
     ("widget.approval_summary.view_approvals", "dashboard", "view", "View approvals"),
@@ -57,6 +57,8 @@ SYSTEM_PERMISSIONS = [
     ("widget.announcements.manage", "dashboard", "manage", "Manage announcements"),
     ("widget.upcoming_events.view", "dashboard", "view", "View events"),
     ("widget.upcoming_events.manage", "dashboard", "manage", "Manage events"),
+    ("attendance:view_others", "dashboard", "view_others_attendance", "View Others' Attendance"),
+    ("time_tracking:edit_overtime_threshold", "dashboard", "edit_overtime_threshold", "Edit Overtime Threshold"),
     ("messaging.send", "messaging", "send", "Send messages"),
     ("messaging.receive", "messaging", "receive", "Receive messages"),
 ]
@@ -88,7 +90,9 @@ HR_PERMISSIONS = {
     # (leave types & entitlements) is a super-admin-only area.
     "leave:request", "leave:edit_pending", "leave:view_history", "leave:approve", "leave:reject", "leave:report",
     "recruitment:manage", "recruitment:view",
-    "messaging.send", "messaging.receive"
+    "messaging.send", "messaging.receive",
+    "time_tracking:edit_overtime_threshold",
+    "attendance:view_others",
 }
 # Add all widget permissions to HR (except interview_panel which is never default)
 for p in SYSTEM_PERMISSIONS:
@@ -99,16 +103,17 @@ MANAGER_PERMISSIONS = {
     "employee:view_own", "document:upload_own", "document:request_own", "document:approve",
     "leave:request", "leave:edit_pending", "leave:view_history", "leave:approve", "leave:reject",
     "widget.time_tracking.view", "widget.leave_balance.view", "widget.notifications.view",
-    "widget.weekly_hours.view", "widget.calendar.view", "widget.approval_summary.view_approvals",
+    "widget.attendance.view", "widget.calendar.view", "widget.approval_summary.view_approvals",
     "widget.approval_summary.view_requests", "widget.announcements.view", "widget.upcoming_events.view",
-    "messaging.send", "messaging.receive"
+    "messaging.send", "messaging.receive",
+    "attendance:view_others"
 }
 
 EMPLOYEE_PERMISSIONS = {
     "employee:view_own", "document:upload_own", "document:request_own",
     "leave:request", "leave:edit_pending", "leave:view_history",
     "widget.time_tracking.view", "widget.leave_balance.view", "widget.notifications.view",
-    "widget.weekly_hours.view", "widget.calendar.view", "widget.approval_summary.view_requests",
+    "widget.attendance.view", "widget.calendar.view", "widget.approval_summary.view_requests",
     "widget.announcements.view", "widget.upcoming_events.view",
     "messaging.receive"
 }
