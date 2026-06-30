@@ -18,7 +18,7 @@ def reset_db():
         # Create Roles
         admin_perms = [
             "widget.time_tracking.view", "widget.leave_balance.view", "widget.notifications.view",
-            "widget.weekly_hours.view", "widget.calendar.view", "widget.calendar.edit",
+            "widget.attendance.view", "widget.calendar.view", "widget.calendar.edit",
             "widget.approval_summary.view_approvals", "widget.approval_summary.view_requests",
             "widget.announcements.view", "widget.announcements.manage",
             "widget.upcoming_events.view", "widget.upcoming_events.manage",
@@ -26,7 +26,7 @@ def reset_db():
         ]
         emp_perms = [
             "widget.time_tracking.view", "widget.leave_balance.view", "widget.notifications.view",
-            "widget.weekly_hours.view", "widget.calendar.view", "widget.announcements.view",
+            "widget.attendance.view", "widget.calendar.view", "widget.announcements.view",
             "widget.upcoming_events.view"
         ]
 

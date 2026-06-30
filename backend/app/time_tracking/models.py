@@ -4,10 +4,11 @@ from app.database.base import Base
 
 class TimeEntry(Base):
     """
-    One row per work session.
+    One row per calendar day per user — the day-level summary.
     Column names match the ACTUAL PostgreSQL table.
-    - status = "active"    while clocked in (end_time is NULL)
-    - status = "completed" after clock-out
+    - status = "active"    while actively working (open check pair)
+    - status = "paused"    while paused (no open check pair, but day not ended)
+    - status = "completed" after the day is finalized via "End Work"
     """
     __tablename__ = "time_entries"
 
@@ -23,8 +24,46 @@ class TimeEntry(Base):
 
     # New calculated columns
     total_hours = Column(Numeric(8, 4), nullable=True)          # e.g. 8.75
-    overtime = Column(Numeric(8, 4), nullable=True)             # hours beyond 8h
+    overtime = Column(Numeric(8, 4), nullable=True)             # hours beyond threshold
 
-    status = Column(String, default="active")                   # "active" | "completed"
+    status = Column(String, default="active")                   # "active" | "paused" | "completed"
 
+    # The overtime threshold (hours) that was in effect when this day was finalized.
+    # Stored so that historical overtime values are never recomputed.
+    applied_threshold = Column(Numeric(5, 2), nullable=True)
+
+    created_at = Column(DateTime, default=func.now())
+
+
+class TimeCheckPair(Base):
+    """
+    One row per check-in / check-out segment within a single day.
+    A day (TimeEntry) can contain MULTIPLE pairs:
+      Start → Pause  = pair #1  (check_in, check_out set)
+      Resume → Pause  = pair #2
+      Resume → End    = pair #3
+    """
+    __tablename__ = "time_check_pairs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, nullable=False, index=True)
+    date = Column(Date, nullable=False, index=True)             # calendar day
+    check_in = Column(DateTime, nullable=False)
+    check_out = Column(DateTime, nullable=True)                 # NULL = still working
+    seconds = Column(Integer, nullable=True)                    # computed on check-out
+    created_at = Column(DateTime, default=func.now())
+
+
+class OvertimeThresholdHistory(Base):
+    """
+    Versioned overtime threshold.  Each row records a threshold change
+    with an effective_date.  The threshold in effect for any given day
+    is the row with the latest effective_date <= that day.
+    """
+    __tablename__ = "overtime_threshold_history"
+
+    id = Column(Integer, primary_key=True, index=True)
+    threshold_hours = Column(Numeric(5, 2), nullable=False)     # e.g. 8.00
+    effective_date = Column(Date, nullable=False, index=True)
+    created_by_user_id = Column(Integer, nullable=True)
     created_at = Column(DateTime, default=func.now())

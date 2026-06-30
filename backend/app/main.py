@@ -178,6 +178,32 @@ async def lifespan(app: FastAPI):
             conn.execute(text("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS entity_type VARCHAR"))
             conn.execute(text("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS entity_id VARCHAR"))
 
+            # ── Time Tracking: new tables + columns for pause/resume ─────────
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS time_check_pairs (
+                    id SERIAL PRIMARY KEY,
+                    user_id INTEGER NOT NULL,
+                    date DATE NOT NULL,
+                    check_in TIMESTAMP NOT NULL,
+                    check_out TIMESTAMP,
+                    seconds INTEGER,
+                    created_at TIMESTAMP DEFAULT now()
+                )
+            """))
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS overtime_threshold_history (
+                    id SERIAL PRIMARY KEY,
+                    threshold_hours NUMERIC(5,2) NOT NULL,
+                    effective_date DATE NOT NULL,
+                    created_by_user_id INTEGER,
+                    created_at TIMESTAMP DEFAULT now()
+                )
+            """))
+            conn.execute(text("ALTER TABLE time_entries ADD COLUMN IF NOT EXISTS applied_threshold NUMERIC(5,2)"))
+            # Create indexes for performance
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_time_check_pairs_user_date ON time_check_pairs (user_id, date)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_overtime_threshold_effective ON overtime_threshold_history (effective_date)"))
+
             # ── Patch employees table with columns added in dev branch ───────
             conn.execute(text("ALTER TABLE employees ADD COLUMN IF NOT EXISTS department_id INTEGER REFERENCES departments(id)"))
             conn.execute(text("ALTER TABLE employees ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id)"))
@@ -318,6 +344,23 @@ async def lifespan(app: FastAPI):
             seed_roles(db)
         except Exception as e:
             print(f"[WARNING] seed_roles skipped (DB migration may be needed): {e}")
+        try:
+            # Seed default overtime threshold (8h) if none exists
+            from app.time_tracking.models import OvertimeThresholdHistory
+            from datetime import date as date_type
+            from decimal import Decimal
+            existing_threshold = db.query(OvertimeThresholdHistory).first()
+            if not existing_threshold:
+                default_threshold = OvertimeThresholdHistory(
+                    threshold_hours=Decimal("8.00"),
+                    effective_date=date_type(2000, 1, 1),
+                    created_by_user_id=None,
+                )
+                db.add(default_threshold)
+                db.commit()
+                print("[Seed] Default overtime threshold (8h) created.")
+        except Exception as e:
+            print(f"[WARNING] seed_overtime_threshold skipped: {e}")
         try:
             from app.calendar_holidays.router import seed_holidays
             seed_holidays()
