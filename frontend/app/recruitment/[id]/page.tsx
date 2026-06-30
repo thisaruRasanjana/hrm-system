@@ -6,6 +6,7 @@ import { useParams, useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { IconChevron } from "@/components/Icons";
 import { API_BASE_URL, VACANCY_STATUS, CANDIDATE_STATUS } from "@/lib/constants";
+import ConfirmModal from "@/app/components/ConfirmModal";
 
 type Vacancy = {
   id: number;
@@ -103,6 +104,11 @@ export default function VacancyDetailPage() {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [linkCopied, setLinkCopied] = useState(false);
 
+  // Delete-vacancy confirmation modal state
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+
   const copyShareLink = () => {
     const url = `${window.location.origin}/jobs/${vacancyId}`;
     navigator.clipboard.writeText(url).then(() => {
@@ -111,22 +117,28 @@ export default function VacancyDetailPage() {
     });
   };
 
-  const deleteVacancy = async () => {
-    if (!confirm("Are you sure you want to permanently delete this vacancy? This will also delete all applications and evaluations tied to it.")) return;
-    
+  const openDeleteConfirm = () => {
+    setDeleteError("");
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDeleteVacancy = async () => {
+    setIsDeleting(true);
+    setDeleteError("");
     try {
       const res = await apiFetch(`/recruitment/vacancies/${vacancyId}`, {
         method: "DELETE",
       });
       if (res.ok) {
         router.push("/recruitment");
-      } else {
-        alert("Failed to delete vacancy.");
+        return; // navigating away — keep the spinner until unmount
       }
+      setDeleteError("Failed to delete vacancy. Please try again.");
     } catch (err) {
       console.error(err);
-      alert("Error deleting vacancy.");
+      setDeleteError("Something went wrong while deleting. Please try again.");
     }
+    setIsDeleting(false);
   };
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All Status");
@@ -222,7 +234,7 @@ export default function VacancyDetailPage() {
 
             <div className="flex items-center gap-3">
               <button
-                onClick={deleteVacancy}
+                onClick={openDeleteConfirm}
                 className="border border-red-200 text-red-500 hover:bg-red-50 hover:border-red-300 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors flex items-center gap-2"
                 title="Delete Vacancy"
               >
@@ -428,6 +440,24 @@ export default function VacancyDetailPage() {
               </table>
             </div>
           )}
+
+      <ConfirmModal
+        isOpen={showDeleteConfirm}
+        title="Delete Vacancy"
+        message={
+          deleteError ||
+          "Are you sure you want to permanently delete this vacancy? This will also delete all applications and evaluations tied to it."
+        }
+        confirmText="Delete Vacancy"
+        cancelText="Cancel"
+        type="danger"
+        loading={isDeleting}
+        onConfirm={confirmDeleteVacancy}
+        onCancel={() => {
+          setShowDeleteConfirm(false);
+          setDeleteError("");
+        }}
+      />
     </>
   );
 }
