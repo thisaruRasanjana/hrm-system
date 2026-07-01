@@ -56,6 +56,13 @@ export default function EmployeeAddPage() {
   const [error, setError] = useState<string | null>(null);
   const [showAdditionalInfo, setShowAdditionalInfo] = useState(false);
 
+  const [entitlementMatrix, setEntitlementMatrix] = useState<{
+    roles: { id: number; name: string }[];
+    leave_types: { id: number; name: string; default_days: number | null }[];
+    entries: { role_id: number; leave_type_id: number; days: number | null }[];
+  } | null>(null);
+  const [customLeaveEntitlements, setCustomLeaveEntitlements] = useState<Record<number, string>>({});
+
   // Initialize with a random ID
   useEffect(() => {
     const init = async () => {
@@ -75,6 +82,9 @@ export default function EmployeeAddPage() {
             roleId: roleData.length > 0 ? roleData[0].id : null
           }
         }));
+
+        const matrix = await api.get<any>("/leave/entitlements");
+        setEntitlementMatrix(matrix);
       } catch (err) {
         console.error("Failed to fetch initial data", err);
       }
@@ -95,6 +105,14 @@ export default function EmployeeAddPage() {
     setError(null);
     setIsSubmitting(true);
     try {
+      // Build leave_entitlements payload list
+      const leave_entitlements = Object.entries(customLeaveEntitlements)
+        .filter(([_, value]) => value !== "")
+        .map(([typeId, value]) => ({
+          leave_type_id: parseInt(typeId),
+          days: parseFloat(value)
+        }));
+
       const payload = {
         employee_id: formData.employeeId,
         first_name: formData.firstName,
@@ -120,6 +138,7 @@ export default function EmployeeAddPage() {
         bank_name: formData.bankName || null,
         bank_account_no: formData.bankAccountNo || null,
         bank_branch: formData.bankBranch || null,
+        leave_entitlements: leave_entitlements.length > 0 ? leave_entitlements : null,
       };
 
       const created = await api.post<{ id: number }>("/employees/", payload);
@@ -143,6 +162,19 @@ export default function EmployeeAddPage() {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const getDefaultEntitlement = (leaveTypeId: number) => {
+    if (!entitlementMatrix) return "--";
+    const selectedRoleId = formData.work.roleId;
+    const entry = entitlementMatrix.entries.find(
+      e => e.role_id === selectedRoleId && e.leave_type_id === leaveTypeId
+    );
+    if (entry && entry.days !== null) {
+      return entry.days;
+    }
+    const lt = entitlementMatrix.leave_types.find(t => t.id === leaveTypeId);
+    return lt && lt.default_days !== null ? lt.default_days : "Unlimited";
   };
 
   return (
@@ -249,6 +281,48 @@ export default function EmployeeAddPage() {
             </div>
           </div>
         </div>
+
+        {/* Leave Information */}
+        {entitlementMatrix && (
+          <div className="bg-white rounded-xl border border-gray-200 p-8 shadow-sm">
+            <h2 className="text-[16px] font-bold text-[#212B36] mb-3">Leave Information</h2>
+            <p className="text-[13px] text-gray-500 mb-6 font-medium">
+              You can override default leave entitlements for this employee (e.g. if joining mid-year). Leave empty to use default role/system entitlements.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+              {entitlementMatrix.leave_types.map((type) => {
+                const defaultEnt = getDefaultEntitlement(type.id);
+                return (
+                  <div key={type.id} className="border border-gray-100 rounded-xl p-4 bg-gray-50/50">
+                    <span className="block text-[12px] font-bold text-gray-700 uppercase truncate">
+                      {type.name}
+                    </span>
+                    <div className="text-[12px] text-gray-400 mt-1">
+                      Default: <span className="font-semibold text-gray-600">{defaultEnt} days</span>
+                    </div>
+                    <div className="mt-3">
+                      <input
+                        type="number"
+                        step="0.5"
+                        min="0"
+                        placeholder="Custom limit"
+                        value={customLeaveEntitlements[type.id] || ""}
+                        onChange={(e) => {
+                          setCustomLeaveEntitlements({
+                            ...customLeaveEntitlements,
+                            [type.id]: e.target.value,
+                          });
+                        }}
+                        className="w-full px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-[13px] text-gray-900 outline-none focus:ring-2 focus:ring-[#EE7F22]/20 focus:border-[#EE7F22] transition-colors duration-200"
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {!showAdditionalInfo && (
           <div className="flex justify-center mt-4">

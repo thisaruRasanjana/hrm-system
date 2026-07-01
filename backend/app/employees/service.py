@@ -120,7 +120,7 @@ def create_employee(db: Session, employee: EmployeeCreate, background_tasks: Bac
         db.add(db_user)
         db.flush()
 
-        employee_data = employee.model_dump(exclude={"role_id"})
+        employee_data = employee.model_dump(exclude={"role_id", "leave_entitlements"})
         db_employee = Employee(**employee_data, user_id=db_user.id)
         db.add(db_employee)
         db.flush()
@@ -142,6 +142,17 @@ def create_employee(db: Session, employee: EmployeeCreate, background_tasks: Bac
         dept = db.query(Department).filter(Department.id == employee.department_id).first()
         if dept:
             db_user.department = dept.name
+
+        # Create leave entitlements overrides if provided
+        if employee.leave_entitlements:
+            from app.leave.models import EmployeeLeaveEntitlement
+            for ent in employee.leave_entitlements:
+                db_ent = EmployeeLeaveEntitlement(
+                    employee_id=db_employee.id,
+                    leave_type_id=ent.leave_type_id,
+                    days=ent.days
+                )
+                db.add(db_ent)
 
         db.commit()
         db.refresh(db_employee)
