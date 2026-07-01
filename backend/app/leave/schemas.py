@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from datetime import date
+from datetime import date, datetime
 from typing import Optional, List
 
 class LeaveRequestCreate(BaseModel):
@@ -154,7 +154,7 @@ class MedicalConversionOut(BaseModel):
     status: str
     reviewer_id: Optional[int]
     reviewer_comment: Optional[str]
-    created_at: date
+    created_at: datetime
 
     class Config:
         from_attributes = True
