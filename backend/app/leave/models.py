@@ -11,6 +11,7 @@ class LeaveType(Base):
     # Fallback annual entitlement in days when no per-role entitlement is set;
     # NULL = unlimited (no balance enforcement)
     default_days = Column(Float, nullable=True)
+    directly_requestable = Column(Boolean, nullable=False, server_default="true", default=True)
 
 
 class LeaveEntitlement(Base):
@@ -59,6 +60,7 @@ class LeaveRequest(Base):
     manager_comment = Column(Text, nullable=True) #new added 29/03
 
     approved_date = Column(Date, nullable=True)
+    parent_request_id = Column(Integer, ForeignKey("leave_requests.leave_request_id", ondelete="SET NULL"), nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
@@ -76,4 +78,20 @@ class EmployeeLeaveEntitlement(Base):
     id = Column(Integer, primary_key=True, index=True)
     employee_id = Column(Integer, ForeignKey("employees.id", ondelete="CASCADE"), nullable=False)
     leave_type_id = Column(Integer, ForeignKey("leave_types.id", ondelete="CASCADE"), nullable=False)
-    days = Column(Float, nullable=False)
+    days = Column(Float, nullable=False)
+
+
+class LeaveMedicalConversion(Base):
+    __tablename__ = "leave_medical_conversions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    leave_request_id = Column(Integer, ForeignKey("leave_requests.leave_request_id", ondelete="CASCADE"), nullable=False)
+    employee_id = Column(Integer, nullable=False)
+    start_date = Column(Date, nullable=False)
+    end_date = Column(Date, nullable=False)
+    attachment_urls = Column(JSON, nullable=True)
+    reason = Column(Text, nullable=True)
+    status = Column(String(20), default="PENDING")  # PENDING / APPROVED / REJECTED
+    reviewer_id = Column(Integer, nullable=True)
+    reviewer_comment = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

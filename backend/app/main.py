@@ -284,6 +284,24 @@ async def lifespan(app: FastAPI):
 
             # ── Leave types: per-type annual entitlement ──────────────────────
             conn.execute(text("ALTER TABLE leave_types ADD COLUMN IF NOT EXISTS default_days FLOAT"))
+            conn.execute(text("ALTER TABLE leave_types ADD COLUMN IF NOT EXISTS directly_requestable BOOLEAN NOT NULL DEFAULT TRUE"))
+            conn.execute(text("UPDATE leave_types SET directly_requestable = FALSE WHERE LOWER(name) = 'medical'"))
+            conn.execute(text("ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS parent_request_id INTEGER REFERENCES leave_requests(leave_request_id) ON DELETE SET NULL"))
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS leave_medical_conversions (
+                    id SERIAL PRIMARY KEY,
+                    leave_request_id INTEGER NOT NULL REFERENCES leave_requests(leave_request_id) ON DELETE CASCADE,
+                    employee_id INTEGER NOT NULL,
+                    start_date DATE NOT NULL,
+                    end_date DATE NOT NULL,
+                    attachment_urls JSONB,
+                    reason TEXT,
+                    status VARCHAR(20) DEFAULT 'PENDING',
+                    reviewer_id INTEGER,
+                    reviewer_comment TEXT,
+                    created_at TIMESTAMPTZ DEFAULT now()
+                )
+            """))
 
             # ── Leave requests: who assigned it (HR-on-behalf-of flow) ────────
             conn.execute(text("ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS assigned_by INTEGER"))

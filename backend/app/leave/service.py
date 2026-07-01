@@ -475,9 +475,6 @@ def create_leave(db: Session, employee_id: int, data: LeaveRequestCreate, auto_a
 
     leave_type = db.query(LeaveType).filter(LeaveType.id == data.leave_type_id).first()
 
-    if leave_type and "medical" in leave_type.name.lower() and not data.attachment_urls:
-        raise ValueError("Medical leave requires at least one supporting document")
-
     if has_overlapping_leave(db, employee_id, data.start_date, data.end_date):
         raise HTTPException(status_code=400,detail="You already have a leave request for these dates")
 
@@ -589,6 +586,7 @@ def approve_leave_request(
     request_id: int,
     approved_by: int,
     manager_comment: str | None = None,
+    approved_leave_type_id: int | None = None,
 ):
     req = db.query(LeaveRequest).filter(LeaveRequest.leave_request_id == request_id).first()
 
@@ -597,6 +595,21 @@ def approve_leave_request(
 
     if req.status != "PENDING":
         raise ValueError("Only pending leave requests can be approved")
+
+    # If approved_leave_type_id is provided and different, check requirements
+    if approved_leave_type_id is not None and approved_leave_type_id != req.leave_type_id:
+        new_lt = db.query(LeaveType).filter(LeaveType.id == approved_leave_type_id).first()
+        if not new_lt:
+            raise ValueError("Invalid approved leave type ID")
+        
+        # If the new type is not directly requestable (e.g. Medical), enforce attachment
+        if not new_lt.directly_requestable:
+            if not req.attachment_urls or len(req.attachment_urls) == 0:
+                raise ValueError(f"Approving as {new_lt.name} requires at least one supporting document/attachment")
+
+        # Enforce balance on the new type, excluding current request's old type/days
+        _enforce_balance(db, req.employee_id, new_lt, req.total_days, req.start_date, exclude_request_id=req.leave_request_id)
+        req.leave_type_id = approved_leave_type_id
 
     req.status = "APPROVED"
     req.approved_by = approved_by
@@ -615,7 +628,7 @@ def approve_leave_request(
         lt_name = lt.name if lt else "leave"
         notify_employee(
             db, req.employee_id,
-            f"Your {lt_name} leave request was approved",
+            f"Your leave request ({req.start_date} - {req.end_date}) was approved as {lt_name}",
             category="leave", type="success", link="/leave-history",
             entity_type="leave_request", entity_id=str(req.leave_request_id),
         )
@@ -868,8 +881,11 @@ def update_leave_request(db: Session, request_id: int, employee_id: int, payload
     return req
 
 
-def get_leave_types(db: Session):
-    return db.query(LeaveType).order_by(LeaveType.id.asc()).all()
+def get_leave_types(db: Session, requestable_only: bool = False):
+    query = db.query(LeaveType)
+    if requestable_only:
+        query = query.filter(LeaveType.directly_requestable == True)
+    return query.order_by(LeaveType.id.asc()).all()
 
 
 def create_leave_type(db: Session, name: str, description: str | None = None):
@@ -923,9 +939,276 @@ def get_my_leave_history(
 
     results = query.all()
 
+    results = query.all()
+
     output = []
     for leave, leave_type_name in results:
         leave.leave_type_name = leave_type_name
         output.append(leave)
 
     return output
+
+
+def create_medical_conversion(db: Session, employee_id: int, request_id: int, data):
+    from app.leave.models import LeaveMedicalConversion, LeaveRequest, LeaveType
+    from datetime import date as dt_date
+    req = db.query(LeaveRequest).filter(LeaveRequest.leave_request_id == request_id).first()
+    if not req:
+        raise ValueError("Leave request not found")
+    if req.employee_id != employee_id:
+        raise ValueError("Not authorized to request conversion for this leave")
+    if req.status != "APPROVED":
+        raise ValueError("Only approved leave requests can be converted")
+
+    lt = db.query(LeaveType).filter(LeaveType.id == req.leave_type_id).first()
+    if not lt or "casual" not in lt.name.lower():
+        raise ValueError("Only casual leave requests can be reclassified to medical")
+
+    if data.start_date < req.start_date or data.end_date > req.end_date:
+        raise ValueError("Reclassification sub-range must fall within the original leave dates")
+    if data.start_date > data.end_date:
+        raise ValueError("start_date cannot be after end_date")
+
+    if not data.attachment_urls or len(data.attachment_urls) == 0:
+        raise ValueError("Medical reclassification requires at least one supporting document/attachment")
+
+    existing_overlap = (
+        db.query(LeaveMedicalConversion)
+        .filter(
+            LeaveMedicalConversion.leave_request_id == request_id,
+            LeaveMedicalConversion.status.in_(["PENDING", "APPROVED"]),
+            LeaveMedicalConversion.start_date <= data.end_date,
+            LeaveMedicalConversion.end_date >= data.start_date,
+        )
+        .first()
+    )
+    if existing_overlap:
+        raise ValueError("An overlapping reclassification request is already pending or approved for these dates")
+
+    total_days_to_convert = calculate_total_days(db, data.start_date, data.end_date, half_day=False)
+    if total_days_to_convert <= 0:
+        raise ValueError("The selected date range does not contain any working days to convert")
+
+    conversion = LeaveMedicalConversion(
+        leave_request_id=request_id,
+        employee_id=employee_id,
+        start_date=data.start_date,
+        end_date=data.end_date,
+        attachment_urls=data.attachment_urls,
+        reason=data.reason,
+        status="PENDING",
+    )
+    db.add(conversion)
+    db.commit()
+    db.refresh(conversion)
+
+    try:
+        from app.notifications.service import notify_permission, get_employee_name
+        emp_name = get_employee_name(db, employee_id)
+        notify_permission(
+            db, "leave:approve",
+            f"{emp_name} requested Medical Reclassification for casual leave ({data.start_date} – {data.end_date})",
+            category="leave", type="info", link="/approval",
+            entity_type="medical_conversion", entity_id=str(conversion.id),
+            exclude_employee_id=employee_id,
+        )
+        db.commit()
+    except Exception as e:
+        _notif_logger.error(f"[Leave] Notification failed for medical conversion: {e}")
+
+    return conversion
+
+
+def list_medical_conversions(db: Session, request_id: int):
+    from app.leave.models import LeaveMedicalConversion
+    return db.query(LeaveMedicalConversion).filter(LeaveMedicalConversion.leave_request_id == request_id).all()
+
+
+def get_pending_medical_conversions(db: Session, user: dict):
+    from app.leave.models import LeaveMedicalConversion
+    role = user.get("role", "").lower()
+    if role != "hr":
+        return []
+    return (
+        db.query(LeaveMedicalConversion)
+        .filter(
+            LeaveMedicalConversion.status == "PENDING",
+            LeaveMedicalConversion.employee_id != user["id"]
+        )
+        .order_by(LeaveMedicalConversion.id.desc())
+        .all()
+    )
+
+
+def approve_medical_conversion(db: Session, conversion_id: int, reviewer_id: int, comment: str | None = None):
+    from app.leave.models import LeaveMedicalConversion, LeaveRequest, LeaveType
+    from datetime import timedelta, date as dt_date
+    conv = db.query(LeaveMedicalConversion).filter(LeaveMedicalConversion.id == conversion_id).first()
+    if not conv:
+        raise ValueError("Conversion request not found")
+    if conv.status != "PENDING":
+        raise ValueError("Conversion request is already processed")
+
+    original = db.query(LeaveRequest).filter(LeaveRequest.leave_request_id == conv.leave_request_id).first()
+    if not original:
+        raise ValueError("Original leave request not found")
+    if original.status != "APPROVED":
+        raise ValueError("Original leave request is no longer approved")
+
+    medical_lt = db.query(LeaveType).filter(LeaveType.name.ilike("%medical%")).first()
+    if not medical_lt:
+        raise ValueError("Medical leave type not found in the database")
+
+    total_days_to_convert = calculate_total_days(db, conv.start_date, conv.end_date, half_day=False)
+    if total_days_to_convert <= 0:
+        raise ValueError("No working days to convert")
+
+    _enforce_balance(db, original.employee_id, medical_lt, total_days_to_convert, conv.start_date)
+
+    has_prefix = conv.start_date > original.start_date
+    has_suffix = conv.end_date < original.end_date
+
+    if not has_prefix and not has_suffix:
+        # Complete conversion
+        original.leave_type_id = medical_lt.id
+        if original.attachment_urls:
+            original.attachment_urls = list(set(original.attachment_urls + (conv.attachment_urls or [])))
+        else:
+            original.attachment_urls = conv.attachment_urls
+        original.total_days = total_days_to_convert
+        original.reason = (original.reason or "") + f" (Reclassified: {conv.reason or ''})"
+    else:
+        orig_employee_id = original.employee_id
+        orig_leave_type_id = original.leave_type_id
+        orig_reason = original.reason
+        orig_attachment_urls = original.attachment_urls
+        orig_half_day = original.half_day
+
+        if has_prefix and not has_suffix:
+            original.end_date = conv.start_date - timedelta(days=1)
+            original.total_days = calculate_total_days(db, original.start_date, original.end_date, original.half_day)
+            
+            medical_req = LeaveRequest(
+                employee_id=orig_employee_id,
+                leave_type_id=medical_lt.id,
+                approved_by=reviewer_id,
+                start_date=conv.start_date,
+                end_date=conv.end_date,
+                total_days=total_days_to_convert,
+                half_day=False,
+                status="APPROVED",
+                reason=f"Reclassified from Casual request #{original.leave_request_id}. Reason: {conv.reason or ''}",
+                attachment_urls=conv.attachment_urls,
+                parent_request_id=original.leave_request_id,
+                approved_date=date.today(),
+            )
+            db.add(medical_req)
+        elif not has_prefix and has_suffix:
+            original.start_date = conv.end_date + timedelta(days=1)
+            original.total_days = calculate_total_days(db, original.start_date, original.end_date, original.half_day)
+            
+            medical_req = LeaveRequest(
+                employee_id=orig_employee_id,
+                leave_type_id=medical_lt.id,
+                approved_by=reviewer_id,
+                start_date=conv.start_date,
+                end_date=conv.end_date,
+                total_days=total_days_to_convert,
+                half_day=False,
+                status="APPROVED",
+                reason=f"Reclassified from Casual request #{original.leave_request_id}. Reason: {conv.reason or ''}",
+                attachment_urls=conv.attachment_urls,
+                parent_request_id=original.leave_request_id,
+                approved_date=date.today(),
+            )
+            db.add(medical_req)
+        else:
+            suffix_start = conv.end_date + timedelta(days=1)
+            suffix_end = original.end_date
+            
+            original.end_date = conv.start_date - timedelta(days=1)
+            original.total_days = calculate_total_days(db, original.start_date, original.end_date, original.half_day)
+            
+            suffix_days = calculate_total_days(db, suffix_start, suffix_end, original.half_day)
+            suffix_req = LeaveRequest(
+                employee_id=orig_employee_id,
+                leave_type_id=orig_leave_type_id,
+                approved_by=original.approved_by,
+                start_date=suffix_start,
+                end_date=suffix_end,
+                total_days=suffix_days,
+                half_day=original.half_day,
+                status="APPROVED",
+                reason=original.reason,
+                attachment_urls=orig_attachment_urls,
+                parent_request_id=original.leave_request_id,
+                approved_date=original.approved_date,
+            )
+            db.add(suffix_req)
+            
+            medical_req = LeaveRequest(
+                employee_id=orig_employee_id,
+                leave_type_id=medical_lt.id,
+                approved_by=reviewer_id,
+                start_date=conv.start_date,
+                end_date=conv.end_date,
+                total_days=total_days_to_convert,
+                half_day=False,
+                status="APPROVED",
+                reason=f"Reclassified from Casual request #{original.leave_request_id}. Reason: {conv.reason or ''}",
+                attachment_urls=conv.attachment_urls,
+                parent_request_id=original.leave_request_id,
+                approved_date=date.today(),
+            )
+            db.add(medical_req)
+
+    conv.status = "APPROVED"
+    conv.reviewer_id = reviewer_id
+    conv.reviewer_comment = comment
+    
+    db.commit()
+    db.refresh(conv)
+
+    try:
+        from app.notifications.service import notify_employee
+        notify_employee(
+            db, original.employee_id,
+            f"Your reclassification request to Medical for dates ({conv.start_date} - {conv.end_date}) was approved",
+            category="leave", type="success", link="/leave-history",
+            entity_type="medical_conversion", entity_id=str(conv.id),
+        )
+        db.commit()
+    except Exception as e:
+        _notif_logger.error(f"[Leave] Notification failed for approve conversion: {e}")
+
+    return conv
+
+
+def reject_medical_conversion(db: Session, conversion_id: int, reviewer_id: int, comment: str | None = None):
+    from app.leave.models import LeaveMedicalConversion
+    conv = db.query(LeaveMedicalConversion).filter(LeaveMedicalConversion.id == conversion_id).first()
+    if not conv:
+        raise ValueError("Conversion request not found")
+    if conv.status != "PENDING":
+        raise ValueError("Conversion request is already processed")
+
+    conv.status = "REJECTED"
+    conv.reviewer_id = reviewer_id
+    conv.reviewer_comment = comment
+    
+    db.commit()
+    db.refresh(conv)
+
+    try:
+        from app.notifications.service import notify_employee
+        notify_employee(
+            db, conv.employee_id,
+            f"Your reclassification request to Medical for dates ({conv.start_date} - {conv.end_date}) was rejected: {comment or ''}",
+            category="leave", type="error", link="/leave-history",
+            entity_type="medical_conversion", entity_id=str(conv.id),
+        )
+        db.commit()
+    except Exception as e:
+        _notif_logger.error(f"[Leave] Notification failed for reject conversion: {e}")
+
+    return conv
