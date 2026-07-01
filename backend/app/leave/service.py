@@ -1030,11 +1030,16 @@ def get_pending_medical_conversions(db: Session, user: dict):
     role = user.get("role", "").lower()
     if role != "hr":
         return []
+    # A reclassification is reviewed by the SAME approver who approved the
+    # original leave — so only surface conversions whose original leave was
+    # approved by this reviewer.
     convs = (
         db.query(LeaveMedicalConversion)
+        .join(LeaveRequest, LeaveMedicalConversion.leave_request_id == LeaveRequest.leave_request_id)
         .filter(
             LeaveMedicalConversion.status == "PENDING",
-            LeaveMedicalConversion.employee_id != user["id"]
+            LeaveMedicalConversion.employee_id != user["id"],
+            LeaveRequest.approved_by == user["id"],
         )
         .order_by(LeaveMedicalConversion.id.desc())
         .all()
@@ -1066,6 +1071,9 @@ def approve_medical_conversion(db: Session, conversion_id: int, reviewer_id: int
         raise ValueError("Original leave request not found")
     if original.status != "APPROVED":
         raise ValueError("Original leave request is no longer approved")
+    # Only the manager who approved the original leave may review its reclassification.
+    if original.approved_by != reviewer_id:
+        raise ValueError("Only the approver of the original leave can review this reclassification")
 
     medical_lt = db.query(LeaveType).filter(LeaveType.name.ilike("%medical%")).first()
     if not medical_lt:
@@ -1197,7 +1205,7 @@ def approve_medical_conversion(db: Session, conversion_id: int, reviewer_id: int
 
 
 def reject_medical_conversion(db: Session, conversion_id: int, reviewer_id: int, comment: str | None = None):
-    from app.leave.models import LeaveMedicalConversion
+    from app.leave.models import LeaveMedicalConversion, LeaveRequest
     conv = db.query(LeaveMedicalConversion).filter(LeaveMedicalConversion.id == conversion_id).first()
     if not conv:
         raise ValueError("Conversion request not found")
@@ -1206,6 +1214,10 @@ def reject_medical_conversion(db: Session, conversion_id: int, reviewer_id: int,
     # Separation of duties: a reviewer cannot reject their own reclassification.
     if conv.employee_id == reviewer_id:
         raise ValueError("You cannot review your own reclassification request")
+    # Only the manager who approved the original leave may review its reclassification.
+    original = db.query(LeaveRequest).filter(LeaveRequest.leave_request_id == conv.leave_request_id).first()
+    if original and original.approved_by != reviewer_id:
+        raise ValueError("Only the approver of the original leave can review this reclassification")
 
     conv.status = "REJECTED"
     conv.reviewer_id = reviewer_id
