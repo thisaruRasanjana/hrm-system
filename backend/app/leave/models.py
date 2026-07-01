@@ -57,3 +57,18 @@ class LeaveRequest(Base):
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+class EmployeeLeaveEntitlement(Base):
+    """Per-employee annual entitlement for a leave type.
+
+    Overrides both LeaveEntitlement (per-role) and LeaveType.default_days for specific employees.
+    """
+    __tablename__ = "employee_leave_entitlements"
+    __table_args__ = (
+        UniqueConstraint("employee_id", "leave_type_id", name="uix_employee_leave_type"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    employee_id = Column(Integer, ForeignKey("employees.id", ondelete="CASCADE"), nullable=False)
+    leave_type_id = Column(Integer, ForeignKey("leave_types.id", ondelete="CASCADE"), nullable=False)
+    days = Column(Float, nullable=False)

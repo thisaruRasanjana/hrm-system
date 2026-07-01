@@ -46,7 +46,7 @@ def send_welcome_email(email: str, full_name: str, temp_password: str):
         return
 
     subject = "Welcome to the HRM System!"
-    reset_url = f"{frontend_url}/auth/reset-password"
+    reset_url = f"{frontend_url}/reset-password"
     
     html_content = f"""
     <html>
