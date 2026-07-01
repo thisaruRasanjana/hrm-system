@@ -20,6 +20,9 @@ export default function LeaveTabs() {
     ...(hasPermission("leave:request")
       ? [{ name: "Request Leave", path: "/apply-leave" }]
       : []),
+    ...(hasPermission("leave:assign")
+      ? [{ name: "Assign Leave", path: "/assign-leave" }]
+      : []),
     ...(hasPermission("leave:view_history")
       ? [{ name: "Leave History", path: "/leave-history" }]
       : []),

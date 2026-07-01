@@ -422,7 +422,7 @@ def get_leave_history(
     return output
 
 
-def create_leave(db: Session, employee_id: int, data: LeaveRequestCreate):
+def create_leave(db: Session, employee_id: int, data: LeaveRequestCreate, auto_approve: bool = False):
     if data.start_date > data.end_date:
         raise ValueError("start_date cannot be after end_date")
 
@@ -448,7 +448,7 @@ def create_leave(db: Session, employee_id: int, data: LeaveRequestCreate):
         end_date=data.end_date,
         total_days=total_days,
         half_day=data.half_day,
-        status="PENDING",
+        status="APPROVED" if auto_approve else "PENDING",
         reason=data.reason,
         attachment_urls=data.attachment_urls,
     )
@@ -459,20 +459,21 @@ def create_leave(db: Session, employee_id: int, data: LeaveRequestCreate):
         db.refresh(req)
 
         # ── Notify leave approvers ──────────────────────────────────────
-        try:
-            from app.notifications.service import notify_permission, get_employee_name
-            emp_name = get_employee_name(db, employee_id)
-            leave_type_name = leave_type.name if leave_type else "leave"
-            notify_permission(
-                db, "leave:approve",
-                f"{emp_name} requested {leave_type_name} leave ({data.start_date} \u2013 {data.end_date})",
-                category="leave", type="info", link="/approval",
-                entity_type="leave_request", entity_id=str(req.leave_request_id),
-                exclude_employee_id=employee_id,
-            )
-            db.commit()
-        except Exception as e:
-            _notif_logger.error(f"[Leave] Notification failed for create_leave: {e}")
+        if not auto_approve:
+            try:
+                from app.notifications.service import notify_permission, get_employee_name
+                emp_name = get_employee_name(db, employee_id)
+                leave_type_name = leave_type.name if leave_type else "leave"
+                notify_permission(
+                    db, "leave:approve",
+                    f"{emp_name} requested {leave_type_name} leave ({data.start_date} \u2013 {data.end_date})",
+                    category="leave", type="info", link="/approval",
+                    entity_type="leave_request", entity_id=str(req.leave_request_id),
+                    exclude_employee_id=employee_id,
+                )
+                db.commit()
+            except Exception as e:
+                _notif_logger.error(f"[Leave] Notification failed for create_leave: {e}")
 
         return req
     except IntegrityError:

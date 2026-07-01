@@ -31,6 +31,7 @@ SYSTEM_PERMISSIONS = [
 
     # Leave Management
     ("leave:request", "leave", "request", "Submit leave requests"),
+    ("leave:assign", "leave", "assign", "Assign leave on behalf of employees"),
     ("leave:edit_pending", "leave", "edit_pending", "Edit own pending requests"),
     ("leave:view_history", "leave", "view_history", "View own leave history"),
     ("leave:approve", "leave", "approve", "Approve leave requests"),
@@ -88,7 +89,7 @@ HR_PERMISSIONS = {
     "document:upload_own", "document:request_own", "document:approve", "document:request_manage", "document:template_upload", "document:type_manage",
     # leave:type_manage grants HR access to Leave Settings — leave types plus
     # per-role and per-employee entitlement overrides.
-    "leave:request", "leave:edit_pending", "leave:view_history", "leave:approve", "leave:reject", "leave:report", "leave:type_manage",
+    "leave:request", "leave:assign", "leave:edit_pending", "leave:view_history", "leave:approve", "leave:reject", "leave:report", "leave:type_manage",
     "recruitment:manage", "recruitment:view",
     "messaging.send", "messaging.receive",
     "time_tracking:edit_overtime_threshold",

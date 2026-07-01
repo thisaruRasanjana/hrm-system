@@ -18,6 +18,7 @@ from app.leave.schemas import (
     LeaveBalanceOut,
     EntitlementItem,
     EntitlementMatrixOut,
+    AssignLeaveRequestCreate,
     ApproveLeaveRequest,
     RejectLeaveRequest,
     RequestInfoLeaveRequest,
@@ -103,6 +104,19 @@ def submit_leave(
 ):
     try:
         return create_leave(db, current_user["id"], payload)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/assign", response_model=LeaveRequestOut)
+def assign_leave(
+    payload: AssignLeaveRequestCreate,
+    current_user: dict = Depends(leave_actor("leave:assign")),
+    db: Session = Depends(get_db),
+):
+    try:
+        # Auto-approve because HR is assigning it
+        return create_leave(db, payload.employee_id, payload, auto_approve=True)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 

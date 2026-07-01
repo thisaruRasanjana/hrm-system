@@ -21,6 +21,9 @@ export const WIDGET_EVENTS_MANAGE           = "widget.upcoming_events.manage";
 // Messaging
 export const MESSAGING_SEND = "messaging.send";
 
+// Leave Management
+export const LEAVE_ASSIGN = "leave:assign";
+
 // Time Tracking / Attendance
 export const ATTENDANCE_VIEW_OTHERS = "attendance:view_others";
 export const TIME_TRACKING_EDIT_OVERTIME_THRESHOLD = "time_tracking:edit_overtime_threshold";
