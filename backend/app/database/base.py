@@ -15,7 +15,6 @@ import app.dashboard.models         # noqa: E402, F401
 import app.documents.models         # noqa: E402, F401
 import app.events.models            # noqa: E402, F401
 import app.leave.models             # noqa: E402, F401
-import app.leaves.models            # noqa: E402, F401
 import app.messages.models          # noqa: E402, F401
 import app.notifications.models     # noqa: E402, F401
 import app.time_tracking.models     # noqa: E402, F401
