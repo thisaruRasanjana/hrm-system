@@ -25,6 +25,9 @@ from app.leave.schemas import (
     ResubmitLeaveRequest,
     EmployeeEntitlementItem,
     EmployeeEntitlementOut,
+    MedicalConversionCreate,
+    MedicalConversionOut,
+    MedicalConversionReview,
 )
 
 from app.leave.service import (
@@ -47,6 +50,11 @@ from app.leave.service import (
     resubmit_leave_request,
     delete_leave_request,
     update_leave_request,
+    create_medical_conversion,
+    list_medical_conversions,
+    get_pending_medical_conversions,
+    approve_medical_conversion,
+    reject_medical_conversion,
 )
 
 router = APIRouter(prefix="/leave", tags=["Leave"])
@@ -266,12 +274,16 @@ def approve_request(
 
     _guard_assigned_request(req, current_user)
 
-    return approve_leave_request(
-        db,
-        request_id,
-        approved_by=current_user["id"],
-        manager_comment=payload.manager_comment,
-    )
+    try:
+        return approve_leave_request(
+            db,
+            request_id,
+            approved_by=current_user["id"],
+            manager_comment=payload.manager_comment,
+            approved_leave_type_id=payload.approved_leave_type_id,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 # -----------------------------
@@ -439,10 +451,11 @@ def update_employee_entitlements(
 # -----------------------------
 @router.get("/types", response_model=list[LeaveTypeOut])
 def list_leave_types(
+    requestable: bool = False,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return get_leave_types(db)
+    return get_leave_types(db, requestable_only=requestable)
 
 
 @router.post("/types", response_model=LeaveTypeOut)
@@ -496,3 +509,78 @@ def get_my_leave_history_api(
         status=status,
         sort_by=sort_by,
     )
+
+
+# -----------------------------
+# MEDICAL CONVERSIONS
+# -----------------------------
+@router.post("/requests/{request_id}/medical-conversion", response_model=MedicalConversionOut)
+def request_medical_conversion(
+    request_id: int,
+    payload: MedicalConversionCreate,
+    current_user: dict = Depends(leave_actor("leave:request")),
+    db: Session = Depends(get_db),
+):
+    try:
+        return create_medical_conversion(db, current_user["id"], request_id, payload)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/requests/{request_id}/medical-conversions", response_model=list[MedicalConversionOut])
+def get_request_medical_conversions(
+    request_id: int,
+    current_user: dict = Depends(leave_actor("leave:request", "leave:approve")),
+    db: Session = Depends(get_db),
+):
+    # Verify request existence and auth
+    req = get_leave_request_by_id(db, request_id)
+    if not req:
+        raise HTTPException(status_code=404, detail="Leave request not found")
+    if current_user["role"] == "employee" and req.employee_id != current_user["id"]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    return list_medical_conversions(db, request_id)
+
+
+@router.get("/medical-conversions/pending", response_model=list[MedicalConversionOut])
+def get_pending_conversions(
+    current_user: dict = Depends(leave_actor("leave:approve")),
+    db: Session = Depends(get_db),
+):
+    return get_pending_medical_conversions(db, current_user)
+
+
+@router.patch("/medical-conversions/{conversion_id}/approve", response_model=MedicalConversionOut)
+def approve_conversion(
+    conversion_id: int,
+    payload: MedicalConversionReview,
+    current_user: dict = Depends(leave_actor("leave:approve")),
+    db: Session = Depends(get_db),
+):
+    try:
+        return approve_medical_conversion(
+            db,
+            conversion_id,
+            reviewer_id=current_user["id"],
+            comment=payload.reviewer_comment,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.patch("/medical-conversions/{conversion_id}/reject", response_model=MedicalConversionOut)
+def reject_conversion(
+    conversion_id: int,
+    payload: MedicalConversionReview,
+    current_user: dict = Depends(leave_actor("leave:approve")),
+    db: Session = Depends(get_db),
+):
+    try:
+        return reject_medical_conversion(
+            db,
+            conversion_id,
+            reviewer_id=current_user["id"],
+            comment=payload.reviewer_comment,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))

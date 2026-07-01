@@ -35,6 +35,7 @@ class LeaveRequestOut(BaseModel):
     employee_code: Optional[str] = None
     department: Optional[str] = None
     role: Optional[str] = None
+    parent_request_id: Optional[int] = None
 
     class Config:
         from_attributes = True
@@ -45,6 +46,7 @@ class LeaveStatusUpdate(BaseModel):
 
 class ApproveLeaveRequest(BaseModel):
     manager_comment: Optional[str] = None
+    approved_leave_type_id: Optional[int] = None
 
 
 class RejectLeaveRequest(BaseModel):
@@ -67,6 +69,7 @@ class LeaveTypeOut(BaseModel):
     name: str
     description: Optional[str] = None
     default_days: Optional[float] = None
+    directly_requestable: bool = True
 
     class Config:
         from_attributes = True
@@ -129,4 +132,32 @@ class EmployeeEntitlementOut(BaseModel):
     employee_id: int
     employee_name: str
     leave_types: List[EntitlementLeaveType]
-    entries: List[EmployeeEntitlementEntry]
+    entries: List[EmployeeEntitlementEntry]
+
+
+class MedicalConversionCreate(BaseModel):
+    start_date: date
+    end_date: date
+    attachment_urls: Optional[List[str]] = []
+    reason: Optional[str] = None
+
+
+class MedicalConversionOut(BaseModel):
+    id: int
+    leave_request_id: int
+    employee_id: int
+    start_date: date
+    end_date: date
+    attachment_urls: Optional[List[str]] = []
+    reason: Optional[str]
+    status: str
+    reviewer_id: Optional[int]
+    reviewer_comment: Optional[str]
+    created_at: date
+
+    class Config:
+        from_attributes = True
+
+
+class MedicalConversionReview(BaseModel):
+    reviewer_comment: Optional[str] = None

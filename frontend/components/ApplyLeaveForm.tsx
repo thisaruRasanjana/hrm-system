@@ -116,7 +116,7 @@ const ApplyLeaveForm: React.FC<Props> = ({ balances, onSubmitted }) => {
     const fetchLeaveTypes = async () => {
       setLoadingTypes(true);
       try {
-        const res = await apiFetch(`/leave/types`);
+        const res = await apiFetch(`/leave/types?requestable=true`);
         if (!res.ok) {
           throw new Error("Failed to load leave types");
         }
@@ -165,13 +165,6 @@ const ApplyLeaveForm: React.FC<Props> = ({ balances, onSubmitted }) => {
     errs.push("To date cannot be earlier than From date");
   }
   if (!reason.trim()) errs.push("Reason is required");
-
-  if (
-    selectedLeaveType?.name.toLowerCase().includes("medical") &&
-    attachments.length === 0
-  ) {
-    errs.push("Medical leave requires a supporting document");
-  }
 
   setErrors(errs);
   return errs.length === 0;
@@ -316,6 +309,11 @@ const ApplyLeaveForm: React.FC<Props> = ({ balances, onSubmitted }) => {
           rows={4}
           className="w-full border border-gray-200 shadow-sm rounded-lg px-4 py-2.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-300 transition"
         />
+        {/sick|doctor|medical|hospital|health|fever|accident|treatment|clinic/i.test(reason) && (
+          <div className="mt-2 text-xs text-orange-600 bg-orange-50 border border-orange-100 rounded-lg p-2.5">
+            💡 If this is for a medical reason, please attach a medical document. Your manager can reclassify this Casual request as Medical Leave when approving.
+          </div>
+        )}
       </div>
 
       <div className="mb-4">
