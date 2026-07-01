@@ -9,6 +9,8 @@ employees can upload or request. HR manages this list.
 Design decisions:
 - 'name' is capped at String(150) to match the same limit used in
   EmployeeDocument.document_type, ensuring consistent enforcement.
+- 'category' separates the upload catalogue ("My Documents") from the request
+  catalogue ("Request Document") so both can be managed from one admin tab.
 - 'is_active' allows soft-deletion — deactivated types are hidden from
   employees but retained in historical records.
 """
@@ -32,6 +34,14 @@ class DocumentType(Base):
 
     # Unique human-readable name, length matches EmployeeDocument.document_type
     name = Column(String(150), nullable=False, unique=True)
+
+    # Which catalogue this entry belongs to:
+    #   'UPLOAD'  — types employees can upload under "My Documents"
+    #   'REQUEST' — types employees can request under "Request Document"
+    # Kept on one table (instead of a second model) so the same admin tooling,
+    # service layer, and API serve both lists. server_default backfills existing
+    # rows as upload types when the column is added to a live DB.
+    category = Column(String(20), nullable=False, default="UPLOAD", server_default="UPLOAD")
 
     # Optional longer description for HR reference
     description = Column(Text, nullable=True)

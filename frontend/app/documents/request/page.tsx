@@ -22,16 +22,10 @@ export default function HRRequestDocumentPage() {
   const [documentType, setDocumentType] = useState("");
   const [purpose, setPurpose] = useState("");
   const [requests, setRequests] = useState<Request[]>([]);
+  const [documentTypes, setDocumentTypes] = useState<string[]>([]);
   const [selectedRequest, setSelectedRequest] = useState<Request | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-
-  const documentTypes = [
-    "Service Letter",
-    "Salary Confirmation",
-    "Employment Confirmation",
-    "Bank Letter",
-  ];
 
   const fetchRequests = async () => {
     try {
@@ -43,9 +37,22 @@ export default function HRRequestDocumentPage() {
     }
   };
 
+  // Request document types are managed by admins in the Document Types tab
+  // (REQUEST catalogue); only active ones are offered here.
+  const fetchDocumentTypes = async () => {
+    try {
+      const res = await apiFetch("/api/document-types/active/?category=REQUEST");
+      const data = await res.json();
+      setDocumentTypes(Array.isArray(data) ? data.map((t: { name: string }) => t.name) : []);
+    } catch (err) {
+      console.error("Failed to fetch document types", err);
+    }
+  };
+
   useEffect(() => {
     if (!user) return;
     fetchRequests();
+    fetchDocumentTypes();
   }, [user]);
 
   const handleDownload = async (path: string) => {

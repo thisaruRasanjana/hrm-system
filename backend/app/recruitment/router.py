@@ -191,6 +191,17 @@ async def send_scheduling_link(
 
 # ── Interview Panel Endpoints ─────────────────────────────────────────────────
 
+@router.get("/panel-eligible-users")
+def get_panel_eligible_users(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(can_manage),
+):
+    """Return all users who have the 'recruitment:interview_panel' permission.
+    Used to populate Panel Head and Panel Member search dropdowns.
+    """
+    return service.get_panel_eligible_users(db)
+
+
 @router.post("/vacancies/{vacancy_id}/panel", response_model=schemas.InterviewPanelResponse)
 def upsert_panel(
     vacancy_id: int,
@@ -207,6 +218,47 @@ def get_panel(vacancy_id: int, db: Session = Depends(get_db), current_user: User
     if not panel:
         raise HTTPException(status_code=404, detail="Panel not found")
     return panel
+
+
+@router.get("/vacancies/{vacancy_id}/my-panel-role")
+def get_my_panel_role(
+    vacancy_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(can_view),
+):
+    """Return the current user's role on this vacancy's interview panel: head | member | null."""
+    role = service.get_my_panel_role(db, vacancy_id, current_user.id)
+    return {"role": role}
+
+
+@router.get("/applications/{application_id}/panel-completion")
+def get_panel_completion(
+    application_id: int,
+    vacancy_id: int,
+    round_number: int = 1,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(can_evaluate),
+):
+    """
+    For the panel head: returns which panel members have submitted evaluations
+    for the given round and which are still pending.
+    """
+    return service.get_panel_completion_status(db, vacancy_id, application_id, round_number)
+
+
+@router.get("/applications/{application_id}/my-evaluation-status")
+def get_my_evaluation_status(
+    application_id: int,
+    round_number: int = 1,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(can_view),
+):
+    """
+    Returns {"submitted": bool} — whether the current user has already submitted
+    an evaluation for this application in the given round.
+    Used by the candidate profile page to show the correct action button.
+    """
+    return service.get_my_evaluation_status(db, application_id, current_user.id, round_number)
 
 
 # ── Evaluation Endpoints ──────────────────────────────────────────────────────
@@ -237,10 +289,11 @@ def get_final_decision_view(application_id: int, db: Session = Depends(get_db), 
 async def submit_final_decision(
     application_id: int,
     data: schemas.FinalDecisionCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(can_evaluate),
 ):
-    return await service.submit_final_decision(db, application_id, data)
+    return await service.submit_final_decision(db, application_id, data, background_tasks)
 
 
 @router.post("/applications/{application_id}/next-round")

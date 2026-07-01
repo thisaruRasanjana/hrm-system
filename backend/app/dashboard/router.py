@@ -18,7 +18,7 @@ PERMISSION_WIDGET_MAP: Dict[str, str] = {
     "widget.time_tracking.view":              "time_tracking",
     "widget.leave_balance.view":              "leave_balance",
     "widget.notifications.view":              "notifications",
-    "widget.weekly_hours.view":               "weekly_hours",
+    "widget.attendance.view":                 "weekly_hours",
     "widget.calendar.view":                   "calendar",
     "widget.approval_summary.view_approvals": "approval_summary",
     "widget.approval_summary.view_requests":  "approval_summary",

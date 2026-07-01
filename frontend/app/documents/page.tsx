@@ -54,7 +54,7 @@ export default function HRDocumentsPage() {
     if (!hasPermission("document:upload_own")) return;
     setIsLoading(true);
     Promise.all([
-      apiFetch("/api/document-types/active/").then(r => r.json()),
+      apiFetch("/api/document-types/active/?category=UPLOAD").then(r => r.json()),
       apiFetch("/documents/my-documents").then(r => r.json()),
     ])
     .then(([types, uploads]) => {

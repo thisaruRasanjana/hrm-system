@@ -5,7 +5,7 @@ import { API_BASE_URL } from "@/lib/constants";
 import { useState, useEffect } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useAuth } from "@/context/auth-context";
 
 type Candidate = {
   id: number;
@@ -46,7 +46,8 @@ export default function EvaluateInterviewPage() {
   const [saving, setSaving] = useState(false);
   const [roundNumber, setRoundNumber] = useState(1);
 
-  const { name: evaluatorName, setName: setEvaluatorName } = useCurrentUser();
+  const { user } = useAuth();
+  const evaluatorName = user ? `${user.first_name} ${user.last_name}` : "Anonymous";
   const [ratings, setRatings] = useState({
     technical_skills: 0,
     problem_solving: 0,
@@ -56,16 +57,22 @@ export default function EvaluateInterviewPage() {
   });
   const [comments, setComments] = useState("");
 
-  const isPanelHead = searchParams.get("role") === "head";
-
   useEffect(() => {
     let resolvedCandidate: any = null;
 
     Promise.all([
       apiFetch(`/recruitment/candidates/${candidateId}`).then(r => r.json()),
       apiFetch(`/recruitment/vacancies/${vacancyId}`).then(r => r.json()),
+      apiFetch(`/recruitment/vacancies/${vacancyId}/my-panel-role`).then(r => r.json()),
     ])
-    .then(([candData, vacData]) => {
+    .then(([candData, vacData, roleData]) => {
+      // Guard: must be on the interview panel
+      if (!roleData.role) {
+        alert("Evaluation is restricted to the interview panel members for this vacancy.");
+        router.push(`/recruitment/${vacancyId}/candidates/${candidateId}`);
+        return Promise.reject("Not on panel");
+      }
+
       resolvedCandidate = candData;
       setCandidate(candData);
       setVacancy(vacData);
@@ -73,20 +80,10 @@ export default function EvaluateInterviewPage() {
       return apiFetch(`/recruitment/applications/${candData.application_id}/evaluations`);
     })
     .then(r => r.json())
-    .then(async (evals: any[]) => {
-      // Determine current round based definitively on the candidate's status.
-      // This prevents the round number from falsely incrementing.
-      let currentRound = 1;
-      if (resolvedCandidate?.status === "Second Round") {
-        currentRound = 2;
-      } else if (resolvedCandidate?.status === "Job Offered" || resolvedCandidate?.status === "Rejected") {
-        // If the process is already over, default to the max existing round
-        const maxRound = Array.isArray(evals) && evals.length > 0
-          ? Math.max(...evals.map((e: any) => e.round_number))
-          : 1;
-        currentRound = maxRound > 0 ? maxRound : 1;
-      }
-      
+    .then(async (_evals: any[]) => {
+      // Use active_round from the candidate response — authoritative source.
+      // Falls back to 1 for any candidate without an explicit active_round.
+      const currentRound = resolvedCandidate?.active_round ?? 1;
       setRoundNumber(currentRound);
       setLoading(false);
     })
@@ -132,6 +129,7 @@ export default function EvaluateInterviewPage() {
           comments,
           needs_another_round: false,
           evaluator_name: evaluatorName.trim() || "Anonymous",
+          evaluator_user_id: user?.id,
         })
       });
 
@@ -254,18 +252,7 @@ export default function EvaluateInterviewPage() {
                 </div>
               </div>
 
-              <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
-                <h3 className="text-sm font-bold text-gray-800 mb-3">Your Name</h3>
-                <input
-                  type="text"
-                  value={evaluatorName}
-                  onChange={(e) => setEvaluatorName(e.target.value)}
-                  placeholder="Your full name"
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-300"
-                />
-                <p className="text-xs text-gray-400 mt-1">Used to identify your evaluation in the panel summary.</p>
-              </div>
-
+              {/* Removed manual name input */}
               {/* Actions — anchored to the bottom of the right column */}
               <div className="flex gap-3">
                 <button
