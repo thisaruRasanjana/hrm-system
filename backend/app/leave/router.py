@@ -89,8 +89,35 @@ def leave_actor(*permissions: str):
             emp_id = 0
         else:
             emp_id = emp.id
-        return {"id": emp_id, "role": "hr" if is_reviewer else "employee"}
+        # can_assign = holds leave:assign → HR / Super Admin (NOT Manager). Used to
+        # gate approval of assigned leaves to HR/Admin only.
+        return {
+            "id": emp_id,
+            "role": "hr" if is_reviewer else "employee",
+            "can_assign": "leave:assign" in perms,
+        }
     return _dep
+
+
+def _guard_assigned_request(req, current_user: dict) -> None:
+    """
+    Extra gate for leaves created via /leave/assign (assigned_by is set):
+    only HR/Admin (leave:assign holders) may action them, and never the person
+    who assigned it (separation of duties). Managers are excluded.
+    Normal self-requests (assigned_by is None) are unaffected.
+    """
+    if getattr(req, "assigned_by", None) is None:
+        return
+    if not current_user.get("can_assign"):
+        raise HTTPException(
+            status_code=403,
+            detail="Assigned leaves can only be approved by HR or Admin",
+        )
+    if req.assigned_by == current_user["id"]:
+        raise HTTPException(
+            status_code=403,
+            detail="You cannot approve a leave you assigned",
+        )
 
 
 # -----------------------------
@@ -115,8 +142,10 @@ def assign_leave(
     db: Session = Depends(get_db),
 ):
     try:
-        # Auto-approve because HR is assigning it
-        return create_leave(db, payload.employee_id, payload, auto_approve=True)
+        # HR assigns on the employee's behalf → creates a PENDING request that
+        # must still be approved by HR/Admin (never the assigner, never a Manager).
+        return create_leave(db, payload.employee_id, payload,
+                            assigned_by=current_user["id"])
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -235,6 +264,8 @@ def approve_request(
     if req.employee_id == current_user["id"]:
         raise HTTPException(status_code=403, detail="Cannot approve your own request")
 
+    _guard_assigned_request(req, current_user)
+
     return approve_leave_request(
         db,
         request_id,
@@ -261,6 +292,8 @@ def reject_request(
     if req.employee_id == current_user["id"]:
         raise HTTPException(status_code=403, detail="Cannot reject your own request")
 
+    _guard_assigned_request(req, current_user)
+
     return reject_leave_request(
         db,
         request_id,
@@ -286,6 +319,8 @@ def request_info(
 
     if req.employee_id == current_user["id"]:
         raise HTTPException(status_code=403, detail="Cannot request info for own request")
+
+    _guard_assigned_request(req, current_user)
 
     return request_info_leave_request(
         db,
@@ -340,6 +375,8 @@ def change_status(
 
     if req.employee_id == current_user["id"]:
         raise HTTPException(status_code=403, detail="Cannot change own request")
+
+    _guard_assigned_request(req, current_user)
 
     return update_status(
         db,

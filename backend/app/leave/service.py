@@ -353,6 +353,17 @@ def get_pending_requests(db: Session, user: dict):
     # HR → see all except their own
     if role == "hr":
         query = query.filter(LeaveRequest.employee_id != user["id"])
+        # Assigned leaves (assigned_by set) can only be actioned by HR/Admin
+        # (leave:assign holders), never by the assigner. Hide the ones a reviewer
+        # can't act on so the queue only shows actionable items.
+        if user.get("can_assign"):
+            query = query.filter(
+                or_(LeaveRequest.assigned_by.is_(None),
+                    LeaveRequest.assigned_by != user["id"])
+            )
+        else:
+            # Managers can approve normal leaves but not assigned ones.
+            query = query.filter(LeaveRequest.assigned_by.is_(None))
     else:
         return []
 
@@ -422,7 +433,8 @@ def get_leave_history(
     return output
 
 
-def create_leave(db: Session, employee_id: int, data: LeaveRequestCreate, auto_approve: bool = False):
+def create_leave(db: Session, employee_id: int, data: LeaveRequestCreate, auto_approve: bool = False,
+                 assigned_by: int | None = None):
     if data.start_date > data.end_date:
         raise ValueError("start_date cannot be after end_date")
 
@@ -451,6 +463,7 @@ def create_leave(db: Session, employee_id: int, data: LeaveRequestCreate, auto_a
         status="APPROVED" if auto_approve else "PENDING",
         reason=data.reason,
         attachment_urls=data.attachment_urls,
+        assigned_by=assigned_by,
     )
 
     try:
@@ -458,8 +471,31 @@ def create_leave(db: Session, employee_id: int, data: LeaveRequestCreate, auto_a
         db.commit()
         db.refresh(req)
 
+        # ── If HR assigned this leave, notify the employee + HR/Admin approvers ─
+        if assigned_by is not None:
+            try:
+                from app.notifications.service import notify_permission, notify_employee, get_employee_name
+                _emp_name = get_employee_name(db, employee_id)
+                _lt = leave_type.name if leave_type else "leave"
+                notify_employee(
+                    db, employee_id,
+                    f"HR assigned a {_lt} leave for you, pending approval",
+                    category="leave", type="info", link="/leave-history",
+                    entity_type="leave_request", entity_id=str(req.leave_request_id),
+                )
+                notify_permission(
+                    db, "leave:assign",
+                    f"{_emp_name}'s {_lt} leave was assigned and needs approval",
+                    category="leave", type="info", link="/approval",
+                    entity_type="leave_request", entity_id=str(req.leave_request_id),
+                    exclude_employee_id=assigned_by,
+                )
+                db.commit()
+            except Exception as e:
+                _notif_logger.error(f"[Leave] Notification failed for assign: {e}")
+
         # ── Notify leave approvers ──────────────────────────────────────
-        if not auto_approve:
+        if assigned_by is None and not auto_approve:
             try:
                 from app.notifications.service import notify_permission, get_employee_name
                 emp_name = get_employee_name(db, employee_id)

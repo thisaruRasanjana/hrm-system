@@ -276,7 +276,7 @@ const AssignLeaveForm: React.FC<Props> = ({ balances, onSubmitted }) => {
     <form onSubmit={handleSubmit} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 mt-6">
       {success && (
         <div className="bg-green-50 text-green-700 p-2 rounded mb-4">
-          Leave Request Submitted Successfully
+          Leave assigned successfully — pending HR/Admin approval
         </div>
       )}
 

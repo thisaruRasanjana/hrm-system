@@ -26,9 +26,10 @@ class LeaveRequestOut(BaseModel):
     reason: Optional[str]
     attachment_urls: Optional[List[str]] = []
     rejection_reason: Optional[str]
-    manager_comment: Optional[str]= None #new added 29/03   
+    manager_comment: Optional[str]= None #new added 29/03
     approved_by: Optional[int]
     approved_date: Optional[date]
+    assigned_by: Optional[int] = None  # set when HR assigned this leave on the employee's behalf
 
     class Config:
         from_attributes = True
