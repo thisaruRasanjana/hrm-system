@@ -39,6 +39,11 @@ class LeaveRequest(Base):
 
     approved_by = Column(Integer, nullable=True)           # later FK to employees.id
 
+    # NULL = self-requested. Set to the assigning HR's Employee.id when a leave
+    # is created on an employee's behalf via /leave/assign. Such requests need
+    # HR/Admin approval (not the assigner, not a Manager).
+    assigned_by = Column(Integer, nullable=True)
+
     start_date = Column(Date, nullable=False)
     end_date = Column(Date, nullable=False)
 
