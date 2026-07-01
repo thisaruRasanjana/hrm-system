@@ -4,7 +4,8 @@ import React, { useEffect, useState } from 'react';
 import LeaveTabs from '@/components/LeaveTabs';
 import LeaveResubmitModal from '@/components/LeaveResubmitModal';
 import EditLeaveModal from '@/components/EditLeaveModal';
-import { Search, Pencil, Trash2 } from "lucide-react";
+import MedicalConversionModal from '@/components/MedicalConversionModal';
+import { Search, Pencil, Trash2, Stethoscope } from "lucide-react";
 import { apiFetch } from '@/lib/api';
 
 interface LeaveRequest {
@@ -23,6 +24,7 @@ interface LeaveRequest {
   manager_comment?: string | null;
   approved_by?: number | null;
   approved_date?: string | null;
+  parent_request_id?: number | null;
 }
 
 
@@ -60,6 +62,7 @@ export default function LeaveHistoryPage() {
   const [loading, setLoading] = useState(true);
   const [selectedRequestForInfo, setSelectedRequestForInfo] = useState<LeaveRequest | null>(null);
   const [selectedRequestForEdit, setSelectedRequestForEdit] = useState<LeaveRequest | null>(null);
+  const [selectedRequestForConversion, setSelectedRequestForConversion] = useState<LeaveRequest | null>(null);
 
   const fetchLeaveHistory = React.useCallback(async () => {
     setLoading(true);
@@ -242,7 +245,14 @@ export default function LeaveHistoryPage() {
                             LR-{request.leave_request_id}
                           </td>
                           <td className="px-6 py-4 text-sm text-gray-700">
-                            {request.leave_type_name || '-'}
+                            <div className="flex items-center gap-2">
+                              <span>{request.leave_type_name || '-'}</span>
+                              {request.parent_request_id && (
+                                <span className="inline-flex items-center gap-1 rounded-full border border-orange-100 bg-orange-50 px-2 py-0.5 text-[11px] font-medium text-orange-600">
+                                  <Stethoscope size={11} /> Reclassified
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td className="px-6 py-4 text-sm text-gray-700">
                             {formatDate(request.start_date)} - {formatDate(request.end_date)}
@@ -274,6 +284,16 @@ export default function LeaveHistoryPage() {
                                     </button>
                                   </div>
                                 )}
+                                {request.status === 'APPROVED' &&
+                                  (request.leave_type_name || '').toLowerCase().includes('casual') && (
+                                    <button
+                                      onClick={() => setSelectedRequestForConversion(request)}
+                                      title="Request medical reclassification"
+                                      className="inline-flex items-center gap-1 rounded-md border border-orange-200 bg-orange-50 px-2 py-1 text-[11px] font-medium text-orange-600 hover:bg-orange-100 transition-colors"
+                                    >
+                                      <Stethoscope size={12} /> To Medical
+                                    </button>
+                                  )}
                               </div>
                             )}
                           </td>
@@ -309,6 +329,17 @@ export default function LeaveHistoryPage() {
             fetchLeaveHistory();
           }}
           onDelete={() => handleDelete(selectedRequestForEdit.leave_request_id)}
+        />
+      )}
+
+      {selectedRequestForConversion && (
+        <MedicalConversionModal
+          request={selectedRequestForConversion}
+          onClose={() => setSelectedRequestForConversion(null)}
+          onSuccess={() => {
+            setSelectedRequestForConversion(null);
+            fetchLeaveHistory();
+          }}
         />
       )}
     </div>

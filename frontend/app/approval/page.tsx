@@ -8,7 +8,9 @@ import ApprovalRequestCard, {
 } from '../../components/ApprovalRequestCard';
 import ApprovalReviewModal, {
   ModalMode,
+  ApprovalLeaveType,
 } from '../../components/ApprovalReviewModal';
+import PendingConversions from '../../components/PendingConversions';
 import { Search, ChevronDown, CheckCircle2, XCircle } from 'lucide-react';
 import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/context/auth-context';
@@ -69,6 +71,7 @@ function mapBackendToFrontend(item: BackendLeaveRequest): ApprovalRequest {
     department: item.department || '—',
     role: item.role || '—',
     leaveType: item.leave_type_name || `Leave Type ${item.leave_type_id}`,
+    leaveTypeId: item.leave_type_id,
     startDate: formatDate(item.start_date),
     endDate: formatDate(item.end_date),
     durationText: item.half_day ? '0.5 Days' : `${item.total_days} Days`,
@@ -125,6 +128,7 @@ export default function ApprovalPage() {
   const [messageType, setMessageType] = useState<'success' | 'error' | ''>('');
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const [leaveTypes, setLeaveTypes] = useState<ApprovalLeaveType[]>([]);
 
   const router = useRouter();
   const { loading: authLoading, hasPermission } = useAuth();
@@ -174,6 +178,15 @@ export default function ApprovalPage() {
       loadPendingRequests();
     }
   }, [canApprove, loadPendingRequests]);
+
+  // Leave types drive the approver's "Approve as" classification (Casual/Medical/…)
+  useEffect(() => {
+    if (!canApprove) return;
+    apiFetch('/leave/types', { method: 'GET', cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data) => setLeaveTypes(Array.isArray(data) ? data : []))
+      .catch(() => setLeaveTypes([]));
+  }, [canApprove]);
 
   useEffect(() => {
     if (!actionMessage) return;
@@ -271,7 +284,7 @@ export default function ApprovalPage() {
     setModalMode('review');
   };
 
-  const handleApprove = async (comment: string) => {
+  const handleApprove = async (comment: string, approvedLeaveTypeId: number) => {
     if (!selectedRequest) return;
 
     try {
@@ -283,6 +296,7 @@ export default function ApprovalPage() {
           method: 'PATCH',
           body: JSON.stringify({
             manager_comment: comment || null,
+            approved_leave_type_id: approvedLeaveTypeId,
           }),
         }
       );
@@ -507,10 +521,14 @@ export default function ApprovalPage() {
             </div>
           )}
 
+      {/* Pending medical reclassification requests (Feature C — approver side) */}
+      <PendingConversions />
+
       {selectedRequest && (
         <ApprovalReviewModal
           request={selectedRequest}
           mode={modalMode}
+          leaveTypes={leaveTypes}
           onClose={closeModal}
           onApprove={() => setModalMode('approve')}
           onReject={() => setModalMode('reject')}
