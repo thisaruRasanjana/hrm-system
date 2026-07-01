@@ -73,6 +73,30 @@ def create_employee(db: Session, employee: EmployeeCreate, background_tasks: Bac
             return value
         return f"deleted_{pk}_{value}"[:max_len]
 
+    # Validate any pre-assigned leave entitlements up front so a bad value fails
+    # cleanly (400) instead of a rolled-back 500 on an FK/constraint violation,
+    # and so negative days can never be stored (mirrors set_employee_leave_entitlements).
+    if employee.leave_entitlements:
+        from app.leave.models import LeaveType as _LeaveType
+        _seen_types: set[int] = set()
+        for ent in employee.leave_entitlements:
+            if ent.days is None or ent.days < 0 or ent.days > 365:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Pre-assigned leave days must be between 0 and 365.",
+                )
+            if ent.leave_type_id in _seen_types:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="The same leave type was pre-assigned more than once.",
+                )
+            _seen_types.add(ent.leave_type_id)
+            if not db.query(_LeaveType).filter(_LeaveType.id == ent.leave_type_id).first():
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Unknown leave type in pre-assigned entitlements (id {ent.leave_type_id}).",
+                )
+
     try:
         # Rename unique fields on any soft-deleted user/employee with this email
         # so the unique constraints don't block re-creation of the account.

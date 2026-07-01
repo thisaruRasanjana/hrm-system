@@ -113,6 +113,10 @@ export default function EmployeeAddPage() {
           days: parseFloat(value)
         }));
 
+      if (leave_entitlements.some((e) => Number.isNaN(e.days) || e.days < 0 || e.days > 365)) {
+        throw new Error("Pre-assigned leave days must be between 0 and 365.");
+      }
+
       const payload = {
         employee_id: formData.employeeId,
         first_name: formData.firstName,
