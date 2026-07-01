@@ -7,15 +7,22 @@ import { API_BASE_URL } from '@/lib/constants';
 
 export type ModalMode = 'review' | 'approve' | 'reject' | 'info';
 
+export interface ApprovalLeaveType {
+  id: number;
+  name: string;
+  directly_requestable: boolean;
+}
+
 interface Props {
   request: ApprovalRequest;
   mode: ModalMode;
+  leaveTypes?: ApprovalLeaveType[];
   onClose: () => void;
   onApprove: () => void;
   onReject: () => void;
   onReqInfo: () => void;
   onCancelAction: () => void;
-  onConfirmApprove: (comment: string) => void;
+  onConfirmApprove: (comment: string, approvedLeaveTypeId: number) => void;
   onConfirmReject: (reason: string) => void;
   onSendInfoRequest: (message: string) => void;
   isSubmitting?: boolean;
@@ -24,6 +31,7 @@ interface Props {
 export default function ApprovalReviewModal({
   request,
   mode,
+  leaveTypes = [],
   onClose,
   onApprove,
   onReject,
@@ -35,20 +43,35 @@ export default function ApprovalReviewModal({
   isSubmitting = false,
 }: Props) {
   const [approveComment, setApproveComment] = useState('');
+  const [approvedTypeId, setApprovedTypeId] = useState<number>(request.leaveTypeId);
   const [rejectReason, setRejectReason] = useState('');
   const [infoMessage, setInfoMessage] = useState('');
   const [validationError, setValidationError] = useState('');
 
   useEffect(() => {
     setApproveComment('');
+    setApprovedTypeId(request.leaveTypeId);
     setRejectReason('');
     setInfoMessage('');
     setValidationError('');
   }, [mode, request]);
 
+  const selectedType = leaveTypes.find((t) => t.id === approvedTypeId);
+  // Reclassifying to an approval-only type (e.g. Medical) requires an attachment.
+  const needsAttachment =
+    selectedType && !selectedType.directly_requestable &&
+    (!request.attachmentUrls || request.attachmentUrls.length === 0);
+
   const handleApproveSubmit = () => {
     if (isSubmitting) return;
-    onConfirmApprove(approveComment.trim());
+    if (needsAttachment) {
+      setValidationError(
+        `Approving as ${selectedType?.name} requires a supporting document, but this request has no attachment.`
+      );
+      return;
+    }
+    setValidationError('');
+    onConfirmApprove(approveComment.trim(), approvedTypeId);
   };
 
   const handleRejectSubmit = () => {
@@ -217,15 +240,43 @@ export default function ApprovalReviewModal({
 
           {/* Conditional action textareas */}
           {mode === 'approve' && (
-            <div>
-              <label className="mb-3 block text-[16px] text-[#1F2937]">Comments (Optional)</label>
-              <textarea
-                value={approveComment}
-                onChange={(e) => setApproveComment(e.target.value)}
-                placeholder="Add any comment about this approval."
-                disabled={isSubmitting}
-                className="h-[112px] w-full resize-none rounded-[14px] border border-[#D0D5DD] bg-[#F9FAFB] px-4 py-3 text-[15px] text-[#344054] placeholder:text-[#98A2B3] focus:outline-none disabled:cursor-not-allowed disabled:opacity-70"
-              />
+            <div className="space-y-4">
+              {leaveTypes.length > 0 && (
+                <div>
+                  <label className="mb-2 block text-[16px] text-[#1F2937]">Approve as</label>
+                  <select
+                    value={approvedTypeId}
+                    onChange={(e) => {
+                      setApprovedTypeId(Number(e.target.value));
+                      if (validationError) setValidationError('');
+                    }}
+                    disabled={isSubmitting}
+                    className="w-full rounded-[14px] border border-[#D0D5DD] bg-[#F9FAFB] px-4 py-3 text-[15px] text-[#344054] focus:outline-none disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    {leaveTypes.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}
+                        {t.id === request.leaveTypeId ? ' (as requested)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                  {selectedType && !selectedType.directly_requestable && (
+                    <p className="mt-2 text-[13px] text-[#667085]">
+                      Reclassifying to {selectedType.name} — a supporting document is required.
+                    </p>
+                  )}
+                </div>
+              )}
+              <div>
+                <label className="mb-3 block text-[16px] text-[#1F2937]">Comments (Optional)</label>
+                <textarea
+                  value={approveComment}
+                  onChange={(e) => setApproveComment(e.target.value)}
+                  placeholder="Add any comment about this approval."
+                  disabled={isSubmitting}
+                  className="h-[112px] w-full resize-none rounded-[14px] border border-[#D0D5DD] bg-[#F9FAFB] px-4 py-3 text-[15px] text-[#344054] placeholder:text-[#98A2B3] focus:outline-none disabled:cursor-not-allowed disabled:opacity-70"
+                />
+              </div>
             </div>
           )}
 
@@ -261,7 +312,7 @@ export default function ApprovalReviewModal({
             </div>
           )}
 
-          {validationError && (mode === 'reject' || mode === 'info') && (
+          {validationError && (mode === 'reject' || mode === 'info' || mode === 'approve') && (
             <p className="text-[14px] font-medium text-red-600">{validationError}</p>
           )}
 

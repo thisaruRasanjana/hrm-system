@@ -146,6 +146,7 @@ class MedicalConversionOut(BaseModel):
     id: int
     leave_request_id: int
     employee_id: int
+    employee_name: Optional[str] = None
     start_date: date
     end_date: date
     attachment_urls: Optional[List[str]] = []

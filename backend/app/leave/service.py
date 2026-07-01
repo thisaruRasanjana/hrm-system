@@ -1026,10 +1026,11 @@ def list_medical_conversions(db: Session, request_id: int):
 
 def get_pending_medical_conversions(db: Session, user: dict):
     from app.leave.models import LeaveMedicalConversion
+    from app.employees.models import Employee
     role = user.get("role", "").lower()
     if role != "hr":
         return []
-    return (
+    convs = (
         db.query(LeaveMedicalConversion)
         .filter(
             LeaveMedicalConversion.status == "PENDING",
@@ -1038,6 +1039,14 @@ def get_pending_medical_conversions(db: Session, user: dict):
         .order_by(LeaveMedicalConversion.id.desc())
         .all()
     )
+    # Attach the requesting employee's name so approvers see who it's for.
+    for conv in convs:
+        emp = db.query(Employee).filter(Employee.id == conv.employee_id).first()
+        if emp:
+            conv.employee_name = f"{emp.first_name or ''} {emp.last_name or ''}".strip() or f"Employee {conv.employee_id}"
+        else:
+            conv.employee_name = f"Employee {conv.employee_id}"
+    return convs
 
 
 def approve_medical_conversion(db: Session, conversion_id: int, reviewer_id: int, comment: str | None = None):
@@ -1048,6 +1057,9 @@ def approve_medical_conversion(db: Session, conversion_id: int, reviewer_id: int
         raise ValueError("Conversion request not found")
     if conv.status != "PENDING":
         raise ValueError("Conversion request is already processed")
+    # Separation of duties: a reviewer cannot approve their own reclassification.
+    if conv.employee_id == reviewer_id:
+        raise ValueError("You cannot review your own reclassification request")
 
     original = db.query(LeaveRequest).filter(LeaveRequest.leave_request_id == conv.leave_request_id).first()
     if not original:
@@ -1191,6 +1203,9 @@ def reject_medical_conversion(db: Session, conversion_id: int, reviewer_id: int,
         raise ValueError("Conversion request not found")
     if conv.status != "PENDING":
         raise ValueError("Conversion request is already processed")
+    # Separation of duties: a reviewer cannot reject their own reclassification.
+    if conv.employee_id == reviewer_id:
+        raise ValueError("You cannot review your own reclassification request")
 
     conv.status = "REJECTED"
     conv.reviewer_id = reviewer_id

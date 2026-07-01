@@ -17,6 +17,7 @@ export interface ApprovalRequest {
   department: string;
   role: string;
   leaveType: string;
+  leaveTypeId: number;
   startDate: string;
   endDate: string;
   durationText: string;
