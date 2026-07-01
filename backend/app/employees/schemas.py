@@ -1,6 +1,6 @@
 from pydantic import BaseModel, EmailStr, model_validator
 from datetime import date
-from typing import Optional, Any
+from typing import Optional, Any, List
 from enum import Enum
 
 
@@ -34,9 +34,15 @@ class EmployeeBase(BaseModel):
     bank_branch: Optional[str] = None
 
 
+class EmployeeLeaveEntitlementCreate(BaseModel):
+    leave_type_id: int
+    days: float
+
+
 class EmployeeCreate(EmployeeBase):
     department_id: int
     role_id: int
+    leave_entitlements: Optional[List[EmployeeLeaveEntitlementCreate]] = None
 
 
 class EmployeeUpdate(BaseModel):
