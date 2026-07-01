@@ -10,6 +10,9 @@ class LeaveRequestCreate(BaseModel):
     reason: Optional[str] = None
     attachment_urls: Optional[List[str]] = [] #if you have file upload later
 
+class AssignLeaveRequestCreate(LeaveRequestCreate):
+    employee_id: int
+
 class LeaveRequestOut(BaseModel):
     leave_request_id: int
     employee_id: int
