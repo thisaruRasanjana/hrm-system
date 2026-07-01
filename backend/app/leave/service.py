@@ -341,6 +341,37 @@ def has_overlapping_leave(db: Session, employee_id: int, start_date: date, end_d
     return overlap is not None
 
 
+def _attach_employee_info(db: Session, leave) -> None:
+    """
+    Attach the requesting employee's display fields to a LeaveRequest ORM object
+    so approvers see WHO the request is for (name, code, department, role) instead
+    of a bare id. LeaveRequest.employee_id is Employee.id. Department comes from the
+    employee's department FK and role from the linked user's assigned role
+    (authoritative sources, matching the rest of the system).
+    """
+    from app.employees.models import Employee
+
+    emp = db.query(Employee).filter(Employee.id == leave.employee_id).first()
+    if not emp:
+        leave.employee_name = f"Employee {leave.employee_id}"
+        leave.employee_code = None
+        leave.department = None
+        leave.role = None
+        return
+
+    full_name = f"{emp.first_name or ''} {emp.last_name or ''}".strip()
+    leave.employee_name = full_name or f"Employee {leave.employee_id}"
+    leave.employee_code = emp.employee_id
+    leave.department = emp.department_rel.name if emp.department_rel else None
+    user = emp.user
+    if user and getattr(user, "roles", None):
+        leave.role = user.roles[0].role_name
+    elif user:
+        leave.role = user.role
+    else:
+        leave.role = None
+
+
 def get_pending_requests(db: Session, user: dict):
     role = user.get("role", "").lower()
 
@@ -372,6 +403,7 @@ def get_pending_requests(db: Session, user: dict):
     output = []
     for leave, leave_type_name in results:
         leave.leave_type_name = leave_type_name
+        _attach_employee_info(db, leave)
         output.append(leave)
 
     return output
@@ -548,6 +580,7 @@ def get_leave_request_by_id(db: Session, request_id: int):
 
     leave, leave_type_name = result
     leave.leave_type_name = leave_type_name
+    _attach_employee_info(db, leave)
     return leave
 
 
