@@ -30,6 +30,11 @@ class LeaveRequestOut(BaseModel):
     approved_by: Optional[int]
     approved_date: Optional[date]
     assigned_by: Optional[int] = None  # set when HR assigned this leave on the employee's behalf
+    # Requesting employee's display fields (populated for approver views)
+    employee_name: Optional[str] = None
+    employee_code: Optional[str] = None
+    department: Optional[str] = None
+    role: Optional[str] = None
 
     class Config:
         from_attributes = True

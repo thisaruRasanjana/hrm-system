@@ -29,6 +29,10 @@ type BackendLeaveRequest = {
   manager_comment?: string | null;
   approved_by?: number | null;
   approved_date?: string | null;
+  employee_name?: string | null;
+  employee_code?: string | null;
+  department?: string | null;
+  role?: string | null;
 };
 
 type PendingRequestsResponse =
@@ -60,10 +64,10 @@ function mapBackendToFrontend(item: BackendLeaveRequest): ApprovalRequest {
   const urls = Array.isArray(item.attachment_urls) ? item.attachment_urls : [];
   return {
     id: item.leave_request_id,
-    employeeName: `Employee ${item.employee_id}`,
-    employeeCode: `EMP_${String(item.employee_id).padStart(2, '0')}`,
-    department: 'Department',
-    role: 'Employee',
+    employeeName: item.employee_name || `Employee ${item.employee_id}`,
+    employeeCode: item.employee_code || `EMP_${String(item.employee_id).padStart(2, '0')}`,
+    department: item.department || '—',
+    role: item.role || '—',
     leaveType: item.leave_type_name || `Leave Type ${item.leave_type_id}`,
     startDate: formatDate(item.start_date),
     endDate: formatDate(item.end_date),
