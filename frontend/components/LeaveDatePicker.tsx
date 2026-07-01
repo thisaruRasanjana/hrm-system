@@ -1,6 +1,13 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
+import { apiFetch } from "@/lib/api";
+
+interface Holiday {
+  id: number;
+  name: string;
+  date: string;
+}
 
 interface DateSelection {
   startDate: string; // YYYY-MM-DD
@@ -11,6 +18,7 @@ interface DateSelection {
 interface Props {
   onChange: (selection: DateSelection) => void;
   value: DateSelection;
+  holidays?: Holiday[];
 }
 
 const DAYS_OF_WEEK = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
@@ -28,28 +36,77 @@ function parseYMD(str: string): Date {
   return new Date(y, m - 1, d);
 }
 
-function formatDisplay(start: string, end: string, halfDay: boolean): string {
+function formatDisplay(start: string, end: string, halfDay: boolean, holidays: Holiday[]): string {
   if (!start) return "";
   const s = parseYMD(start);
   const fmt = (d: Date) =>
     `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
 
-  if (halfDay || start === end) return `${fmt(s)} (${halfDay ? "Half Day" : "1 day"})`;
+  const holidaySet = new Set(holidays.map(h => h.date));
+
+  if (halfDay || start === end) {
+    const dayOfWeek = s.getDay();
+    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+    const isHoliday = holidaySet.has(start);
+    const dayCount = (isWeekend || isHoliday) ? 0 : (halfDay ? 0.5 : 1);
+    return `${fmt(s)} (${dayCount} day${dayCount !== 1 ? "s" : ""})`;
+  }
+
   const e = parseYMD(end);
-  const diff =
-    Math.ceil((e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-  return `${fmt(s)} → ${fmt(e)} (${diff} days)`;
+  let workingDays = 0;
+  let current = new Date(s);
+  while (current <= e) {
+    const dayOfWeek = current.getDay();
+    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+    const y = current.getFullYear();
+    const m = String(current.getMonth() + 1).padStart(2, "0");
+    const d = String(current.getDate()).padStart(2, "0");
+    const currentStr = `${y}-${m}-${d}`;
+    const isHoliday = holidaySet.has(currentStr);
+
+    if (!isWeekend && !isHoliday) {
+      workingDays++;
+    }
+    current.setDate(current.getDate() + 1);
+  }
+
+  return `${fmt(s)} → ${fmt(e)} (${workingDays} days)`;
 }
 
-export default function LeaveDatePicker({ onChange, value }: Props) {
+export default function LeaveDatePicker({ onChange, value, holidays: initialHolidays }: Props) {
   const [open, setOpen] = useState(false);
   const [viewYear, setViewYear] = useState(() => new Date().getFullYear());
   const [viewMonth, setViewMonth] = useState(() => new Date().getMonth());
   const [selecting, setSelecting] = useState<"start" | "end">("start");
   const [hoverDate, setHoverDate] = useState<string | null>(null);
+  const [holidays, setHolidays] = useState<Holiday[]>(initialHolidays || []);
 
   const wrapperRef = useRef<HTMLDivElement>(null);
   const today = toYMD(new Date());
+
+  // Sync prop changes
+  useEffect(() => {
+    if (initialHolidays) {
+      setHolidays(initialHolidays);
+    }
+  }, [initialHolidays]);
+
+  // Fetch holidays on mount if not provided as prop
+  useEffect(() => {
+    if (initialHolidays) return;
+    const fetchHolidays = async () => {
+      try {
+        const res = await apiFetch("/holidays");
+        if (res.ok) {
+          const data = await res.json();
+          setHolidays(data);
+        }
+      } catch (err) {
+        console.error("Failed to load holidays:", err);
+      }
+    };
+    fetchHolidays();
+  }, [initialHolidays]);
 
   // Close on outside click
   useEffect(() => {
@@ -67,6 +124,15 @@ export default function LeaveDatePicker({ onChange, value }: Props) {
   // Monday-based: Mon=0 … Sun=6
   const startOffset = (firstDay.getDay() + 6) % 7;
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+
+  const holidayMap = new Map<number, string>();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const prefix = `${viewYear}-${pad(viewMonth + 1)}`;
+  holidays.forEach(h => {
+    if (h.date.startsWith(prefix)) {
+      holidayMap.set(parseInt(h.date.split("-")[2]), h.name);
+    }
+  });
 
   const cells: (number | null)[] = [
     ...Array(startOffset).fill(null),
@@ -143,7 +209,7 @@ export default function LeaveDatePicker({ onChange, value }: Props) {
   };
 
   const displayText = value.startDate
-    ? formatDisplay(value.startDate, value.endDate, value.halfDay)
+    ? formatDisplay(value.startDate, value.endDate, value.halfDay, holidays)
     : "";
 
   return (
@@ -211,24 +277,31 @@ export default function LeaveDatePicker({ onChange, value }: Props) {
 
           {/* Date cells */}
           <div className="grid grid-cols-7">
-            {cells.map((day, i) =>
-              day === null ? (
-                <div key={i} />
-              ) : (
+            {cells.map((day, i) => {
+              if (day === null) return <div key={i} />;
+              
+              const isHoliday = holidayMap.has(day);
+              const holidayName = isHoliday ? holidayMap.get(day) : "";
+
+              return (
                 <div
                   key={i}
+                  title={holidayName}
                   onClick={() => handleDayClick(day)}
                   onMouseEnter={() => {
                     const d = toYMD(new Date(viewYear, viewMonth, day));
                     if (selecting === "end") setHoverDate(d);
                   }}
                   onMouseLeave={() => setHoverDate(null)}
-                  className={`flex items-center justify-center text-sm h-8 w-8 mx-auto transition-colors ${getCellStyle(day)}`}
+                  className={`relative flex items-center justify-center text-sm h-8 w-8 mx-auto transition-colors ${getCellStyle(day)}`}
                 >
                   {day}
+                  {isHoliday && (
+                    <span className="absolute bottom-1 w-1 h-1 rounded-full bg-orange-400" />
+                  )}
                 </div>
-              )
-            )}
+              );
+            })}
           </div>
 
           {/* Divider */}

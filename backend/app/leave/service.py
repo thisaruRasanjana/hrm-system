@@ -3,7 +3,7 @@ from sqlalchemy.exc import IntegrityError
 from datetime import date
 from sqlalchemy import or_, cast, String, func, extract
 
-from app.leave.models import LeaveRequest, LeaveType, LeaveEntitlement
+from app.leave.models import LeaveRequest, LeaveType, LeaveEntitlement, EmployeeLeaveEntitlement
 from app.leave.schemas import LeaveRequestCreate
 
 from fastapi import HTTPException
@@ -22,18 +22,40 @@ def get_team_members(manager_id: int) -> list[int]:
     return TEAM_MEMBERS.get(manager_id, [])
 
 
-def calculate_total_days(start_date: date, end_date: date, half_day: bool) -> float:
-    days = (end_date - start_date).days + 1
-
-    if days < 1:
+def calculate_total_days(db: Session, start_date: date, end_date: date, half_day: bool) -> float:
+    if start_date > end_date:
         raise ValueError("Invalid date range")
+
+    from app.calendar_holidays.models import Holiday
+    from datetime import timedelta
+
+    start_str = start_date.strftime("%Y-%m-%d")
+    end_str = end_date.strftime("%Y-%m-%d")
+    holidays_in_range = db.query(Holiday.date).filter(
+        Holiday.date >= start_str,
+        Holiday.date <= end_str
+    ).all()
+    holiday_dates = {h[0] for h in holidays_in_range}
+
+    current_date = start_date
+    total_days = 0.0
+    while current_date <= end_date:
+        # Check if weekend (Saturday=5, Sunday=6)
+        is_weekend = current_date.weekday() >= 5
+        # Check if holiday
+        is_holiday = current_date.strftime("%Y-%m-%d") in holiday_dates
+
+        if not is_weekend and not is_holiday:
+            total_days += 1.0
+        current_date += timedelta(days=1)
 
     if half_day:
         if start_date != end_date:
             raise ValueError("Half day leave must be for a single day only")
-        return 0.5
+        return 0.5 if total_days > 0 else 0.0
 
-    return float(days)
+    return total_days
+
 
 
 def leave_type_exists(db: Session, leave_type_id: int) -> bool:
@@ -79,9 +101,24 @@ def _employee_role_id(db: Session, employee_id: int) -> int | None:
 def _entitlement_for(db: Session, employee_id: int, leave_type: LeaveType,
                      role_id: int | None = None) -> float | None:
     """
-    Entitlement for one employee/type: the per-role entitlement if HR has
-    configured one, otherwise the type's default_days. None = unlimited.
+    Entitlement for one employee/type: 
+    1. Employee-specific override if configured
+    2. Per-role entitlement if HR has configured one
+    3. Type's default_days. None = unlimited.
     """
+    # 1. Employee-specific override
+    emp_override = (
+        db.query(EmployeeLeaveEntitlement)
+        .filter(
+            EmployeeLeaveEntitlement.employee_id == employee_id,
+            EmployeeLeaveEntitlement.leave_type_id == leave_type.id,
+        )
+        .first()
+    )
+    if emp_override is not None:
+        return float(emp_override.days)
+
+    # 2. Per-role entitlement
     if role_id is None:
         role_id = _employee_role_id(db, employee_id)
     if role_id is not None:
@@ -95,6 +132,8 @@ def _entitlement_for(db: Session, employee_id: int, leave_type: LeaveType,
         )
         if row is not None:
             return float(row.days)
+            
+    # 3. Default days
     return float(leave_type.default_days) if leave_type.default_days is not None else None
 
 
@@ -216,6 +255,72 @@ def set_leave_entitlements(db: Session, items: list) -> dict:
     return get_leave_entitlements(db)
 
 
+def get_employee_leave_entitlements(db: Session, employee_id: int) -> dict:
+    from app.employees.models import Employee
+    emp = db.query(Employee).filter(Employee.id == employee_id).first()
+    if not emp:
+        raise ValueError("Employee not found")
+
+    types = db.query(LeaveType).order_by(LeaveType.id).all()
+    overrides = {
+        e.leave_type_id: float(e.days)
+        for e in db.query(EmployeeLeaveEntitlement).filter(EmployeeLeaveEntitlement.employee_id == employee_id).all()
+    }
+
+    entries = []
+    for lt in types:
+        override = overrides.get(lt.id)
+        entries.append({
+            "leave_type_id": lt.id,
+            "leave_type_name": lt.name,
+            "days": override if override is not None else None,
+            "is_override": override is not None,
+        })
+        
+    return {
+        "employee_id": employee_id,
+        "employee_name": f"{emp.first_name} {emp.last_name}",
+        "leave_types": [
+            {"id": t.id, "name": t.name, "default_days": t.default_days} for t in types
+        ],
+        "entries": entries,
+    }
+
+def set_employee_leave_entitlements(db: Session, employee_id: int, items: list) -> dict:
+    from app.employees.models import Employee
+    emp = db.query(Employee).filter(Employee.id == employee_id).first()
+    if not emp:
+        raise ValueError("Employee not found")
+
+    for item in items:
+        lt = db.query(LeaveType).filter(LeaveType.id == item.leave_type_id).first()
+        if not lt:
+            raise ValueError(f"Invalid leave_type_id {item.leave_type_id}")
+        if item.days is not None and item.days < 0:
+            raise ValueError("Entitlement days cannot be negative")
+
+        row = (
+            db.query(EmployeeLeaveEntitlement)
+            .filter(
+                EmployeeLeaveEntitlement.employee_id == employee_id,
+                EmployeeLeaveEntitlement.leave_type_id == item.leave_type_id,
+            )
+            .first()
+        )
+        if item.days is None:
+            if row:
+                db.delete(row)
+        elif row:
+            row.days = item.days
+        else:
+            db.add(EmployeeLeaveEntitlement(
+                employee_id=employee_id,
+                leave_type_id=item.leave_type_id,
+                days=item.days,
+            ))
+    db.commit()
+    return get_employee_leave_entitlements(db, employee_id)
+
 def has_overlapping_leave(db: Session, employee_id: int, start_date: date, end_date: date) -> bool:
     overlap = (
         db.query(LeaveRequest)
@@ -326,7 +431,7 @@ def create_leave(db: Session, employee_id: int, data: LeaveRequestCreate):
     if has_overlapping_leave(db, employee_id, data.start_date, data.end_date):
         raise HTTPException(status_code=400,detail="You already have a leave request for these dates")
 
-    total_days = calculate_total_days(data.start_date, data.end_date, data.half_day)
+    total_days = calculate_total_days(db, data.start_date, data.end_date, data.half_day)
 
     _enforce_balance(db, employee_id, leave_type, total_days, data.start_date)
 
@@ -667,7 +772,7 @@ def update_leave_request(db: Session, request_id: int, employee_id: int, payload
     if overlap:
         raise ValueError("You already have an overlapping leave request for these dates")
 
-    total_days = calculate_total_days(payload.start_date, payload.end_date, payload.half_day)
+    total_days = calculate_total_days(db, payload.start_date, payload.end_date, payload.half_day)
 
     leave_type = db.query(LeaveType).filter(LeaveType.id == payload.leave_type_id).first()
     _enforce_balance(db, employee_id, leave_type, total_days, payload.start_date,

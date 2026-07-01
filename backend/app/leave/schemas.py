@@ -102,3 +102,22 @@ class EntitlementMatrixOut(BaseModel):
     roles: List[EntitlementRole]
     leave_types: List[EntitlementLeaveType]
     entries: List[EntitlementEntry]
+
+
+class EmployeeEntitlementItem(BaseModel):
+    leave_type_id: int
+    days: Optional[float] = None
+
+
+class EmployeeEntitlementEntry(BaseModel):
+    leave_type_id: int
+    leave_type_name: str
+    days: Optional[float] = None
+    is_override: bool
+
+
+class EmployeeEntitlementOut(BaseModel):
+    employee_id: int
+    employee_name: str
+    leave_types: List[EntitlementLeaveType]
+    entries: List[EmployeeEntitlementEntry]

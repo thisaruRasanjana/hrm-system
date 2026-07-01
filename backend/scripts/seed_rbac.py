@@ -62,7 +62,7 @@ def seed_rbac():
             {
                 "name": "Super Admin",
                 "description": "Complete system access and configuration rights",
-                "permissions": [p.name for p in all_perms] # All permissions
+                "permissions": [p.permission_name for p in all_perms] # All permissions
             }
         ]
 

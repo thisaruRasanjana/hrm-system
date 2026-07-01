@@ -15,6 +15,49 @@ interface LeaveType {
   description?: string | null;
 }
 
+function parseYMD(str: string): Date {
+  const [y, m, d] = str.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
+function calculateWorkingDays(startStr: string, endStr: string, halfDay: boolean, holidays: any[]): number {
+  if (!startStr || !endStr) return 0;
+  
+  const start = parseYMD(startStr);
+  const end = parseYMD(endStr);
+  
+  if (start > end) return 0;
+  
+  const holidaySet = new Set(holidays.map(h => h.date));
+  
+  let workingDays = 0;
+  let current = new Date(start);
+  
+  while (current <= end) {
+    const dayOfWeek = current.getDay(); // 0 = Sunday, 6 = Saturday
+    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+    
+    const y = current.getFullYear();
+    const m = String(current.getMonth() + 1).padStart(2, "0");
+    const d = String(current.getDate()).padStart(2, "0");
+    const currentStr = `${y}-${m}-${d}`;
+    
+    const isHoliday = holidaySet.has(currentStr);
+    
+    if (!isWeekend && !isHoliday) {
+      workingDays++;
+    }
+    
+    current.setDate(current.getDate() + 1);
+  }
+  
+  if (halfDay) {
+    return workingDays > 0 ? 0.5 : 0;
+  }
+  
+  return workingDays;
+}
+
 const ApplyLeaveForm: React.FC<Props> = ({ balances, onSubmitted }) => {
   const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
   const [leaveTypeId, setLeaveTypeId] = useState<string>("");
@@ -31,21 +74,13 @@ const ApplyLeaveForm: React.FC<Props> = ({ balances, onSubmitted }) => {
   const [loadingTypes, setLoadingTypes] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [holidays, setHolidays] = useState<any[]>([]);
 
   // Derived values
   const fromDate = dateSelection.startDate;
   const toDate = dateSelection.endDate;
   const halfDay = dateSelection.halfDay;
-  const days = (() => {
-    if (!fromDate || !toDate) return 0;
-    if (halfDay) return 0.5;
-    const diff =
-      Math.ceil(
-        (new Date(toDate).getTime() - new Date(fromDate).getTime()) /
-          (1000 * 60 * 60 * 24)
-      ) + 1;
-    return diff > 0 ? diff : 0;
-  })();
+  const days = calculateWorkingDays(fromDate, toDate, halfDay, holidays);
 
 
 
@@ -99,7 +134,19 @@ const ApplyLeaveForm: React.FC<Props> = ({ balances, onSubmitted }) => {
       }
     };
 
+    const fetchHolidays = async () => {
+      try {
+        const res = await apiFetch("/holidays");
+        if (res.ok) {
+          setHolidays(await res.json());
+        }
+      } catch (err) {
+        console.error("Failed to load holidays:", err);
+      }
+    };
+
     fetchLeaveTypes();
+    fetchHolidays();
   }, []);
 
 
@@ -247,6 +294,7 @@ const ApplyLeaveForm: React.FC<Props> = ({ balances, onSubmitted }) => {
         <LeaveDatePicker
           value={dateSelection}
           onChange={(sel) => setDateSelection(sel)}
+          holidays={holidays}
         />
       </div>
 

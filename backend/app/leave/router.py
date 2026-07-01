@@ -22,6 +22,8 @@ from app.leave.schemas import (
     RejectLeaveRequest,
     RequestInfoLeaveRequest,
     ResubmitLeaveRequest,
+    EmployeeEntitlementItem,
+    EmployeeEntitlementOut,
 )
 
 from app.leave.service import (
@@ -29,6 +31,8 @@ from app.leave.service import (
     get_leave_balances,
     get_leave_entitlements,
     set_leave_entitlements,
+    get_employee_leave_entitlements,
+    set_employee_leave_entitlements,
     my_requests,
     get_pending_requests,
     update_status,
@@ -351,6 +355,30 @@ def update_entitlements(
 ):
     try:
         return set_leave_entitlements(db, items)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/entitlements/employee/{employee_id}", response_model=EmployeeEntitlementOut)
+def list_employee_entitlements(
+    employee_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("leave:type_manage")),
+):
+    try:
+        return get_employee_leave_entitlements(db, employee_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+@router.put("/entitlements/employee/{employee_id}", response_model=EmployeeEntitlementOut)
+def update_employee_entitlements(
+    employee_id: int,
+    items: list[EmployeeEntitlementItem],
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("leave:type_manage")),
+):
+    try:
+        return set_employee_leave_entitlements(db, employee_id, items)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
