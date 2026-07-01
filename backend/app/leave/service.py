@@ -140,7 +140,9 @@ def _entitlement_for(db: Session, employee_id: int, leave_type: LeaveType,
 def get_leave_balances(db: Session, employee_id: int) -> list[dict]:
     """
     Per-type balance for the current year:
-      remaining = entitlement − approved days.
+      remaining = entitlement − approved − pending days.
+    Pending/request-info days are subtracted too so the figure matches what
+    the employee can actually still request (see _enforce_balance).
     Entitlement is the per-role value when configured, else the type
     default. Types with no entitlement report remaining=None (unlimited).
     """
@@ -153,7 +155,7 @@ def get_leave_balances(db: Session, employee_id: int) -> list[dict]:
         pending = _used_days(db, employee_id, lt.id, year, ["PENDING", "REQ_INFO"])
         remaining = None
         if entitlement is not None:
-            remaining = max(entitlement - used, 0.0)
+            remaining = max(entitlement - used - pending, 0.0)
         balances.append({
             "leave_type_id": lt.id,
             "leave_type_name": lt.name,
@@ -174,9 +176,13 @@ def _enforce_balance(db: Session, employee_id: int, leave_type: LeaveType, reque
     if entitlement is None:
         return
     year = start_date.year
-    used = _used_days(db, employee_id, leave_type.id, year, ["APPROVED"],
-                      exclude_request_id=exclude_request_id)
-    remaining = entitlement - used
+    # Count committed days = approved + pending + request-info. Counting the
+    # unapproved requests too prevents an employee stacking several PENDING
+    # requests that individually fit but together blow past the entitlement.
+    committed = _used_days(db, employee_id, leave_type.id, year,
+                           ["APPROVED", "PENDING", "REQ_INFO"],
+                           exclude_request_id=exclude_request_id)
+    remaining = entitlement - committed
     if requested_days > remaining:
         raise ValueError(
             f"Insufficient {leave_type.name} leave balance: "
