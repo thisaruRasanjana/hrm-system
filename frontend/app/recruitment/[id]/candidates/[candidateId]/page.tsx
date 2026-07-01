@@ -2,10 +2,11 @@
 import { apiFetch } from "@/lib/api";
 import { API_BASE_URL } from "@/lib/constants";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { IconChevron } from "@/components/Icons";
+import { useAuth } from "@/context/auth-context";
 
 type Candidate = {
   id: number;
@@ -18,6 +19,7 @@ type Candidate = {
   application_id: number;
   status: string;
   notes?: string;
+  active_round?: number;
 };
 
 // SelectBox removed — status is now automatically managed by the backend workflow
@@ -35,7 +37,17 @@ export default function CandidateProfilePage() {
 
   const [loading, setLoading] = useState(true);
 
+  const { user } = useAuth();
+
   const [panel, setPanel] = useState<any>(null);
+  const [myPanelRole, setMyPanelRole] = useState<"head" | "member" | null>(null);
+  const [myEvaluationSubmitted, setMyEvaluationSubmitted] = useState(false);
+  const [completionData, setCompletionData] = useState<any>(null);
+  const [currentRound, setCurrentRound] = useState(1);
+
+  // Ref for the auto-poll interval (panel head waiting for members)
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   // hasNotes: candidate already has notes saved (loaded from DB) — controls structural UI
   const [hasNotes, setHasNotes] = useState(false);
   // justSaved: user just clicked Save in this session — drives the transient toast only
@@ -86,16 +98,80 @@ export default function CandidateProfilePage() {
         setLoading(false);
       });
 
-    // Fetch interview panel for the vacancy
+    // Fetch interview panel + my panel role in parallel (don't need applicationId)
     apiFetch(`/recruitment/vacancies/${vacancyId}/panel`)
-      .then(res => {
-        if (res.ok) return res.json();
-        return null;
-      })
+      .then(res => { if (res.ok) return res.json(); return null; })
       .then(data => setPanel(data))
       .catch(console.error);
 
+    apiFetch(`/recruitment/vacancies/${vacancyId}/my-panel-role`)
+      .then(res => { if (res.ok) return res.json(); return { role: null }; })
+      .then(data => setMyPanelRole(data.role))
+      .catch(console.error);
+
   }, [candidateId, vacancyId]);
+
+
+  // ── Secondary: fetch submission status + completion (needs applicationId + round) ──
+  useEffect(() => {
+    if (!applicationId || !candidate) return;
+
+    // Determine which round is active — use the authoritative active_round field
+    let round = candidate?.active_round ?? 1;
+    setCurrentRound(round);
+
+    // Only relevant when interview is active (not yet decided)
+    const isActive = ["Called", "First Round", "Second Round"].includes(candidate?.status ?? "") ||
+      (candidate?.status ?? "").startsWith("Interview Round");
+    if (!isActive || !myPanelRole) return;
+
+    const fetchStatus = async () => {
+      const [evalRes, compRes] = await Promise.all([
+        apiFetch(`/recruitment/applications/${applicationId}/my-evaluation-status?round_number=${round}`),
+        apiFetch(`/recruitment/applications/${applicationId}/panel-completion?vacancy_id=${vacancyId}&round_number=${round}`),
+      ]);
+      if (evalRes.ok) {
+        const d = await evalRes.json();
+        setMyEvaluationSubmitted(d.submitted);
+      }
+      if (compRes.ok) {
+        const d = await compRes.json();
+        setCompletionData(d);
+      }
+    };
+
+    fetchStatus().catch(console.error);
+  }, [applicationId, candidate?.status, myPanelRole, vacancyId]);
+
+
+  // ── Auto-poll: panel head waiting for members (15s interval) ──────────────
+  useEffect(() => {
+    // Only poll when head has submitted but some members are still pending
+    const shouldPoll =
+      myPanelRole === "head" &&
+      myEvaluationSubmitted &&
+      completionData &&
+      !completionData.all_submitted &&
+      !!applicationId;
+
+    if (!shouldPoll) {
+      if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+      return;
+    }
+
+    const poll = async () => {
+      try {
+        const res = await apiFetch(
+          `/recruitment/applications/${applicationId}/panel-completion?vacancy_id=${vacancyId}&round_number=${currentRound}`
+        );
+        if (res.ok) setCompletionData(await res.json());
+      } catch { /* swallow — non-critical */ }
+    };
+
+    pollRef.current = setInterval(poll, 15_000);
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, [myPanelRole, myEvaluationSubmitted, completionData?.all_submitted, applicationId, vacancyId, currentRound]);
+
 
   const saveNotes = async () => {
     if (!applicationId) return;
@@ -449,8 +525,8 @@ export default function CandidateProfilePage() {
 
               </div>
 
-              {/* Interview Scheduling Section */}
-              {hasNotes && (
+              {/* Interview Scheduling Section — only visible while candidate is in 'Called' state */}
+              {hasNotes && candidate?.status === "Called" && (
                 <div className="bg-white rounded-2xl border border-gray-200 p-6">
                   <h3 className="text-lg font-semibold text-gray-800 mb-4">
                     Interview Scheduling
@@ -523,44 +599,72 @@ export default function CandidateProfilePage() {
 
                       {/* Confirmation after email sent in this session */}
                       {linkSent && (
-                        <div className="flex items-center gap-2 text-green-700 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
+                        <div className="flex items-center gap-2 text-green-700 bg-green-50 border border-green-200 rounded-xl px-4 py-3 mt-4">
                           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
                           <span className="text-sm font-medium">Scheduling link sent to {candidate?.email}</span>
-                        </div>
-                      )}
-
-                      {/* Evaluate buttons — visible when in an active interview round */}
-                      {(linkSent || candidate?.status === "First Round" || candidate?.status === "Second Round") && (
-                        <div className="flex flex-col gap-2 pt-2">
-                          <p className="text-xs text-gray-400 text-center mb-1">
-                            Testing mode — choose your role:
-                          </p>
-                          <Link
-                            href={`/recruitment/${vacancyId}/candidates/${candidateId}/evaluate?role=head`}
-                            className="w-full bg-orange-400 hover:bg-orange-500 text-white flex items-center justify-center py-2.5 rounded-xl text-sm font-medium transition"
-                          >
-                            Evaluate as Panel Head
-                          </Link>
-                          <Link
-                            href={`/recruitment/${vacancyId}/candidates/${candidateId}/evaluate?role=member`}
-                            className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 flex items-center justify-center py-2.5 rounded-xl text-sm font-medium transition"
-                          >
-                            Evaluate as Panel Member
-                          </Link>
-                          {panel?.panel_head_id && (
-                            <Link
-                              href={`/recruitment/${vacancyId}/candidates/${candidateId}/final-decision?role=head`}
-                              className="w-full bg-white border border-orange-400 text-orange-500 hover:bg-orange-50 flex items-center justify-center py-2.5 rounded-xl text-sm font-medium transition mt-2"
-                            >
-                              → View All Evaluations &amp; Decide
-                            </Link>
-                          )}
                         </div>
                       )}
                     </div>
                   )}
                 </div>
               )}
+
+              {/* Panel Actions — sequential, role-aware, independent of scheduling card */}
+              {(linkSent || candidate?.status === "First Round" || candidate?.status === "Second Round" || (candidate?.status ?? "").startsWith("Interview Round")) && myPanelRole && (
+                <div className="bg-white rounded-2xl border border-gray-200 p-6">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                    <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+                    Panel Actions (Round {currentRound})
+                  </h3>
+
+                  <div className="flex flex-col gap-2">
+                    {/* Not yet evaluated — show Evaluate button */}
+                    {!myEvaluationSubmitted && (
+                      <Link
+                        href={`/recruitment/${vacancyId}/candidates/${candidateId}/evaluate`}
+                        className="w-full bg-orange-400 hover:bg-orange-500 text-white flex items-center justify-center py-2.5 rounded-xl text-sm font-medium transition"
+                      >
+                        Evaluate Candidate
+                      </Link>
+                    )}
+
+                    {/* Already evaluated — show submitted confirmation */}
+                    {myEvaluationSubmitted && (
+                      <div className="flex items-center gap-2 bg-green-50 border border-green-200 text-green-700 rounded-xl px-4 py-2.5">
+                        <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                        <span className="text-sm font-medium">Your evaluation has been submitted for this round.</span>
+                      </div>
+                    )}
+
+                    {/* Panel head only: final decision or pending list */}
+                    {myPanelRole === "head" && myEvaluationSubmitted && (
+                      completionData?.all_submitted ? (
+                        <Link
+                          href={`/recruitment/${vacancyId}/candidates/${candidateId}/final-decision`}
+                          className="w-full bg-white border border-orange-400 text-orange-500 hover:bg-orange-50 flex items-center justify-center py-2.5 rounded-xl text-sm font-medium transition mt-1"
+                        >
+                          View All Evaluations &amp; Decide
+                        </Link>
+                      ) : completionData?.pending?.length > 0 ? (
+                        <div className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 mt-1">
+                          <p className="text-xs font-semibold text-gray-600 mb-2">Awaiting evaluations from:</p>
+                          <ul className="space-y-1">
+                            {completionData.pending.map((p: any) => (
+                              <li key={p.user_id} className="text-sm text-gray-700 flex items-center gap-2">
+                                <span className="w-1.5 h-1.5 rounded-full bg-gray-400 shrink-0"></span>
+                                {p.full_name}
+                                <span className="text-xs text-gray-400">({p.role === "head" ? "Panel Head" : "Panel Member"})</span>
+                              </li>
+                            ))}
+                          </ul>
+                          <p className="text-xs text-gray-400 mt-2">This page updates automatically.</p>
+                        </div>
+                      ) : null
+                    )}
+                  </div>
+                </div>
+              )}
+
 
             </div>
 

@@ -125,6 +125,9 @@ class Application(Base):
     # Default 'Not Called' is kept for backward-compatibility with existing rows.
     status       = Column(String(50), nullable=False, default="Not Called")
     notes        = Column(Text,       nullable=True)
+    # Tracks which interview round is currently active. Starts at 1, incremented
+    # by trigger_next_round when the panel head decides to proceed.
+    active_round = Column(Integer,    nullable=False, default=1)
     created_at   = Column(DateTime,   nullable=False, default=datetime.utcnow)
 
     vacancy      = relationship("Vacancy",   back_populates="applications")
@@ -151,25 +154,52 @@ class Application(Base):
 
 class InterviewPanel(Base):
     """
-    Stores the panel composition and scheduling link for a vacancy's interview.
+    Stores the panel head and scheduling link for a vacancy's interview.
 
-    panel_head_id / panel_member_*_id reference the employees table.
-    We store plain Integer IDs (no FK constraint) to avoid a hard coupling
-    to the Employee table during the current development sprint; a FK
-    constraint should be added once the employees module is production-ready.
+    panel_head_id references the users table (must have recruitment:interview_panel
+    permission — enforced in service.py, not via FK, to keep the module decoupled).
+    Dynamic panel members live in InterviewPanelMember so the count is unlimited.
     """
 
     __tablename__ = "interview_panels"
 
-    id               = Column(Integer,     primary_key=True, index=True)
-    vacancy_id       = Column(Integer,     ForeignKey("vacancies.id"), unique=True, nullable=False)
-    panel_head_id    = Column(Integer,     nullable=True)
-    panel_member_1_id = Column(Integer,    nullable=True)
-    panel_member_2_id = Column(Integer,    nullable=True)
-    # interview_link holds a Calendly/Google Calendar URL — up to 2 048 chars.
-    interview_link   = Column(String(2048), nullable=True)
+    id             = Column(Integer,      primary_key=True, index=True)
+    vacancy_id     = Column(Integer,      ForeignKey("vacancies.id"), unique=True, nullable=False)
+    panel_head_id  = Column(Integer,      nullable=True)
+    # interview_link: Calendly / Google Calendar / any scheduling URL (≤2 048 chars)
+    interview_link = Column(String(2048), nullable=True)
 
     vacancy = relationship("Vacancy", back_populates="panel")
+    members = relationship(
+        "InterviewPanelMember",
+        back_populates="panel",
+        cascade="all, delete-orphan",
+    )
+
+
+# ── InterviewPanelMember ──────────────────────────────────────────────────────
+
+class InterviewPanelMember(Base):
+    """
+    One row per additional panel member (beyond the panel head).
+    user_id references the users table; must have recruitment:interview_panel
+    permission (validated in service.py).
+    """
+
+    __tablename__ = "interview_panel_members"
+
+    id       = Column(Integer,  primary_key=True, index=True)
+    panel_id = Column(Integer,  ForeignKey("interview_panels.id"), nullable=False)
+    user_id  = Column(Integer,  nullable=False)
+    added_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    panel = relationship("InterviewPanel", back_populates="members")
+
+    __table_args__ = (
+        # One user can appear at most once per panel.
+        UniqueConstraint("panel_id", "user_id", name="uix_panel_member"),
+    )
+
 
 
 # ── InterviewEvaluation ───────────────────────────────────────────────────────
@@ -201,8 +231,9 @@ class InterviewEvaluation(Base):
     overall_score     = Column(Float,       nullable=False, default=0.0)
     comments          = Column(Text,        nullable=True)
     needs_another_round = Column(Boolean,   nullable=False, default=False)
-    # Evaluator name stored as text — not linked to Employee FK for now.
+    # Evaluator stored as text (display) and as user FK (dedup + role mapping).
     evaluator_name    = Column(String(255), nullable=True)
+    evaluator_user_id = Column(Integer,     nullable=True)   # references users.id
     created_at        = Column(DateTime,    nullable=False, default=datetime.utcnow)
 
     application = relationship("Application", back_populates="evaluations")

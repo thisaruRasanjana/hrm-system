@@ -1,94 +1,63 @@
 "use client";
 import { apiFetch } from "@/lib/api";
-import { API_BASE_URL } from "@/lib/constants";
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { IconChevron } from "../../../components/Icons";
 import RichTextEditor from "../../../components/RichTextEditor";
 
-// Strip HTML tags to get plain text (for validation + char count)
 function stripHtml(html: string): string {
   return html.replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").trim();
 }
 
-// ── Shared style helpers ───────────────────────────────────────────────────────
-
 const baseInput =
   "w-full border rounded-xl px-4 py-3 text-sm text-gray-700 placeholder-gray-400 bg-white focus:outline-none transition";
-
 const inputCls = `${baseInput} border-gray-200 focus:ring-2 focus:ring-orange-200 focus:border-orange-300`;
 const errorCls = `${baseInput} border-red-300 ring-2 ring-red-100 focus:ring-red-200 focus:border-red-400`;
-
 const fieldCls = (err?: string) => (err ? errorCls : inputCls);
 
-// ── Types ──────────────────────────────────────────────────────────────────────
-
-type User = { id: number; first_name: string; last_name: string };
+type EligibleUser = { id: number; first_name: string; last_name: string; full_name: string; email: string };
 
 type FormState = {
-  title: string;
-  department: string;
-  experience_level: string;
-  description: string;
-  requirements: string;
-  status: string;
+  title: string; department: string; experience_level: string;
+  description: string; requirements: string; status: string;
 };
-
 type FormErrors = Partial<Record<keyof FormState, string>>;
-
-// ── Validation rules (mirrors backend Pydantic constraints) ───────────────────
 
 function validate(form: FormState): FormErrors {
   const e: FormErrors = {};
-
-  if (!form.title.trim())
-    e.title = "Position title is required.";
-  else if (form.title.trim().length < 3)
-    e.title = "Title must be at least 3 characters.";
-  else if (form.title.trim().length > 100)
-    e.title = "Title cannot exceed 100 characters.";
-
-  if (!form.department.trim())
-    e.department = "Department is required.";
-  else if (form.department.trim().length < 2)
-    e.department = "Department must be at least 2 characters.";
-
-  if (!form.experience_level)
-    e.experience_level = "Please select an experience level.";
-
+  if (!form.title.trim()) e.title = "Position title is required.";
+  else if (form.title.trim().length < 3) e.title = "Title must be at least 3 characters.";
+  else if (form.title.trim().length > 100) e.title = "Title cannot exceed 100 characters.";
+  if (!form.department.trim()) e.department = "Department is required.";
+  else if (form.department.trim().length < 2) e.department = "Department must be at least 2 characters.";
+  if (!form.experience_level) e.experience_level = "Please select an experience level.";
   const descText = stripHtml(form.description);
-  if (!descText)
-    e.description = "Job description is required.";
-  else if (descText.length < 20)
-    e.description = `At least 20 characters required (${descText.length} entered).`;
-
+  if (!descText) e.description = "Job description is required.";
+  else if (descText.length < 20) e.description = `At least 20 characters required (${descText.length} entered).`;
   const reqText = stripHtml(form.requirements);
-  if (!reqText)
-    e.requirements = "Requirements are required.";
-  else if (reqText.length < 20)
-    e.requirements = `At least 20 characters required (${reqText.length} entered).`;
-
+  if (!reqText) e.requirements = "Requirements are required.";
+  else if (reqText.length < 20) e.requirements = `At least 20 characters required (${reqText.length} entered).`;
   return e;
 }
 
-// ── Employee search dropdown ───────────────────────────────────────────────────
-
-function EmployeeSearch({
-  users,
-  onSelect,
-  placeholder,
-}: {
-  users: User[];
-  onSelect: (id: string) => void;
-  placeholder: string;
+function UserSearch({ users, selectedId, onSelect, placeholder, excludeIds = [] }: {
+  users: EligibleUser[]; selectedId: string; onSelect: (id: string) => void;
+  placeholder: string; excludeIds?: number[];
 }) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
-  const filtered = users.filter((u) =>
-    `${u.first_name} ${u.last_name}`.toLowerCase().includes(query.toLowerCase())
+  useEffect(() => {
+    if (!selectedId) { setQuery(""); return; }
+    const u = users.find((u) => String(u.id) === selectedId);
+    if (u) setQuery(u.full_name);
+  }, [selectedId, users]);
+
+  const filtered = users.filter(
+    (u) => !excludeIds.includes(u.id) &&
+      `${u.first_name} ${u.last_name}`.toLowerCase().includes(query.toLowerCase())
   );
 
   useEffect(() => {
@@ -101,35 +70,30 @@ function EmployeeSearch({
 
   return (
     <div ref={ref} className="relative">
-      <input
-        type="text"
-        placeholder={placeholder}
-        className={inputCls}
-        value={query}
-        onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
-      />
-      {open && filtered.length > 0 && (
-        <div className="absolute z-20 w-full bg-white border border-gray-200 rounded-xl mt-2 max-h-52 overflow-y-auto shadow-lg">
-          {filtered.map((u) => (
-            <div
-              key={u.id}
-              onClick={() => {
-                onSelect(String(u.id));
-                setQuery(`${u.first_name} ${u.last_name}`);
-                setOpen(false);
-              }}
-              className="px-4 py-2 text-sm text-gray-700 hover:bg-orange-50 cursor-pointer"
-            >
-              {u.first_name} {u.last_name}
+      <input type="text" placeholder={placeholder} className={inputCls} value={query}
+        onChange={(e) => { setQuery(e.target.value); setOpen(true); onSelect(""); }}
+        onFocus={() => setOpen(true)} />
+      {open && (
+        <div className="absolute z-50 w-full bg-white border border-gray-200 rounded-xl mt-2 shadow-lg max-h-52 overflow-y-auto">
+          {filtered.length > 0 ? filtered.map((u) => (
+            <div key={u.id}
+              onClick={() => { onSelect(String(u.id)); setQuery(u.full_name); setOpen(false); }}
+              className="px-4 py-2.5 text-sm text-gray-700 hover:bg-orange-50 cursor-pointer flex justify-between items-center">
+              <span className="font-medium">{u.full_name}</span>
+              <span className="text-gray-400 text-xs">{u.email}</span>
             </div>
-          ))}
+          )) : (
+            <div className="px-4 py-3 text-sm text-gray-400">
+              {query.length > 0
+                ? "No eligible users found. Assign the Interview Panel permission in Role Management."
+                : "No users with Interview Panel permission found."}
+            </div>
+          )}
         </div>
       )}
     </div>
   );
 }
-
-// ── Error message component ───────────────────────────────────────────────────
 
 function FieldError({ msg }: { msg?: string }) {
   if (!msg) return null;
@@ -143,8 +107,6 @@ function FieldError({ msg }: { msg?: string }) {
   );
 }
 
-// ── Character counter ─────────────────────────────────────────────────────────
-
 function CharCount({ current, max }: { current: number; max: number }) {
   const near = current > max * 0.85;
   const over = current > max;
@@ -155,43 +117,29 @@ function CharCount({ current, max }: { current: number; max: number }) {
   );
 }
 
-// ── Page ──────────────────────────────────────────────────────────────────────
-
-const INITIAL_FORM: FormState = {
-  title: "",
-  department: "",
-  experience_level: "",
-  description: "",
-  requirements: "",
-  status: "Draft",
-};
+const INITIAL_FORM: FormState = { title: "", department: "", experience_level: "", description: "", requirements: "", status: "Draft" };
 
 export default function VacancyCreatePage() {
   const router = useRouter();
-
-  const [users, setUsers] = useState<User[]>([]);
+  const [eligibleUsers, setEligibleUsers] = useState<EligibleUser[]>([]);
   const [panelOpen, setPanelOpen] = useState(false);
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
   const [errors, setErrors] = useState<FormErrors>({});
   const [touched, setTouched] = useState<Set<keyof FormState>>(new Set());
   const [submitting, setSubmitting] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
-
-  const [panel, setPanel] = useState({
-    panel_head_id: "",
-    panel_member_1_id: "",
-    panel_member_2_id: "",
-    interview_link: "",
-  });
+  const [panelHeadId, setPanelHeadId] = useState("");
+  const [interviewLink, setInterviewLink] = useState("");
+  const [memberIds, setMemberIds] = useState<string[]>([]);
+  const [panelError, setPanelError] = useState<string | null>(null);
 
   useEffect(() => {
-    apiFetch(`/employees/`)
+    apiFetch(`/recruitment/panel-eligible-users`)
       .then((r) => r.json())
-      .then((d) => setUsers(Array.isArray(d) ? d : []))
-      .catch(() => setUsers([]));
+      .then((d) => setEligibleUsers(Array.isArray(d) ? d : []))
+      .catch(() => setEligibleUsers([]));
   }, []);
 
-  // Re-validate touched fields live as the user types
   useEffect(() => {
     if (touched.size === 0) return;
     const freshErrors = validate(form);
@@ -200,77 +148,55 @@ export default function VacancyCreatePage() {
     setErrors(visible);
   }, [form, touched]);
 
-  const handleBlur = (field: keyof FormState) => {
-    setTouched((prev) => new Set(prev).add(field));
-  };
+  const handleBlur = (field: keyof FormState) => setTouched((prev) => new Set(prev).add(field));
+  const addMember = () => setMemberIds((prev) => [...prev, ""]);
+  const removeMember = (idx: number) => setMemberIds((prev) => prev.filter((_, i) => i !== idx));
+  const setMember = (idx: number, id: string) => setMemberIds((prev) => prev.map((v, i) => (i === idx ? id : v)));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setApiError(null);
-
-    // Mark all fields as touched so every error shows
+    setPanelError(null);
     const allFields = Object.keys(INITIAL_FORM) as (keyof FormState)[];
     setTouched(new Set(allFields));
-
     const errs = validate(form);
     if (Object.keys(errs).length > 0) {
       setErrors(errs);
-      // Scroll to first error
-      const firstErrorEl = document.querySelector("[data-field-error]");
-      firstErrorEl?.scrollIntoView({ behavior: "smooth", block: "center" });
+      document.querySelector("[data-field-error]")?.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
-
     setSubmitting(true);
     try {
-      const vacancyRes = await apiFetch(`/recruitment/vacancies`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(form),
-        }
-      );
-
+      const vacancyRes = await apiFetch(`/recruitment/vacancies`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form),
+      });
       if (!vacancyRes.ok) {
         const err = await vacancyRes.json().catch(() => ({}));
-        // FastAPI 422 returns { detail: [{ loc, msg, type }] }
         if (Array.isArray(err.detail)) {
           const fieldMsgs: FormErrors = {};
           err.detail.forEach((d: { loc: string[]; msg: string }) => {
             const field = d.loc[d.loc.length - 1] as keyof FormState;
             if (field in INITIAL_FORM) fieldMsgs[field] = d.msg;
           });
-          if (Object.keys(fieldMsgs).length > 0) {
-            setErrors(fieldMsgs);
-            return;
-          }
+          if (Object.keys(fieldMsgs).length > 0) { setErrors(fieldMsgs); return; }
         }
         setApiError(err.detail || "Failed to create vacancy. Please try again.");
         return;
       }
-
       const vacancy = await vacancyRes.json();
-
-      if (panel.panel_head_id) {
-        const panelRes = await apiFetch(`/recruitment/vacancies/${vacancy.id}/panel`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              panel_head_id: Number(panel.panel_head_id),
-              panel_member_1_id: panel.panel_member_1_id ? Number(panel.panel_member_1_id) : null,
-              panel_member_2_id: panel.panel_member_2_id ? Number(panel.panel_member_2_id) : null,
-              interview_link: panel.interview_link || null,
-            }),
-          }
-        );
+      if (panelHeadId) {
+        const validMembers = memberIds.filter(Boolean).map(Number);
+        const panelRes = await apiFetch(`/recruitment/vacancies/${vacancy.id}/panel`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ panel_head_id: Number(panelHeadId), interview_link: interviewLink || null, member_ids: validMembers }),
+        });
         if (!panelRes.ok) {
           const err = await panelRes.json().catch(() => ({}));
-          setApiError(err.detail || "Vacancy created but panel could not be saved.");
+          setPanelError(err.detail || "Vacancy created but panel could not be saved.");
+          router.push(`/recruitment/${vacancy.id}`);
           return;
         }
       }
-
       router.push("/recruitment");
     } catch {
       setApiError("Network error. Please check your connection and try again.");
@@ -279,13 +205,16 @@ export default function VacancyCreatePage() {
     }
   };
 
-  const set = (field: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
-    setForm((prev) => ({ ...prev, [field]: e.target.value }));
+  const set = (field: keyof FormState) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
+      setForm((prev) => ({ ...prev, [field]: e.target.value }));
+
+  const headUser = eligibleUsers.find((u) => String(u.id) === panelHeadId);
+  const filledMembers = memberIds.filter(Boolean);
 
   return (
     <div>
       <h2 className="text-2xl font-bold text-gray-800 mb-6">Create New Vacancy</h2>
-
       {apiError && (
         <div className="mb-6 flex items-start gap-3 bg-red-50 border border-red-200 rounded-xl px-4 py-3.5 text-sm text-red-700">
           <svg className="w-5 h-5 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
@@ -294,9 +223,9 @@ export default function VacancyCreatePage() {
           <span>{apiError}</span>
         </div>
       )}
-
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-8">
         <form onSubmit={handleSubmit} className="space-y-6" noValidate>
+
           <div data-field-error={errors.title ? true : undefined}>
             <div className="flex justify-between items-center mb-1.5">
               <label className="text-sm font-medium text-gray-700">Position Title <span className="text-red-400">*</span></label>
@@ -339,7 +268,7 @@ export default function VacancyCreatePage() {
 
           <div data-field-error={errors.requirements ? true : undefined}>
             <div className="flex justify-between items-center mb-1.5">
-              <label className="text-sm font-medium text-gray-700">Requirements <span className="text-red-400">*</span></label>
+              <label className="text-sm font-medium text-gray-700">Requirements <span className="text-sm font-medium text-red-400">*</span></label>
               <CharCount current={stripHtml(form.requirements).length} max={5000} />
             </div>
             <RichTextEditor content={form.requirements} onChange={(html) => setForm((prev) => ({ ...prev, requirements: html }))} onBlur={() => handleBlur("requirements")} placeholder="List qualifications, degrees, certifications, years of experience…" hasError={!!errors.requirements} />
@@ -358,19 +287,94 @@ export default function VacancyCreatePage() {
             </div>
           </div>
 
-          <div className="border border-gray-200 rounded-xl overflow-hidden">
-            <button type="button" onClick={() => setPanelOpen(!panelOpen)} className="w-full flex justify-between items-center px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition">
-              <span>Interview Panel <span className="text-gray-400 font-normal">(optional)</span></span>
+          {/* ── Interview Panel ─────────────────────────────────────────────── */}
+          <div className="border border-gray-200 rounded-xl">
+            <button type="button" onClick={() => setPanelOpen(!panelOpen)}
+              className="w-full flex justify-between items-center px-5 py-3.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition rounded-xl">
+              <span className="flex items-center gap-2">
+                Interview Panel
+                <span className="text-gray-400 font-normal">(optional)</span>
+                {headUser && (
+                  <span className="bg-orange-100 text-orange-600 text-xs font-medium px-2 py-0.5 rounded-full">
+                    {headUser.full_name}{filledMembers.length > 0 ? ` + ${filledMembers.length} member${filledMembers.length > 1 ? "s" : ""}` : ""}
+                  </span>
+                )}
+              </span>
               <span className="text-lg text-gray-400">{panelOpen ? "−" : "+"}</span>
             </button>
+
             {panelOpen && (
-              <div className="p-6 border-t border-gray-200 space-y-4 bg-gray-50/50">
-                <div><label className="block mb-1.5 text-xs font-medium text-gray-500 uppercase tracking-wide">Panel Head</label><EmployeeSearch users={users} onSelect={(id) => setPanel({ ...panel, panel_head_id: id })} placeholder="Search by name" /></div>
-                <div><label className="block mb-1.5 text-xs font-medium text-gray-500 uppercase tracking-wide">Panel Member 1</label><EmployeeSearch users={users} onSelect={(id) => setPanel({ ...panel, panel_member_1_id: id })} placeholder="Search by name" /></div>
-                <div><label className="block mb-1.5 text-xs font-medium text-gray-500 uppercase tracking-wide">Panel Member 2</label><EmployeeSearch users={users} onSelect={(id) => setPanel({ ...panel, panel_member_2_id: id })} placeholder="Search by name" /></div>
+              <div className="p-6 border-t border-gray-200 space-y-5 bg-gray-50/50">
+                {panelError && (
+                  <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2.5">
+                    ⚠ {panelError}
+                  </div>
+                )}
+
+                {/* Panel Head */}
                 <div>
-                  <label className="block mb-1.5 text-xs font-medium text-gray-500 uppercase tracking-wide">Interview Link</label>
-                  <input type="url" placeholder="https://meet.google.com/..." className={inputCls} value={panel.interview_link} onChange={(e) => setPanel({ ...panel, interview_link: e.target.value })} />
+                  <label className="block mb-1 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                    Panel Head <span className="text-red-400">*</span>
+                  </label>
+                  <p className="text-xs text-gray-400 mb-2">
+                    Only users with the "Interview Panel" permission are shown. Assign this via Role Management.
+                  </p>
+                  <UserSearch users={eligibleUsers} selectedId={panelHeadId} onSelect={setPanelHeadId}
+                    placeholder="Search panel head by name…"
+                    excludeIds={memberIds.filter(Boolean).map(Number)} />
+                </div>
+
+                {/* Calendly / Interview Link */}
+                <div>
+                  <label className="block mb-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                    Interview Link
+                  </label>
+                  <input type="url" placeholder="Your Cita link" className={inputCls}
+                    value={interviewLink} onChange={(e) => setInterviewLink(e.target.value)} />
+                </div>
+
+                {/* Dynamic Panel Members */}
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Panel Members</p>
+                      <p className="text-xs text-gray-400 mt-0.5">Additional evaluators — must also have the Interview Panel permission.</p>
+                    </div>
+                    <button type="button" onClick={addMember}
+                      className="flex items-center gap-1.5 text-xs font-medium text-orange-500 hover:text-orange-600 border border-orange-200 hover:border-orange-300 rounded-lg px-3 py-1.5 hover:bg-orange-50 transition">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                      Add Member
+                    </button>
+                  </div>
+
+                  {memberIds.length === 0 ? (
+                    <p className="text-xs text-gray-400 italic">No additional members added yet.</p>
+                  ) : (
+                    <div className="space-y-2.5">
+                      {memberIds.map((memberId, idx) => (
+                        <div key={idx} className="flex items-center gap-2">
+                          <span className="text-xs text-gray-400 w-6 text-right shrink-0">{idx + 1}.</span>
+                          <div className="flex-1">
+                            <UserSearch users={eligibleUsers} selectedId={memberId}
+                              onSelect={(id) => setMember(idx, id)}
+                              placeholder={`Search member ${idx + 1}…`}
+                              excludeIds={[
+                                panelHeadId ? Number(panelHeadId) : 0,
+                                ...memberIds.filter((_, i) => i !== idx).filter(Boolean).map(Number),
+                              ].filter(Boolean)} />
+                          </div>
+                          <button type="button" onClick={() => removeMember(idx)}
+                            className="p-2 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition shrink-0" title="Remove">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             )}

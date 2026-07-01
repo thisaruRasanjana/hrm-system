@@ -31,7 +31,9 @@ type CategoryAverages = {
 type FinalDecisionData = {
   candidate: { id: number; full_name: string; phone: string; email: string };
   vacancy: { id: number; title: string };
-  evaluations: Evaluation[];
+  evaluations: Evaluation[];          // current round only
+  previous_rounds: Record<string, Evaluation[]>; // keyed by round number string
+  current_round: number;
   category_averages: CategoryAverages;
   panel_avg_score: number;
   evaluator_count: number;
@@ -98,32 +100,52 @@ export default function FinalDecisionPage() {
   const candidateId = params.candidateId as string;
 
   const searchParams = useSearchParams();
-  const isPanelHead = searchParams.get("role") === "head";
   const fromEvaluated = searchParams.get("from") === "evaluated";
   const backHref = fromEvaluated ? `/recruitment/${vacancyId}?tab=evaluated` : `/recruitment/${vacancyId}`;
 
   const [data, setData] = useState<FinalDecisionData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [myPanelRole, setMyPanelRole] = useState<"head" | "member" | null>(null);
+  const [completionData, setCompletionData] = useState<any>(null);
+  const [previousRoundsOpen, setPreviousRoundsOpen] = useState(false);
 
   const [selectedDecision, setSelectedDecision] = useState<string>("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Pre-fill if a decision already exists
+  // Pre-fill if a decision already exists, fetch role and completion status
   useEffect(() => {
+    let appId: number;
+
     apiFetch(`/recruitment/candidates/${candidateId}`)
       .then((r) => r.json())
       .then((cand) => {
-        const appId = cand.application_id;
-        return apiFetch(`/recruitment/applications/${appId}/final-decision-view`);
+        appId = cand.application_id;
+        // Determine the current active round based on candidate status.
+        // In a real system, you'd track active round precisely, but this matches evaluate/page.tsx logic:
+        let currentRound = 1;
+        if (cand.status === "Second Round") currentRound = 2;
+        else if (cand.status === "Job Offered" || cand.status === "Rejected") currentRound = -1; // Process over
+
+        // Fetch all required data concurrently
+        return Promise.all([
+          apiFetch(`/recruitment/applications/${appId}/final-decision-view`).then(r => r.json()),
+          apiFetch(`/recruitment/vacancies/${vacancyId}/my-panel-role`).then(r => r.json()),
+          // Only fetch completion if we have a valid round to check
+          currentRound > 0 
+            ? apiFetch(`/recruitment/applications/${appId}/panel-completion?vacancy_id=${vacancyId}&round_number=${currentRound}`).then(r => r.json())
+            : Promise.resolve({ all_submitted: true, pending: [] })
+        ]);
       })
-      .then((r) => r.json())
-      .then((d: FinalDecisionData) => {
-        setData(d);
-        if (d.final_decision) {
-          setSelectedDecision(d.final_decision.decision);
-          setNotes(d.final_decision.notes ?? "");
+      .then(([d, roleData, compData]) => {
+        setData(d as FinalDecisionData);
+        setMyPanelRole(roleData.role);
+        setCompletionData(compData);
+
+        if ((d as FinalDecisionData).final_decision) {
+          setSelectedDecision((d as FinalDecisionData).final_decision!.decision);
+          setNotes((d as FinalDecisionData).final_decision!.notes ?? "");
         }
         setLoading(false);
       })
@@ -131,7 +153,7 @@ export default function FinalDecisionPage() {
         console.error(err);
         setLoading(false);
       });
-  }, [candidateId]);
+  }, [candidateId, vacancyId]);
 
   const handleConfirm = async () => {
     if (!selectedDecision) {
@@ -179,142 +201,25 @@ export default function FinalDecisionPage() {
     );
   }
 
-  if (!isPanelHead) {
+  if (myPanelRole !== "head") {
     return (
-      <>
-        <button
-              onClick={() => router.push(backHref)}
-              className="text-sm text-gray-500 hover:text-gray-700 mb-4 inline-flex items-center gap-1"
-            >
-              ← Back
-            </button>
-            <h2 className="text-2xl font-bold text-gray-800 mb-1">Panel Evaluation Summary</h2>
-            <p className="text-sm text-gray-400 mb-6">All panel member evaluations for this candidate</p>
-
-            {data && (() => {
-              const { candidate, vacancy, evaluations, category_averages, panel_avg_score, evaluator_count } = data;
-              // Group evaluations by round
-              const rounds = evaluations.reduce<Record<number, typeof evaluations>>((acc, ev) => {
-                const r = ev.round_number || 1;
-                if (!acc[r]) acc[r] = [];
-                acc[r].push(ev);
-                return acc;
-              }, {});
-              const roundNumbers = Object.keys(rounds).map(Number).sort((a, b) => a - b);
-
-              return (
-                <>
-                  {/* Candidate + score header */}
-                  <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6 mb-6 flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-full bg-orange-400 text-white flex items-center justify-center font-bold text-lg shrink-0">
-                        {initials(candidate.full_name)}
-                      </div>
-                      <div>
-                        <p className="text-base font-bold text-gray-800">{candidate.full_name}</p>
-                        <p className="text-sm text-gray-500">{vacancy.title}</p>
-                        <p className="text-xs text-gray-400 mt-1">Evaluated by {evaluator_count} panel member{evaluator_count !== 1 ? "s" : ""}</p>
-                      </div>
-                    </div>
-                    <div className="bg-orange-50 border border-orange-200 rounded-xl px-8 py-4 text-center shrink-0">
-                      <p className="text-xs text-gray-500 mb-1">Panel Average</p>
-                      <p className="text-3xl font-bold text-orange-500">{Math.round(panel_avg_score)}%</p>
-                      <p className="text-xs text-gray-400">Overall Score</p>
-                    </div>
-                  </div>
-
-                  {/* Category averages */}
-                  <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6 mb-6">
-                    <h3 className="text-sm font-bold text-gray-700 mb-5">Average Ratings by Category</h3>
-                    <div className="grid grid-cols-5 gap-4">
-                      {CRITERIA.map((c) => {
-                        const val = category_averages[c.key];
-                        return (
-                          <div key={c.key}>
-                            <p className="text-xs text-gray-500 mb-1">{c.label}</p>
-                            <p className="text-2xl font-bold text-gray-800">
-                              {val.toFixed(1)}{" "}
-                              <span className="text-sm font-normal text-gray-400">/5</span>
-                            </p>
-                            <SegmentBar score={val} />
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Evaluations grouped by round */}
-                  <div className="mb-6">
-                    <h3 className="text-sm font-bold text-gray-700 mb-4">Panel Evaluations</h3>
-                    <div className="space-y-6">
-                      {roundNumbers.map((roundNum) => {
-                        const roundEvals = rounds[roundNum];
-                        const roundAvg = roundEvals.length > 0
-                          ? Math.round(roundEvals.reduce((sum, e) => sum + e.overall_score, 0) / roundEvals.length)
-                          : 0;
-                        return (
-                          <div key={roundNum}>
-                            <div className="flex items-center justify-between mb-3">
-                              <div className="flex items-center gap-3">
-                                <span className="bg-orange-100 text-orange-600 text-xs font-bold px-3 py-1 rounded-full">Round {roundNum}</span>
-                                <span className="text-xs text-gray-400">{roundEvals.length} evaluation{roundEvals.length !== 1 ? "s" : ""}</span>
-                              </div>
-                              <span className="text-sm font-semibold text-gray-600">Avg: {roundAvg}%</span>
-                            </div>
-                            <div className="space-y-4">
-                              {roundEvals.map((ev, idx) => {
-                                const label = ev.evaluator_name ?? `Evaluator ${idx + 1}`;
-                                const isHead = idx === 0;
-                                return (
-                                  <div key={ev.id} className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
-                                    <div className="flex items-center justify-between mb-5">
-                                      <div className="flex items-center gap-3">
-                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${isHead ? "bg-orange-400 text-white" : "bg-gray-200 text-gray-600"}`}>
-                                          {initials(label)}
-                                        </div>
-                                        <div>
-                                          <p className="text-sm font-semibold text-gray-800">{label}</p>
-                                          <span className={`inline-block text-xs px-2 py-0.5 rounded-full font-medium mt-0.5 ${isHead ? "bg-orange-100 text-orange-600" : "bg-gray-100 text-gray-500"}`}>
-                                            {isHead ? "Panel Head" : "Panel Member"}
-                                          </span>
-                                        </div>
-                                      </div>
-                                      <p className="text-2xl font-bold text-orange-500">
-                                        {Math.round(ev.overall_score)}%
-                                        <span className="text-sm font-normal text-gray-400 ml-1">Score</span>
-                                      </p>
-                                    </div>
-                                    <div className="grid grid-cols-5 gap-4 mb-4">
-                                      {CRITERIA.map((c) => {
-                                        const val = ev[c.key as keyof Evaluation] as number;
-                                        return (
-                                          <div key={c.key}>
-                                            <p className="text-xs text-gray-400 mb-2">{c.label}</p>
-                                            <RatingPills value={val} />
-                                            <p className="text-xs text-gray-400 mt-1">{val} out of 5</p>
-                                          </div>
-                                        );
-                                      })}
-                                    </div>
-                                    {ev.comments && (
-                                      <div className="bg-gray-50 border border-gray-100 rounded-lg p-4">
-                                        <p className="text-xs font-semibold text-gray-500 mb-1">Comments</p>
-                                        <p className="text-sm text-gray-600">{ev.comments}</p>
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </>
-              );
-            })()}
-      </>
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-center px-4">
+        <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mb-2">
+          <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+          </svg>
+        </div>
+        <h2 className="text-base font-semibold text-gray-800">Access Restricted</h2>
+        <p className="text-sm text-gray-500 max-w-sm">
+          The Final Decision page is only accessible to the Panel Head for this vacancy.
+        </p>
+        <Link
+          href={`/recruitment/${vacancyId}/candidates/${candidateId}`}
+          className="mt-2 inline-flex items-center gap-2 px-5 py-2.5 bg-orange-400 hover:bg-orange-500 text-white text-sm font-medium rounded-xl transition"
+        >
+          ← Back to Candidate
+        </Link>
+      </div>
     );
   }
 
@@ -329,7 +234,16 @@ export default function FinalDecisionPage() {
     );
   }
 
-  const { candidate, vacancy, evaluations, category_averages, panel_avg_score, evaluator_count } = data;
+  const {
+    candidate,
+    vacancy,
+    evaluations,
+    category_averages,
+    panel_avg_score,
+    evaluator_count,
+    current_round,
+    previous_rounds,
+  } = data;
 
   return (
     <>
@@ -341,8 +255,9 @@ export default function FinalDecisionPage() {
             ← Back
           </button>
 
-          <h2 className="text-2xl font-bold text-gray-800">Final Decision – Panel Head</h2>
-          <p className="text-sm text-gray-400 mb-6">Review all evaluations and make the hiring decision</p>
+          <h2 className="text-2xl font-bold text-gray-800">Final Decision – Round {current_round}</h2>
+          <p className="text-sm text-gray-400 mb-6">Review all panel evaluations for this round and make the hiring decision</p>
+
 
           {/* Candidate header card */}
           <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6 mb-6 flex items-center justify-between">
@@ -390,107 +305,139 @@ export default function FinalDecisionPage() {
             </div>
           </div>
 
-          {/* Panel Evaluations — grouped by round */}
+          {/* Panel Evaluations — current round only */}
           <div className="mb-6">
-            <h3 className="text-sm font-bold text-gray-700 mb-4">Panel Evaluations</h3>
-            {(() => {
-              // Group evaluations by round_number
-              const rounds = evaluations.reduce<Record<number, typeof evaluations>>((acc, ev) => {
-                const r = ev.round_number || 1;
-                if (!acc[r]) acc[r] = [];
-                acc[r].push(ev);
-                return acc;
-              }, {});
-              const roundNumbers = Object.keys(rounds).map(Number).sort((a, b) => a - b);
+            <div className="flex items-center gap-3 mb-4">
+              <h3 className="text-sm font-bold text-gray-700">
+                Panel Evaluations — Round {current_round}
+              </h3>
+              <span className="text-xs bg-orange-100 text-orange-600 font-semibold px-2.5 py-0.5 rounded-full">
+                Current Round
+              </span>
+            </div>
 
-              return (
-                <div className="space-y-6">
-                  {roundNumbers.map((roundNum) => {
-                    const roundEvals = rounds[roundNum];
-                    const roundAvg = roundEvals.length > 0
-                      ? Math.round(roundEvals.reduce((sum, e) => sum + e.overall_score, 0) / roundEvals.length)
-                      : 0;
+            {evaluations.length === 0 ? (
+              <div className="bg-gray-50 border border-gray-200 rounded-xl p-5 text-sm text-gray-500 text-center">
+                No evaluations submitted for this round yet.
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {evaluations.map((ev, idx) => {
+                  const label = ev.evaluator_name ?? `Evaluator ${idx + 1}`;
+                  const isHead = idx === 0;
+                  return (
+                    <div key={ev.id} className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
+                      <div className="flex items-center justify-between mb-5">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${isHead ? "bg-orange-400 text-white" : "bg-gray-200 text-gray-600"}`}>
+                            {initials(label)}
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-gray-800">{label}</p>
+                            <span className={`inline-block text-xs px-2 py-0.5 rounded-full font-medium mt-0.5 ${isHead ? "bg-orange-100 text-orange-600" : "bg-gray-100 text-gray-500"}`}>
+                              {isHead ? "Panel Head" : "Panel Member"}
+                            </span>
+                          </div>
+                        </div>
+                        <p className="text-2xl font-bold text-orange-500">
+                          {Math.round(ev.overall_score)}%
+                          <span className="text-sm font-normal text-gray-400 ml-1">Score</span>
+                        </p>
+                      </div>
 
-                    return (
-                      <div key={roundNum}>
-                        {/* Round header */}
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center gap-3">
-                            <span className="bg-orange-100 text-orange-600 text-xs font-bold px-3 py-1 rounded-full">
+                      <div className="grid grid-cols-5 gap-4 mb-4">
+                        {CRITERIA.map((c) => {
+                          const val = ev[c.key as keyof Evaluation] as number;
+                          return (
+                            <div key={c.key}>
+                              <p className="text-xs text-gray-400 mb-2">{c.label}</p>
+                              <RatingPills value={val} />
+                              <p className="text-xs text-gray-400 mt-1">{val} out of 5</p>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {ev.comments && (
+                        <div className="bg-gray-50 border border-gray-100 rounded-lg p-4">
+                          <p className="text-xs font-semibold text-gray-500 mb-1 flex items-center gap-1">
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                            </svg>
+                            Comments
+                          </p>
+                          <p className="text-sm text-gray-600">{ev.comments}</p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Previous Rounds — collapsible historical reference */}
+          {previous_rounds && Object.keys(previous_rounds).length > 0 && (
+            <div className="mb-6 border border-gray-200 rounded-xl overflow-hidden">
+              <button
+                onClick={() => setPreviousRoundsOpen(o => !o)}
+                className="w-full flex items-center justify-between px-5 py-3.5 bg-gray-50 hover:bg-gray-100 transition text-left"
+              >
+                <span className="text-sm font-semibold text-gray-600">
+                  Previous Rounds ({Object.keys(previous_rounds).length})
+                  <span className="text-xs font-normal text-gray-400 ml-2">— for reference only, not included in averages</span>
+                </span>
+                <svg
+                  className={`w-4 h-4 text-gray-400 transition-transform ${previousRoundsOpen ? "rotate-180" : ""}`}
+                  fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+
+              {previousRoundsOpen && (
+                <div className="p-5 space-y-6 bg-white">
+                  {Object.entries(previous_rounds)
+                    .sort(([a], [b]) => Number(a) - Number(b))
+                    .map(([roundNum, roundEvals]) => {
+                      const avg = roundEvals.length > 0
+                        ? Math.round(roundEvals.reduce((s, e) => s + e.overall_score, 0) / roundEvals.length)
+                        : 0;
+                      return (
+                        <div key={roundNum}>
+                          <div className="flex items-center gap-3 mb-3">
+                            <span className="bg-gray-100 text-gray-500 text-xs font-bold px-3 py-1 rounded-full">
                               Round {roundNum}
                             </span>
                             <span className="text-xs text-gray-400">
-                              {roundEvals.length} evaluation{roundEvals.length !== 1 ? "s" : ""}
+                              {roundEvals.length} evaluation{roundEvals.length !== 1 ? "s" : ""} · Avg: {avg}%
                             </span>
                           </div>
-                          <span className="text-sm font-semibold text-gray-600">
-                            Avg: {roundAvg}%
-                          </span>
-                        </div>
-
-                        {/* Evaluations for this round */}
-                        <div className="space-y-4">
-                          {roundEvals.map((ev, idx) => {
-                            const label = ev.evaluator_name ?? `Evaluator ${idx + 1}`;
-                            const isHead = idx === 0;
-                            return (
-                              <div key={ev.id} className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
-                                {/* Evaluator header */}
-                                <div className="flex items-center justify-between mb-5">
-                                  <div className="flex items-center gap-3">
-                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${isHead ? "bg-orange-400 text-white" : "bg-gray-200 text-gray-600"}`}>
-                                      {initials(label)}
-                                    </div>
-                                    <div>
-                                      <p className="text-sm font-semibold text-gray-800">{label}</p>
-                                      <span className={`inline-block text-xs px-2 py-0.5 rounded-full font-medium mt-0.5 ${isHead ? "bg-orange-100 text-orange-600" : "bg-gray-100 text-gray-500"}`}>
-                                        {isHead ? "Panel Head" : "Panel Member"}
-                                      </span>
-                                    </div>
+                          <div className="space-y-3">
+                            {(roundEvals as Evaluation[]).map((ev, idx) => {
+                              const label = ev.evaluator_name ?? `Evaluator ${idx + 1}`;
+                              return (
+                                <div key={ev.id} className="bg-gray-50 border border-gray-200 rounded-xl p-4 flex items-start justify-between gap-4">
+                                  <div>
+                                    <p className="text-sm font-semibold text-gray-700">{label}</p>
+                                    {ev.comments && (
+                                      <p className="text-xs text-gray-500 mt-1 italic">"{ev.comments}"</p>
+                                    )}
                                   </div>
-                                  <p className="text-2xl font-bold text-orange-500">
+                                  <p className="text-lg font-bold text-gray-500 shrink-0">
                                     {Math.round(ev.overall_score)}%
-                                    <span className="text-sm font-normal text-gray-400 ml-1">Score</span>
                                   </p>
                                 </div>
-
-                                {/* Per-category ratings */}
-                                <div className="grid grid-cols-5 gap-4 mb-4">
-                                  {CRITERIA.map((c) => {
-                                    const val = ev[c.key as keyof Evaluation] as number;
-                                    return (
-                                      <div key={c.key}>
-                                        <p className="text-xs text-gray-400 mb-2">{c.label}</p>
-                                        <RatingPills value={val} />
-                                        <p className="text-xs text-gray-400 mt-1">{val} out of 5</p>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-
-                                {/* Comments */}
-                                {ev.comments && (
-                                  <div className="bg-gray-50 border border-gray-100 rounded-lg p-4">
-                                    <p className="text-xs font-semibold text-gray-500 mb-1 flex items-center gap-1">
-                                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                                      </svg>
-                                      Comments
-                                    </p>
-                                    <p className="text-sm text-gray-600">{ev.comments}</p>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
+                              );
+                            })}
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
                 </div>
-              );
-            })()}
-          </div>
+              )}
+            </div>
+          )}
 
           {/* Make Final Decision */}
           <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6 mb-6">
@@ -503,8 +450,31 @@ export default function FinalDecisionPage() {
               </div>
             )}
 
-            {/* Decision cards */}
-            <div className="grid grid-cols-3 gap-4 mb-6">
+            {completionData && !completionData.all_submitted ? (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 mb-6">
+                <div className="flex items-start gap-3">
+                  <svg className="w-5 h-5 text-amber-500 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /></svg>
+                  <div>
+                    <p className="text-sm font-semibold text-amber-800">Pending Evaluations</p>
+                    <p className="text-sm text-amber-700 mt-1">
+                      You cannot make the final decision until all panel members have submitted their evaluations for this round.
+                    </p>
+                    <ul className="mt-3 space-y-1.5">
+                      {completionData.pending.map((p: any) => (
+                        <li key={p.user_id} className="text-sm text-amber-800 flex items-center gap-2">
+                          <span className="w-1.5 h-1.5 bg-amber-400 rounded-full inline-block"></span>
+                          <span className="font-medium">{p.full_name}</span>
+                          <span className="text-xs opacity-75">({p.role === "head" ? "Panel Head" : "Panel Member"})</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <>
+                {/* Decision cards */}
+                <div className="grid grid-cols-3 gap-4 mb-6">
               {DECISIONS.map((d) => {
                 const active = selectedDecision === d.id;
                 return (
@@ -562,7 +532,9 @@ export default function FinalDecisionPage() {
                   "Confirm Decision"
                 )}
               </button>
-            </div>
+                </div>
+              </>
+            )}
           </div>
     </>
   );

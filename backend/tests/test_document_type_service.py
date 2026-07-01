@@ -51,6 +51,44 @@ def test_list_document_types(db):
 def test_delete_document_type(db):
     doc = document_type_service.create_document_type(db, DocumentTypeCreate(name="To Delete"))
     document_type_service.delete_document_type(db, doc.id)
-    
+
     all_types = document_type_service.list_all_document_types(db)
     assert len(all_types) == 0
+
+
+def test_create_defaults_to_upload_category(db):
+    doc = document_type_service.create_document_type(db, DocumentTypeCreate(name="National ID"))
+    assert doc.category == "UPLOAD"
+
+
+def test_create_request_category(db):
+    doc = document_type_service.create_document_type(
+        db, DocumentTypeCreate(name="Service Letter", category="REQUEST")
+    )
+    assert doc.category == "REQUEST"
+
+
+def test_list_filtered_by_category(db):
+    document_type_service.create_document_type(db, DocumentTypeCreate(name="CV", category="UPLOAD"))
+    document_type_service.create_document_type(
+        db, DocumentTypeCreate(name="Bank Letter", category="REQUEST")
+    )
+
+    upload = document_type_service.list_all_document_types(db, category="UPLOAD")
+    request = document_type_service.list_active_document_types(db, category="REQUEST")
+
+    assert [t.name for t in upload] == ["CV"]
+    assert [t.name for t in request] == ["Bank Letter"]
+    # No filter still returns every category.
+    assert len(document_type_service.list_all_document_types(db)) == 2
+
+
+def test_seed_request_document_types_is_idempotent(db):
+    document_type_service.seed_request_document_types(db)
+    first = document_type_service.list_all_document_types(db, category="REQUEST")
+    assert {t.name for t in first} == set(document_type_service.DEFAULT_REQUEST_DOCUMENT_TYPES)
+
+    # Re-running must not duplicate or resurrect entries.
+    document_type_service.seed_request_document_types(db)
+    second = document_type_service.list_all_document_types(db, category="REQUEST")
+    assert len(second) == len(first)
