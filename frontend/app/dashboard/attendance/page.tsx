@@ -132,6 +132,12 @@ export default function AttendancePage() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
+          <button
+            onClick={() => router.push("/dashboard")}
+            className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 mb-3 transition"
+          >
+            ← Back to Dashboard
+          </button>
           <h1 className="text-2xl font-semibold text-gray-900">Attendance Overview</h1>
           <p className="text-sm text-gray-500 mt-1">View and filter employee attendance records.</p>
         </div>
