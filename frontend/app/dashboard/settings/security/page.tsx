@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Lock, Smartphone, Globe, Eye, EyeOff } from "lucide-react";
+import { Lock, Smartphone, Eye, EyeOff } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 
 export default function SecuritySettingsPage() {
@@ -265,56 +265,7 @@ export default function SecuritySettingsPage() {
         )}
       </div>
 
-      <hr className="border-gray-100 my-10" />
 
-      {/* Active Sessions Section */}
-      <div>
-        <div className="flex items-center gap-3 mb-1">
-          <Globe size={20} className="text-gray-800" />
-          <h2 className="text-xl font-bold text-gray-900">Active Sessions</h2>
-        </div>
-        <p className="text-gray-400 text-sm font-medium ml-8 mb-6">Manage your active login sessions</p>
-
-        <div className="ml-8 space-y-4">
-          
-          {/* Session 1 */}
-          <div className="border border-gray-200 rounded-xl p-5 flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="h-12 w-12 bg-[#f08a4b] text-white rounded-full flex items-center justify-center font-bold text-[13px]">
-                CW
-              </div>
-              <div>
-                <div className="flex items-center gap-3 mb-0.5">
-                  <h4 className="font-bold text-gray-900 text-sm">Chrome on Windows</h4>
-                  <span className="bg-[#f08a4b] text-white text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full">Current</span>
-                </div>
-                <p className="text-xs text-gray-400 font-medium tracking-wide">Colombo • Sri Lanka • Last seen: Just now</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Session 2 */}
-          <div className="border border-gray-200 rounded-xl p-5 flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="h-12 w-12 bg-gray-200 text-gray-600 rounded-full flex items-center justify-center font-bold text-[13px]">
-                SI
-              </div>
-              <div>
-                <h4 className="font-bold text-gray-900 text-sm mb-0.5">Safari on iPhone</h4>
-                <p className="text-xs text-gray-400 font-medium tracking-wide">Colombo • Sri Lanka • Last seen: 2 days ago</p>
-              </div>
-            </div>
-            <button className="bg-gray-400 hover:bg-gray-500 text-white px-6 py-2 rounded-lg text-sm font-semibold transition">
-              Revoke
-            </button>
-          </div>
-
-        </div>
-
-        <button className="ml-8 mt-6 text-[#f08a4b] hover:text-[#e07a3b] text-sm font-semibold transition">
-          Sign out of all other sessions
-        </button>
-      </div>
 
     </div>
   );
