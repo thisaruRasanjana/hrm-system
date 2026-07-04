@@ -3,6 +3,8 @@
 import React, { useState } from 'react';
 import { X, UploadCloud, File as FileIcon, Loader2 } from 'lucide-react';
 import { apiFetch } from "@/lib/api";
+import LeaveDatePicker from './LeaveDatePicker';
+
 
 interface LeaveRequest {
   leave_request_id: number;
@@ -29,6 +31,11 @@ export default function LeaveResubmitModal({
 }: LeaveResubmitModalProps) {
   const [attachments, setAttachments] = useState<File[]>([]);
   const [reason, setReason] = useState('');
+  const [dateSelection, setDateSelection] = useState({
+    startDate: request.start_date,
+    endDate: request.end_date,
+    halfDay: request.half_day,
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -84,6 +91,9 @@ export default function LeaveResubmitModal({
       const payload = {
         attachment_urls: uploadedFileUrls,
         reason: reason.trim() || undefined,
+        start_date: dateSelection.startDate,
+        end_date: dateSelection.endDate,
+        half_day: dateSelection.halfDay,
       };
 
       const resubmitRes = await apiFetch(`/leave/requests/${requestId}/resubmit`, {
@@ -138,13 +148,12 @@ export default function LeaveResubmitModal({
               <tr>
                 <th className="px-4 py-2 font-semibold text-gray-500">Dates</th>
                 <td className="px-4 py-2 font-medium text-gray-900">
-                  {new Date(request.start_date).toLocaleDateString()} - {new Date(request.end_date).toLocaleDateString()}
-                </td>
-              </tr>
-              <tr>
-                <th className="px-4 py-2 font-semibold text-gray-500">Total Days</th>
-                <td className="px-4 py-2 font-medium text-gray-900">
-                  {request.half_day ? "0.5 days" : `${request.total_days} days`}
+                  <div className="w-[300px]">
+                    <LeaveDatePicker
+                      value={dateSelection}
+                      onChange={setDateSelection}
+                    />
+                  </div>
                 </td>
               </tr>
               {request.reason && (

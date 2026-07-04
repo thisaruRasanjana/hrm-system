@@ -5,8 +5,15 @@ import LeaveTabs from '@/components/LeaveTabs';
 import LeaveResubmitModal from '@/components/LeaveResubmitModal';
 import EditLeaveModal from '@/components/EditLeaveModal';
 import MedicalConversionModal from '@/components/MedicalConversionModal';
-import { Search, Pencil, Trash2, Stethoscope } from "lucide-react";
+import LeaveTypeBadge from '@/components/LeaveTypeBadge';
+import { Search, Pencil, Trash2, Stethoscope, XCircle } from "lucide-react";
 import { apiFetch } from '@/lib/api';
+
+interface LeaveType {
+  id: number;
+  name: string;
+}
+
 
 interface LeaveRequest {
   leave_request_id: number;
@@ -25,7 +32,9 @@ interface LeaveRequest {
   approved_by?: number | null;
   approved_date?: string | null;
   parent_request_id?: number | null;
+  approved_by_name?: string | null;
 }
+
 
 
 const getStatusBadgeColor = (status: string) => {
@@ -59,7 +68,10 @@ export default function LeaveHistoryPage() {
   const [leaveType, setLeaveType] = useState('All type');
   const [status, setStatus] = useState('All Status');
   const [sortBy, setSortBy] = useState('Newest first');
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 20;
 
+  const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedRequestForInfo, setSelectedRequestForInfo] = useState<LeaveRequest | null>(null);
@@ -91,6 +103,8 @@ export default function LeaveHistoryPage() {
       }
 
       params.append("sort_by", sortBy === "Newest first" ? "newest" : "oldest");
+      params.append("page", currentPage.toString());
+      params.append("page_size", pageSize.toString());
 
       const url = `/leave/history/me?${params.toString()}`;
 
@@ -113,11 +127,53 @@ export default function LeaveHistoryPage() {
     } finally {
       setLoading(false);
     }
-  }, [searchTerm, leaveType, status, sortBy, leaveTypeIdMap]);
+  }, [searchTerm, leaveType, status, sortBy, currentPage]);
+
+  const fetchLeaveTypes = async () => {
+    try {
+      const res = await apiFetch("/leave/types");
+      if (res.ok) {
+        const data = await res.json();
+        setLeaveTypes(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch leave types", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchLeaveTypes();
+  }, []);
 
   useEffect(() => {
     fetchLeaveHistory();
   }, [fetchLeaveHistory]);
+
+  const handleCancel = async (requestId: number) => {
+    const reason = window.prompt("Reason for cancellation:");
+    if (reason !== null) {
+      if (!reason.trim()) {
+        alert("Cancellation reason is required.");
+        return;
+      }
+      try {
+        const res = await apiFetch(`/leave/requests/${requestId}/cancel`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reason: reason.trim() })
+        });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.detail || "Failed to cancel leave request");
+        }
+        fetchLeaveHistory();
+      } catch (err: any) {
+        console.error("Error cancelling request", err);
+        alert(err.message || "Could not cancel request. Please try again.");
+      }
+    }
+  };
+
 
   const handleDelete = async (requestId: number) => {
     if (window.confirm("Are you sure you want to cancel and delete this pending request?")) {
@@ -171,14 +227,13 @@ export default function LeaveHistoryPage() {
 
                 <select
                   value={leaveType}
-                  onChange={(e) => setLeaveType(e.target.value)}
+                  onChange={(e) => { setLeaveType(e.target.value); setCurrentPage(1); }}
                   className="flex-1 min-w-[160px] px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-400 bg-white focus:outline-none focus:ring-2 focus:ring-orange-200 cursor-pointer"
                 >
                   <option>All type</option>
-                  <option>Annual Leave</option>
-                  <option>Casual Leave</option>
-                  <option>Medical Leave</option>
-                  <option>Short Leave</option>
+                  {leaveTypes.map(lt => (
+                    <option key={lt.id} value={lt.id.toString()}>{lt.name}</option>
+                  ))}
                 </select>
 
                 <select
@@ -251,7 +306,7 @@ export default function LeaveHistoryPage() {
                           </td>
                           <td className="px-6 py-4 text-sm text-gray-700">
                             <div className="flex items-center gap-2">
-                              <span>{request.leave_type_name || '-'}</span>
+                              {request.leave_type_name ? <LeaveTypeBadge name={request.leave_type_name} /> : '-'}
                               {request.parent_request_id && (
                                 <span className="inline-flex items-center gap-1 rounded-full border border-orange-100 bg-orange-50 px-2 py-0.5 text-[11px] font-medium text-orange-600">
                                   <Stethoscope size={11} /> Reclassified
@@ -303,17 +358,48 @@ export default function LeaveHistoryPage() {
                                       <Stethoscope size={12} /> To Medical
                                     </button>
                                   )}
+                                {request.status === 'APPROVED' &&
+                                  new Date(request.start_date).setHours(0,0,0,0) > new Date().setHours(0,0,0,0) && (
+                                    <button
+                                      onClick={() => handleCancel(request.leave_request_id)}
+                                      title="Cancel approved leave"
+                                      className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-red-50 px-2 py-1 text-[11px] font-medium text-red-600 hover:bg-red-100 transition-colors ml-1"
+                                    >
+                                      <XCircle size={12} /> Cancel
+                                    </button>
+                                  )}
                               </div>
                             )}
                           </td>
                           <td className="px-6 py-4 text-sm text-gray-700">
-                            {request.approved_by ?? '-'}
+                            {request.approved_by_name ?? request.approved_by ?? '-'}
                           </td>
                         </tr>
                       ))
                     )}
                   </tbody>
                 </table>
+              </div>
+              <div className="bg-gray-50 px-6 py-4 border-t border-gray-200 flex items-center justify-between">
+                <span className="text-sm text-gray-600">
+                  Page {currentPage}
+                </span>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="px-3 py-1 text-sm bg-white border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    onClick={() => setCurrentPage(p => p + 1)}
+                    disabled={leaveRequests.length < pageSize}
+                    className="px-3 py-1 text-sm bg-white border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Next
+                  </button>
+                </div>
               </div>
             </div>
           </div>

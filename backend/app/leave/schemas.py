@@ -36,6 +36,7 @@ class LeaveRequestOut(BaseModel):
     department: Optional[str] = None
     role: Optional[str] = None
     parent_request_id: Optional[int] = None
+    approved_by_name: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -58,6 +59,12 @@ class RequestInfoLeaveRequest(BaseModel):
 
 class ResubmitLeaveRequest(BaseModel):
     attachment_urls: Optional[List[str]] = []
+    reason: Optional[str] = None
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    half_day: Optional[bool] = None
+
+class CancelLeaveRequest(BaseModel):
     reason: Optional[str] = None
 
 class RequestMedicalLeave(BaseModel):
@@ -164,4 +171,17 @@ class MedicalConversionOut(BaseModel):
 
 
 class MedicalConversionReview(BaseModel):
-    reviewer_comment: Optional[str] = None
+    reviewer_comment: Optional[str] = None
+
+class LeaveAuditLogOut(BaseModel):
+    id: int
+    leave_request_id: int
+    changed_by_employee_id: Optional[int]
+    old_status: Optional[str]
+    new_status: str
+    note: Optional[str]
+    changed_at: datetime
+
+    class Config:
+        from_attributes = True
+

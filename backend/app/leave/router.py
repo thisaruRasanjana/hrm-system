@@ -29,6 +29,8 @@ from app.leave.schemas import (
     MedicalConversionCreate,
     MedicalConversionOut,
     MedicalConversionReview,
+    CancelLeaveRequest,
+    LeaveAuditLogOut,
 )
 
 from app.leave.service import (
@@ -57,6 +59,8 @@ from app.leave.service import (
     get_pending_medical_conversions,
     approve_medical_conversion,
     reject_medical_conversion,
+    cancel_approved_leave,
+    get_leave_audit_log,
 )
 
 router = APIRouter(prefix="/leave", tags=["Leave"])
@@ -165,20 +169,22 @@ def assign_leave(
 # -----------------------------
 @router.get("/balance/me", response_model=list[LeaveBalanceOut])
 def get_my_leave_balances(
+    year: int | None = None,
     current_user: dict = Depends(leave_actor("leave:request", "leave:view_history")),
     db: Session = Depends(get_db),
 ):
-    return get_leave_balances(db, current_user["id"])
+    return get_leave_balances(db, current_user["id"], year=year)
 
 
 @router.get("/balance/{employee_id}", response_model=list[LeaveBalanceOut])
 def get_employee_leave_balances(
     employee_id: int,
+    year: int | None = None,
     current_user: dict = Depends(leave_actor("leave:approve", "leave:report")),
     db: Session = Depends(get_db),
 ):
     """Leave balances for a specific employee — used by reviewers in the approval panel."""
-    return get_leave_balances(db, employee_id)
+    return get_leave_balances(db, employee_id, year=year)
 
 
 # -----------------------------
@@ -536,6 +542,8 @@ def get_my_leave_history_api(
     leave_type_id: int | None = None,
     status: str | None = None,
     sort_by: str = "newest",
+    page: int = 1,
+    page_size: int = 20,
     db: Session = Depends(get_db),
 ):
     return get_leave_history(
@@ -545,7 +553,35 @@ def get_my_leave_history_api(
         leave_type_id=leave_type_id,
         status=status,
         sort_by=sort_by,
+        page=page,
+        page_size=page_size,
     )
+
+@router.patch("/requests/{request_id}/cancel", response_model=LeaveRequestOut)
+def cancel_leave(
+    request_id: int,
+    payload: CancelLeaveRequest,
+    current_user: dict = Depends(leave_actor("leave:request")),
+    db: Session = Depends(get_db),
+):
+    try:
+        return cancel_approved_leave(db, request_id, current_user["id"], payload.reason)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.get("/requests/{request_id}/audit-trail", response_model=list[LeaveAuditLogOut])
+def get_audit_trail(
+    request_id: int,
+    current_user: dict = Depends(leave_actor("leave:request", "leave:approve")),
+    db: Session = Depends(get_db),
+):
+    # Verify request existence and auth
+    req = get_leave_request_by_id(db, request_id)
+    if not req:
+        raise HTTPException(status_code=404, detail="Leave request not found")
+    if current_user["role"] == "employee" and req.employee_id != current_user["id"]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    return get_leave_audit_log(db, request_id)
 
 
 # -----------------------------

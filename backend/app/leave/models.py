@@ -94,4 +94,15 @@ class LeaveMedicalConversion(Base):
     status = Column(String(20), default="PENDING")  # PENDING / APPROVED / REJECTED
     reviewer_id = Column(Integer, nullable=True)
     reviewer_comment = Column(Text, nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class LeaveAuditLog(Base):
+    __tablename__ = "leave_audit_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    leave_request_id = Column(Integer, ForeignKey("leave_requests.leave_request_id", ondelete="CASCADE"), nullable=False)
+    changed_by_employee_id = Column(Integer, nullable=True)   # None = system
+    old_status = Column(String(30), nullable=True)
+    new_status = Column(String(30), nullable=False)
+    note = Column(Text, nullable=True)
+    changed_at = Column(DateTime(timezone=True), server_default=func.now())
