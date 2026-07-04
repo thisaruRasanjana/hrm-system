@@ -136,16 +136,14 @@ export default function ApprovalReviewModal({
             </div>
 
             <div className="min-w-[205px]">
-              <p className="mb-2 text-center text-[14px] text-[#667085]">Current Balance</p>
-              <div className="flex gap-2">
-                <div className="rounded-md bg-[#FFF7ED] px-3 py-2 text-center">
-                  <p className="text-[14px] text-[#6B7280]">Annual Leaves</p>
-                  <p className="text-[16px] font-bold text-[#1F2937]">{request.balances.annual}</p>
-                </div>
-                <div className="rounded-md bg-[#FFF7ED] px-3 py-2 text-center">
-                  <p className="text-[14px] text-[#6B7280]">Casual Leaves</p>
-                  <p className="text-[16px] font-bold text-[#1F2937]">{request.balances.casual}</p>
-                </div>
+              <p className="mb-2 text-center text-[14px] text-[#667085]">Current Balances</p>
+              <div className="flex flex-wrap gap-2 justify-center">
+                {(request.balances || []).map((b, i) => (
+                  <div key={i} className="rounded-md bg-[#FFF7ED] px-3 py-2 text-center min-w-[80px]">
+                    <p className="text-[12px] text-[#6B7280]">{b.leave_type_name}</p>
+                    <p className="text-[16px] font-bold text-[#1F2937]">{b.remaining ?? '--'}</p>
+                  </div>
+                ))}
               </div>
             </div>
           </div>

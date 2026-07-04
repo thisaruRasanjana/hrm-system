@@ -79,10 +79,7 @@ function mapBackendToFrontend(item: BackendLeaveRequest): ApprovalRequest {
     attachmentUrls: urls,
     appliedOn: item.start_date,
     reason: item.reason || 'No reason provided',
-    balances: {
-      annual: '--',
-      casual: '--',
-    },
+    balances: [],
     status: item.status,
   };
 }
@@ -252,16 +249,7 @@ export default function ApprovalPage() {
           cache: 'no-store',
         });
         if (balRes.ok) {
-          const balances: { leave_type_name?: string; remaining?: number | null }[] =
-            await balRes.json();
-          const remainingFor = (re: RegExp) => {
-            const b = balances.find((x) => re.test(x.leave_type_name || ''));
-            return b && b.remaining != null ? String(b.remaining) : '--';
-          };
-          mapped.balances = {
-            annual: remainingFor(/annual/i),
-            casual: remainingFor(/casual/i),
-          };
+          mapped.balances = await balRes.json();
         }
       } catch (balErr) {
         console.error('Failed to load leave balances:', balErr);

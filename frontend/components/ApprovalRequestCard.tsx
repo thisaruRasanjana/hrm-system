@@ -27,9 +27,9 @@ export interface ApprovalRequest {
   appliedOn: string;
   reason: string;
   balances: {
-    annual: string;
-    casual: string;
-  };
+    leave_type_name?: string;
+    remaining?: number | string | null;
+  }[];
   status: string;
 }
 

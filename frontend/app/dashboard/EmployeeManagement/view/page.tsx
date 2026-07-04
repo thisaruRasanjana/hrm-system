@@ -15,14 +15,29 @@ import {
 } from "@/components/Icons";
 import { api } from "@/lib/api";
 
-// Reusable component for stacked data fields (Label on top, Value on bottom)
-function DataField({ label, value }: { label: string, value: React.ReactNode }) {
+function DataField({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="flex flex-col gap-1.5">
-      <span className="text-xs font-semibold text-gray-500">{label}</span>
-      <span className="text-[13px] text-[#212B36]">{value}</span>
+    <div>
+      <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">{label}</p>
+      <p className="text-[14px] text-gray-800 font-medium">{value || <span className="text-gray-300 italic font-normal">Not provided</span>}</p>
     </div>
   );
+}
+
+function DetailCard({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className="px-5 py-4 border-b border-gray-50 flex items-center gap-2.5">
+        <div className="text-[#EE7F22]">{icon}</div>
+        <h3 className="text-[14px] font-bold text-gray-800">{title}</h3>
+      </div>
+      <div className="p-5 space-y-4">{children}</div>
+    </div>
+  );
+}
+
+function getInitials(first: string, last: string) {
+  return `${(first?.[0] || "").toUpperCase()}${(last?.[0] || "").toUpperCase()}`;
 }
 
 interface Employee {
@@ -43,7 +58,6 @@ interface Employee {
   marital_status?: string;
   nationality?: string;
   role?: { id: number; role_name: string };
-  // New Fields
   emergency_contact_name?: string;
   emergency_contact_phone?: string;
   emergency_contact_relation?: string;
@@ -62,262 +76,201 @@ function EmployeeViewContent() {
 
   useEffect(() => {
     if (!id) return;
-    const fetchEmployee = async () => {
-      try {
-        const data = await api.get<Employee>(`/employees/${id}`);
-        setEmployee(data);
-      } catch (error) {
-        console.error("Failed to fetch employee:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchEmployee();
+    api.get<Employee>(`/employees/${id}`)
+      .then(setEmployee)
+      .catch((err) => console.error("Failed to fetch employee:", err))
+      .finally(() => setLoading(false));
   }, [id]);
 
-  if (loading) return <div className="p-10 text-center text-gray-400">Loading employee details...</div>;
-  if (!employee) return <div className="p-10 text-center text-red-500">Employee not found.</div>;
+  if (loading) {
+    return (
+      <div className="max-w-6xl mx-auto pb-10 space-y-6 animate-pulse">
+        <div className="h-36 bg-gray-100 rounded-2xl" />
+        <div className="grid grid-cols-2 gap-6">
+          <div className="h-56 bg-gray-100 rounded-2xl" />
+          <div className="h-56 bg-gray-100 rounded-2xl" />
+        </div>
+      </div>
+    );
+  }
 
-  const displayData = {
-    id: employee.employee_id,
-    name: `${employee.first_name} ${employee.last_name}`,
-    email: employee.email,
-    phone: employee.phone,
-    department: employee.department_rel?.name || "No Department",
-    designation: employee.designation,
-    status: employee.status.toUpperCase(),
-    personal: {
-      dob: employee.date_of_birth || "Not Provided",
-      gender: employee.gender || "Not Provided",
-      maritalStatus: employee.marital_status || "Not Provided",
-      nationality: employee.nationality || "Not Provided",
-      address: employee.address || "Not Provided",
-    },
-    emergency: {
-      name: employee.emergency_contact_name || "Not Provided",
-      relationship: employee.emergency_contact_relation || "Not Provided",
-      phone: employee.emergency_contact_phone || "Not Provided",
-    },
-    bank: {
-      name: employee.bank_name || "Not Provided",
-      accountNumber: employee.bank_account_no || "Not Provided",
-      branch: employee.bank_branch || "Not Provided",
-    },
-    work: {
-      department: employee.department_rel?.name || "No Department",
-      designation: employee.designation,
-      joinedDate: employee.joined_date || "Not Provided",
-      employmentType: "Full-Time",
-      location: "Main Office",
-      manager: "Direct Supervisor",
-    },
-    skillsAndQualifications: {
-      qualifications: employee.qualifications || "Not Provided",
-      skills: employee.skills ? employee.skills.split(",").map(s => s.trim()) : []
-    },
-    role: {
-      systemRole: employee.role?.role_name || "No Role Assigned",
-      permissions: [],
-      lastLogin: "Never",
-    },
-  };
+  if (!employee) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-3">
+        <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-red-400" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+        </div>
+        <p className="text-sm font-medium text-gray-600">Employee not found</p>
+        <Link href="/dashboard/employees" className="text-sm text-[#EE7F22] hover:underline">← Back to list</Link>
+      </div>
+    );
+  }
 
-  const employeeRef = displayData;
+  const skills = employee.skills ? employee.skills.split(",").map(s => s.trim()).filter(Boolean) : [];
+  const isActive = employee.status === "active";
 
   return (
     <div className="max-w-6xl mx-auto pb-10">
-      {/* Header / Back Navigation */}
-      <div className="mb-6 flex flex-col gap-1">
+      {/* Header Nav */}
+      <div className="mb-6">
         <Link
           href="/dashboard/employees"
-          className="inline-flex items-center gap-1.5 text-sm text-gray-600 hover:text-orange-500 transition-colors self-start mb-2"
+          className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors mb-5 font-medium group"
         >
-          <IconArrowLeft />
-          Back
+          <span className="group-hover:-translate-x-0.5 transition-transform"><IconArrowLeft /></span>
+          Back to Employees
         </Link>
-        <h1 className="text-2xl font-bold text-[#212B36]">Employee Profile</h1>
-        <p className="text-sm text-gray-400">Complete employee information</p>
       </div>
 
-      {/* Main Profile Summary Card */}
-      <div className="bg-[#FAFBFB] rounded-2xl border border-gray-100 p-8 mb-6 flex flex-col md:flex-row gap-8 relative">
+      {/* Hero Profile Card */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 md:p-8 mb-6">
+        <div className="flex flex-col md:flex-row gap-6 items-start md:items-center">
+          {/* Avatar */}
+          <div className="w-20 h-20 md:w-24 md:h-24 rounded-2xl bg-[#EE7F22] flex items-center justify-center text-white text-2xl md:text-3xl font-bold shadow-lg shadow-orange-200 flex-shrink-0">
+            {getInitials(employee.first_name, employee.last_name)}
+          </div>
 
-        {/* Edit Button (Top Right) */}
-        <Link
-          href={`/dashboard/EmployeeManagement/edit?id=${encodeURIComponent(employee.id)}`}
-          className="absolute top-6 right-8 inline-flex items-center justify-center w-10 h-10 bg-white border border-gray-200 rounded-lg text-gray-500 hover:text-orange-500 hover:border-orange-200 transition-colors shadow-sm"
-          aria-label="Edit Profile"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-          </svg>
-        </Link>
-
-        {/* Avatar */}
-        <div className="w-28 h-28 bg-gray-200 rounded-full flex items-center justify-center shrink-0">
-          <svg className="w-12 h-12 text-gray-400" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M24 20.993V24H0v-2.996A14.977 14.977 0 0112.004 15c4.904 0 9.26 2.354 11.996 5.993zM16.002 8.999a4 4 0 11-8 0 4 4 0 018 0z" />
-          </svg>
-        </div>
-
-        {/* Core Info & Contact */}
-        <div className="flex flex-col justify-center w-full">
-          <h2 className="text-2xl font-bold text-[#212B36] mb-1">{employeeRef.name}</h2>
-          <div className="text-[15px] text-gray-500 mb-0.5">{employeeRef.designation}</div>
-          <div className="text-sm text-gray-400 mb-3">{employeeRef.department} Department</div>
-
-          <span className="inline-block px-4 py-1 rounded-full text-[11px] font-bold tracking-wider bg-[#F9A15D] text-white self-start mb-6">
-            {employeeRef.status}
-          </span>
-
-          <div className="flex flex-wrap items-center gap-6 mt-auto">
-            <div className="flex items-center gap-2 text-[13px] text-gray-500">
-              <IconMail />
-              {employeeRef.email}
+          {/* Core Info */}
+          <div className="flex-1 min-w-0">
+            <div className="flex flex-wrap items-start gap-3 mb-2">
+              <h1 className="text-2xl font-bold text-gray-900">{employee.first_name} {employee.last_name}</h1>
+              <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold tracking-wider border ${
+                isActive
+                  ? "bg-[#EE7F22]/10 text-[#EE7F22] border-[#F9A15D]/50"
+                  : "bg-gray-100 text-gray-500 border-gray-200"
+              }`}>
+                <span className={`flex-shrink-0 w-1.5 h-1.5 rounded-full ${isActive ? "bg-[#F9A15D]" : "bg-gray-400"}`} />
+                <span className="leading-none pt-[1px]">{isActive ? "Active" : "Inactive"}</span>
+              </span>
             </div>
-            <div className="flex items-center gap-2 text-[13px] text-gray-500">
-              <IconPhone />
-              {employeeRef.phone}
+            <p className="text-base text-gray-600 mb-0.5">{employee.designation}</p>
+            <p className="text-sm text-[#EE7F22] font-semibold mb-4">{employee.department_rel?.name || "No Department"}</p>
+
+            <div className="flex flex-wrap gap-4 text-sm text-gray-500">
+              <span className="flex items-center gap-1.5">
+                <span className="text-gray-400"><IconMail /></span>
+                {employee.email}
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="text-gray-400"><IconPhone /></span>
+                {employee.phone}
+              </span>
+              <span className="flex items-center gap-1.5">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                <span className="font-mono text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">{employee.employee_id}</span>
+              </span>
             </div>
+          </div>
+
+          {/* Quick Actions */}
+          <div className="flex gap-2 flex-shrink-0">
+            <Link
+              href={`/dashboard/EmployeeManagement/edit?id=${employee.id}`}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:border-orange-300 hover:text-[#EE7F22] transition-all shadow-sm"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              Edit
+            </Link>
           </div>
         </div>
       </div>
 
-      {/* Two-Column Detail Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Two-column detail grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        {/* Left Column */}
+        <div className="space-y-5">
+          <DetailCard
+            icon={<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>}
+            title="Personal Information"
+          >
+            <DataField label="Employee ID" value={<span className="font-mono text-sm">{employee.employee_id}</span>} />
+            <DataField label="Date of Birth" value={employee.date_of_birth} />
+            <DataField label="Gender" value={employee.gender} />
+            <DataField label="Marital Status" value={employee.marital_status} />
+            <DataField label="Nationality" value={employee.nationality} />
+            <DataField label="Address" value={employee.address} />
+          </DetailCard>
 
-        {/* Left Column (Personal, Bank) */}
-        <div className="space-y-6">
+          <DetailCard
+            icon={<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.36 13a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>}
+            title="Emergency Contact"
+          >
+            <DataField label="Contact Name" value={employee.emergency_contact_name} />
+            <DataField label="Relationship" value={employee.emergency_contact_relation} />
+            <DataField label="Phone Number" value={employee.emergency_contact_phone} />
+          </DetailCard>
 
-          {/* Personal Information */}
-          <div className="bg-[#FAFBFB] rounded-2xl border border-gray-100 p-8">
-            <div className="flex items-center gap-3 mb-8">
-              <IconUserSelect className="text-orange-400" />
-              <h3 className="text-[17px] font-bold text-[#212B36]">Personal Information</h3>
-            </div>
-            <div className="flex flex-col gap-6">
-              <DataField label="Employee ID" value={employeeRef.id} />
-              <DataField label="Date of Birth" value={employeeRef.personal.dob} />
-              <DataField label="Gender" value={employeeRef.personal.gender} />
-              <DataField label="Marital Status" value={employeeRef.personal.maritalStatus} />
-              <DataField label="Nationality" value={employeeRef.personal.nationality} />
-              <DataField label="Full Address" value={employeeRef.personal.address} />
-            </div>
-          </div>
-
-          {/* Emergency Contact */}
-          <div className="bg-[#FAFBFB] rounded-2xl border border-gray-100 p-8">
-            <div className="flex items-center gap-3 mb-8">
-              <IconPhone className="text-orange-400" />
-              <h3 className="text-[17px] font-bold text-[#212B36]">Emergency Contact</h3>
-            </div>
-            <div className="flex flex-col gap-6">
-              <DataField label="Contact Name" value={employeeRef.emergency.name} />
-              <DataField label="Relationship" value={employeeRef.emergency.relationship} />
-              <DataField label="Phone Number" value={employeeRef.emergency.phone} />
-            </div>
-          </div>
-          {/* Bank Details */}
-          <div className="bg-[#FAFBFB] rounded-2xl border border-gray-100 p-8">
-            <div className="flex items-center gap-3 mb-8">
-              <IconBank className="text-orange-400" />
-              <h3 className="text-[17px] font-bold text-[#212B36]">Bank Details</h3>
-            </div>
-            <div className="flex flex-col gap-6">
-              <DataField label="Bank Name" value={employeeRef.bank.name} />
-              <DataField label="Account Number" value={employeeRef.bank.accountNumber} />
-              <DataField label="Branch Name" value={employeeRef.bank.branch} />
-            </div>
-          </div>
-
+          <DetailCard
+            icon={<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>}
+            title="Bank Details"
+          >
+            <DataField label="Bank Name" value={employee.bank_name} />
+            <DataField label="Account Number" value={employee.bank_account_no} />
+            <DataField label="Branch" value={employee.bank_branch} />
+          </DetailCard>
         </div>
 
-        {/* Right Column (Work, Skills/Certs, Permissions) */}
-        <div className="space-y-6">
+        {/* Right Column */}
+        <div className="space-y-5">
+          <DetailCard
+            icon={<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>}
+            title="Work Information"
+          >
+            <DataField label="Department" value={employee.department_rel?.name} />
+            <DataField label="Designation" value={employee.designation} />
+            <DataField label="Joined Date" value={employee.joined_date} />
+            <DataField label="Work Email" value={employee.email} />
+            <DataField label="Work Phone" value={employee.phone} />
+          </DetailCard>
 
-          {/* Work Information */}
-          <div className="bg-[#FAFBFB] rounded-2xl border border-gray-100 p-8">
-            <div className="flex items-center gap-3 mb-8">
-              <IconBriefcase className="text-orange-400" />
-              <h3 className="text-[17px] font-bold text-[#212B36]">Work Information</h3>
+          <DetailCard
+            icon={<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>}
+            title="Skills & Qualifications"
+          >
+            <div>
+              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2">Qualifications</p>
+              <p className="text-[14px] text-gray-700 whitespace-pre-wrap">
+                {employee.qualifications || <span className="text-gray-300 italic font-normal">Not provided</span>}
+              </p>
             </div>
-            <div className="flex flex-col gap-6">
-              <DataField label="Department" value={employeeRef.work.department} />
-              <DataField label="Designation" value={employeeRef.work.designation} />
-              <DataField label="Joined Date" value={employeeRef.work.joinedDate} />
-              <DataField label="Employment Type" value={employeeRef.work.employmentType} />
-              <DataField label="Work Location" value={employeeRef.work.location} />
-              <DataField label="Reporting Manager" value={employeeRef.work.manager} />
-              <DataField label="Work Email" value={employeeRef.email} />
-              <DataField label="Work Phone" value={employeeRef.phone} />
-            </div>
-          </div>
-
-          {/* Skills & Qualifications */}
-          <div className="bg-[#FAFBFB] rounded-2xl border border-gray-100 p-8">
-            <div className="flex items-center gap-3 mb-8">
-              <IconRibbon className="text-orange-400" />
-              <h3 className="text-[17px] font-bold text-[#212B36]">Skills & Qualifications</h3>
-            </div>
-
-            <div className="flex flex-col gap-8">
-              <div>
-                <span className="text-xs font-semibold text-gray-500 block mb-3">Qualifications</span>
-                <div className="flex flex-col gap-1.5">
-                  <span className="text-[14.5px] text-[#212B36] whitespace-pre-wrap">{employeeRef.skillsAndQualifications.qualifications}</span>
+            <div>
+              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2.5">Core Skills</p>
+              {skills.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {skills.map((skill, i) => (
+                    <span key={i} className="px-3 py-1 bg-[#EE7F22]/10 text-orange-700 border border-orange-100 rounded-full text-[12px] font-medium">
+                      {skill}
+                    </span>
+                  ))}
                 </div>
-              </div>
-
-              <div>
-                <span className="text-xs font-semibold text-gray-500 block mb-3">Core Skills</span>
-                <div className="flex flex-wrap gap-2.5">
-                  {employeeRef.skillsAndQualifications.skills.length > 0 ? (
-                    employeeRef.skillsAndQualifications.skills.map((skill, index) => (
-                      <span
-                        key={index}
-                        className="px-4 py-2 bg-[#F6F7F8] text-[#637381] rounded-full text-[13.5px] border border-gray-100/50"
-                      >
-                        {skill}
-                      </span>
-                    ))
-                  ) : (
-                    <span className="text-[13.5px] text-gray-400">Not Provided</span>
-                  )}
-                </div>
-              </div>
+              ) : (
+                <p className="text-[13px] text-gray-300 italic">Not provided</p>
+              )}
             </div>
-          </div>
+          </DetailCard>
 
-          {/* Role & Permissions */}
-          <div className="bg-[#FAFBFB] rounded-2xl border border-gray-100 p-8">
-            <div className="flex items-center gap-3 mb-8">
-              <IconShieldCheck className="text-orange-400" />
-              <h3 className="text-[17px] font-bold text-[#212B36]">Role & Permissions</h3>
+          <DetailCard
+            icon={<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>}
+            title="Role & Permissions"
+          >
+            <div>
+              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2">System Role</p>
+              {employee.role ? (
+                <span className="inline-flex items-center gap-2 px-3 py-1.5 bg-gray-100 text-[#212B36] border border-gray-200 rounded-lg text-sm font-semibold">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                  {employee.role.role_name}
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-2 px-3 py-1.5 bg-gray-50 text-gray-400 border border-gray-200 rounded-lg text-sm font-medium italic">
+                  No role assigned
+                </span>
+              )}
             </div>
-            <div className="flex flex-col gap-6">
-              <DataField label="System Role" value={employeeRef.role.systemRole} />
-
-              <div>
-                <span className="text-xs font-semibold text-gray-500 block mb-3">Access Permissions</span>
-                <ul className="flex flex-col gap-2.5">
-                  {employeeRef.role.permissions.length > 0 ? (
-                    employeeRef.role.permissions.map((perm, index) => (
-                      <li key={index} className="text-[13px] text-[#212B36] flex items-center gap-2.5">
-                        <span className="w-1.5 h-1.5 bg-[#F9A15D] rounded-full"></span>
-                        {perm}
-                      </li>
-                    ))
-                  ) : (
-                    <span className="text-[13px] text-gray-400 italic">No specific permissions displayed. Roles control access.</span>
-                  )}
-                </ul>
-              </div>
-
-              <DataField label="Last Login" value={employeeRef.role.lastLogin} />
+            <div className="pt-2">
+              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2">Permissions</p>
+              <p className="text-[13px] text-gray-400 italic">Permissions are controlled through role assignments.</p>
             </div>
-          </div>
-
+          </DetailCard>
         </div>
       </div>
     </div>
@@ -326,7 +279,22 @@ function EmployeeViewContent() {
 
 export default function EmployeeViewPage() {
   return (
-    <React.Suspense fallback={<div className="p-10 text-center text-gray-400">Loading details...</div>}>
+    <React.Suspense fallback={
+      <div className="max-w-6xl mx-auto pb-10 space-y-6 animate-pulse">
+        <div className="h-8 w-40 bg-gray-100 rounded mb-5" />
+        <div className="h-36 bg-gray-100 rounded-2xl" />
+        <div className="grid grid-cols-2 gap-5">
+          <div className="space-y-5">
+            <div className="h-52 bg-gray-100 rounded-2xl" />
+            <div className="h-32 bg-gray-100 rounded-2xl" />
+          </div>
+          <div className="space-y-5">
+            <div className="h-52 bg-gray-100 rounded-2xl" />
+            <div className="h-44 bg-gray-100 rounded-2xl" />
+          </div>
+        </div>
+      </div>
+    }>
       <EmployeeViewContent />
     </React.Suspense>
   );

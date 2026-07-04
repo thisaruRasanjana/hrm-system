@@ -3,7 +3,7 @@ from sqlalchemy.exc import IntegrityError
 from datetime import date
 from sqlalchemy import or_, cast, String, func, extract
 
-from app.leave.models import LeaveRequest, LeaveType, LeaveEntitlement, EmployeeLeaveEntitlement
+from app.leave.models import LeaveRequest, LeaveType, LeaveEntitlement, EmployeeLeaveEntitlement, LeaveAuditLog
 from app.leave.schemas import LeaveRequestCreate
 
 from fastapi import HTTPException
@@ -12,14 +12,26 @@ import logging
 _notif_logger = logging.getLogger(__name__)
 
 
-TEAM_MEMBERS = {
-    2: [1, 3],
-    4: [1, 2, 3],
-}
+def get_team_members(db: Session, manager_employee_id: int) -> list[int]:
+    """
+    Return the employee IDs of all employees in the same department
+    as the manager, excluding the manager themselves.
+    """
+    from app.employees.models import Employee
+    manager = db.query(Employee).filter(Employee.id == manager_employee_id).first()
+    if not manager or not manager.department_id:
+        return []
+    teammates = (
+        db.query(Employee.id)
+        .filter(
+            Employee.department_id == manager.department_id,
+            Employee.id != manager_employee_id,
+            Employee.is_deleted == False,
+        )
+        .all()
+    )
+    return [e.id for e in teammates]
 
-
-def get_team_members(manager_id: int) -> list[int]:
-    return TEAM_MEMBERS.get(manager_id, [])
 
 
 def calculate_total_days(db: Session, start_date: date, end_date: date, half_day: bool) -> float:
@@ -99,13 +111,14 @@ def _employee_role_id(db: Session, employee_id: int) -> int | None:
 
 
 def _entitlement_for(db: Session, employee_id: int, leave_type: LeaveType,
-                     role_id: int | None = None) -> float | None:
+                     role_id: int | None = None, year: int | None = None) -> float | None:
     """
     Entitlement for one employee/type: 
     1. Employee-specific override if configured
     2. Per-role entitlement if HR has configured one
     3. Type's default_days. None = unlimited.
     """
+    base_entitlement: float | None = None
     # 1. Employee-specific override
     emp_override = (
         db.query(EmployeeLeaveEntitlement)
@@ -131,26 +144,35 @@ def _entitlement_for(db: Session, employee_id: int, leave_type: LeaveType,
             .first()
         )
         if row is not None:
-            return float(row.days)
-            
+            base_entitlement = float(row.days)
+
     # 3. Default days
-    return float(leave_type.default_days) if leave_type.default_days is not None else None
+    if base_entitlement is None:
+        base_entitlement = float(leave_type.default_days) if leave_type.default_days is not None else None
+
+    # Calculate carry-over for Annual Leave if year is specified (and not recursing)
+    if year is not None and base_entitlement is not None and leave_type.name.lower() == 'annual leave':
+        prev_entitlement = _entitlement_for(db, employee_id, leave_type, role_id=role_id, year=None)
+        if prev_entitlement is not None:
+            prev_used = _used_days(db, employee_id, leave_type.id, year - 1, ["APPROVED"])
+            prev_remaining = max(prev_entitlement - prev_used, 0.0)
+            carry_over = min(prev_remaining, 5.0)  # cap carry-over at 5 days
+            base_entitlement += carry_over
+
+    return base_entitlement
 
 
-def get_leave_balances(db: Session, employee_id: int) -> list[dict]:
+def get_leave_balances(db: Session, employee_id: int, year: int | None = None) -> list[dict]:
     """
     Per-type balance for the current year:
-      remaining = entitlement − approved − pending days.
-    Pending/request-info days are subtracted too so the figure matches what
-    the employee can actually still request (see _enforce_balance).
-    Entitlement is the per-role value when configured, else the type
-    default. Types with no entitlement report remaining=None (unlimited).
+    ...
     """
-    year = date.today().year
+    if year is None:
+        year = date.today().year
     role_id = _employee_role_id(db, employee_id)
     balances = []
     for lt in db.query(LeaveType).order_by(LeaveType.id).all():
-        entitlement = _entitlement_for(db, employee_id, lt, role_id=role_id)
+        entitlement = _entitlement_for(db, employee_id, lt, role_id=role_id, year=year)
         used = _used_days(db, employee_id, lt.id, year, ["APPROVED"])
         pending = _used_days(db, employee_id, lt.id, year, ["PENDING", "REQ_INFO"])
         remaining = None
@@ -172,10 +194,10 @@ def _enforce_balance(db: Session, employee_id: int, leave_type: LeaveType, reque
     """Reject the request if it exceeds the remaining entitlement for that year."""
     if leave_type is None:
         return
-    entitlement = _entitlement_for(db, employee_id, leave_type)
+    year = start_date.year
+    entitlement = _entitlement_for(db, employee_id, leave_type, year=year)
     if entitlement is None:
         return
-    year = start_date.year
     # Count committed days = approved + pending + request-info. Counting the
     # unapproved requests too prevents an employee stacking several PENDING
     # requests that individually fit but together blow past the entitlement.
@@ -393,8 +415,13 @@ def get_pending_requests(db: Session, user: dict):
                     LeaveRequest.assigned_by != user["id"])
             )
         else:
-            # Managers can approve normal leaves but not assigned ones.
-            query = query.filter(LeaveRequest.assigned_by.is_(None))
+            # Managers (who also hold leave:approve) see only non-assigned leaves
+            # from their department team members
+            team = get_team_members(db, user["id"])
+            query = query.filter(
+                LeaveRequest.assigned_by.is_(None),
+                LeaveRequest.employee_id.in_(team) if team else False,
+            )
     else:
         return []
 
@@ -414,6 +441,8 @@ def get_leave_history(
     leave_type_id: int | None = None,
     status: str | None = None,
     sort_by: str = "newest",
+    page: int = 1,
+    page_size: int = 20,
 ):
     query = db.query(LeaveRequest, LeaveType.name.label("leave_type_name")).join(
         LeaveType, LeaveRequest.leave_type_id == LeaveType.id
@@ -422,9 +451,9 @@ def get_leave_history(
     if user["role"] == "employee":
         query = query.filter(LeaveRequest.employee_id == user["id"])
     elif user["role"] == "hr":
-        query = query.filter(LeaveRequest.employee_id == user["id"])
+        pass  # HR sees all employees' leave history
     elif user["role"] == "manager":
-        team = get_team_members(user["id"])
+        team = get_team_members(db, user["id"])
         query = query.filter(
             or_(
                 LeaveRequest.employee_id == user["id"],
@@ -455,14 +484,44 @@ def get_leave_history(
     else:
         query = query.order_by(LeaveRequest.start_date.desc())
 
-    results = query.all()
+    total = query.count()
+    offset = (page - 1) * page_size
+    results = query.offset(offset).limit(page_size).all()
 
     output = []
     for leave, leave_type_name in results:
         leave.leave_type_name = leave_type_name
+        leave.approved_by_name = _resolve_approver_name(db, leave.approved_by)
+        if user["role"] == "hr" or user["role"] == "manager":
+            _attach_employee_info(db, leave)
         output.append(leave)
 
     return output
+
+def _resolve_approver_name(db: Session, approved_by: int | None) -> str | None:
+    if approved_by is None:
+        return None
+    from app.employees.models import Employee
+    emp = db.query(Employee).filter(Employee.id == approved_by).first()
+    if emp:
+        return f"{emp.first_name or ''} {emp.last_name or ''}".strip() or f"Employee {approved_by}"
+    return f"Employee {approved_by}"
+
+def _audit_leave(db: Session, leave_request_id: int, old_status: str | None,
+                 new_status: str, changed_by: int | None = None, note: str | None = None):
+    """Append an immutable audit entry for a leave status change."""
+    try:
+        entry = LeaveAuditLog(
+            leave_request_id=leave_request_id,
+            changed_by_employee_id=changed_by,
+            old_status=old_status,
+            new_status=new_status,
+            note=note,
+        )
+        db.add(entry)
+        # Caller is responsible for db.commit()
+    except Exception as e:
+        _notif_logger.error(f"[Leave] Audit log write failed: {e}")
 
 
 def create_leave(db: Session, employee_id: int, data: LeaveRequestCreate, auto_approve: bool = False,
@@ -497,6 +556,8 @@ def create_leave(db: Session, employee_id: int, data: LeaveRequestCreate, auto_a
 
     try:
         db.add(req)
+        db.flush()
+        _audit_leave(db, req.leave_request_id, None, req.status, assigned_by)
         db.commit()
         db.refresh(req)
 
@@ -606,12 +667,14 @@ def approve_leave_request(
         _enforce_balance(db, req.employee_id, new_lt, req.total_days, req.start_date, exclude_request_id=req.leave_request_id)
         req.leave_type_id = approved_leave_type_id
 
+    old_status = req.status
     req.status = "APPROVED"
     req.approved_by = approved_by
     req.approved_date = date.today()
     req.rejection_reason = None
     req.manager_comment = manager_comment
 
+    _audit_leave(db, req.leave_request_id, old_status, "APPROVED", approved_by, manager_comment)
     db.commit()
     db.refresh(req)
 
@@ -651,12 +714,14 @@ def reject_leave_request(
     if not rejection_reason or not rejection_reason.strip():
         raise ValueError("rejection_reason is required")
 
+    old_status = req.status
     req.status = "REJECTED"
     req.approved_by = approved_by
     req.approved_date = date.today()
     req.rejection_reason = rejection_reason.strip()
     req.manager_comment = None
 
+    _audit_leave(db, req.leave_request_id, old_status, "REJECTED", approved_by, rejection_reason.strip())
     db.commit()
     db.refresh(req)
 
@@ -696,10 +761,12 @@ def request_info_leave_request(
     if not manager_comment or not manager_comment.strip():
         raise ValueError("manager_comment is required")
 
+    old_status = req.status
     req.status = "REQ_INFO"
     req.approved_by = approved_by
     req.manager_comment = manager_comment.strip()
 
+    _audit_leave(db, req.leave_request_id, old_status, "REQ_INFO", approved_by, manager_comment.strip())
     db.commit()
     db.refresh(req)
 
@@ -725,6 +792,9 @@ def resubmit_leave_request(
     employee_id: int,
     attachment_urls: list[str] | None,
     reason: str | None,
+    start_date: date | None = None,
+    end_date: date | None = None,
+    half_day: bool | None = None,
 ):
     req = db.query(LeaveRequest).filter(
         LeaveRequest.leave_request_id == request_id,
@@ -745,9 +815,45 @@ def resubmit_leave_request(
     if reason is not None and reason.strip():
         req.reason = reason.strip()
 
+    # Allow employee to correct dates on resubmission
+    if start_date is not None or end_date is not None:
+        new_start = start_date or req.start_date
+        new_end = end_date or req.end_date
+        new_half_day = half_day if half_day is not None else req.half_day
+
+        if new_start > new_end:
+            raise ValueError("start_date cannot be after end_date")
+
+        # Check overlap excluding self
+        overlap = (
+            db.query(LeaveRequest)
+            .filter(
+                LeaveRequest.employee_id == req.employee_id,
+                LeaveRequest.leave_request_id != req.leave_request_id,
+                LeaveRequest.start_date <= new_end,
+                LeaveRequest.end_date >= new_start,
+                LeaveRequest.status.in_(["PENDING", "APPROVED", "REQ_INFO", "PENDING_MEDICAL"]),
+            )
+            .first()
+        )
+        if overlap:
+            raise ValueError("You already have an overlapping leave request for these dates")
+
+        leave_type = db.query(LeaveType).filter(LeaveType.id == req.leave_type_id).first()
+        new_total = calculate_total_days(db, new_start, new_end, new_half_day)
+        _enforce_balance(db, req.employee_id, leave_type, new_total, new_start,
+                         exclude_request_id=req.leave_request_id)
+
+        req.start_date = new_start
+        req.end_date = new_end
+        req.half_day = new_half_day
+        req.total_days = new_total
+
+    old_status = req.status
     req.status = "PENDING"
     req.manager_comment = None  # Clear HR comment since they are replying
 
+    _audit_leave(db, req.leave_request_id, old_status, "PENDING", employee_id, reason)
     db.commit()
     db.refresh(req)
 
@@ -795,10 +901,12 @@ def request_medical_leave(
         raise ValueError("Medical leave type not found in the database")
 
     req.leave_type_id = medical_lt.id
+    old_status = req.status
     req.status = "PENDING_MEDICAL"
     req.approved_by = reviewed_by
     req.manager_comment = manager_comment.strip() if manager_comment and manager_comment.strip() else None
 
+    _audit_leave(db, req.leave_request_id, old_status, "PENDING_MEDICAL", reviewed_by, manager_comment.strip() if manager_comment else None)
     db.commit()
     db.refresh(req)
 
@@ -839,6 +947,7 @@ def update_status(
     if status == "REJECTED" and (rejection_reason is None or rejection_reason.strip() == ""):
         raise ValueError("rejection_reason is required when rejecting a leave request")
 
+    old_status = req.status
     req.status = status
 
     if status == "APPROVED":
@@ -851,6 +960,7 @@ def update_status(
         req.approved_date = date.today()
         req.rejection_reason = rejection_reason
 
+    _audit_leave(db, req.leave_request_id, old_status, status, approved_by, rejection_reason if status == "REJECTED" else None)
     db.commit()
     db.refresh(req)
 
@@ -883,6 +993,39 @@ def delete_leave_request(db: Session, request_id: int, employee_id: int):
     return True
 
 
+def cancel_approved_leave(db: Session, request_id: int, employee_id: int, reason: str | None = None):
+    """Allow an employee to cancel an APPROVED leave that hasn't started yet."""
+    req = db.query(LeaveRequest).filter(
+        LeaveRequest.leave_request_id == request_id,
+        LeaveRequest.employee_id == employee_id,
+    ).first()
+    if not req:
+        raise ValueError("Leave request not found or not authorized")
+    if req.status != "APPROVED":
+        raise ValueError("Only APPROVED leave requests can be cancelled this way")
+    if req.start_date <= date.today():
+        raise ValueError("Cannot cancel a leave that has already started")
+
+    old_status = req.status
+    req.status = "CANCELLED"
+    req.manager_comment = reason
+    _audit_leave(db, req.leave_request_id, old_status, "CANCELLED", employee_id, reason)
+    db.commit()
+    db.refresh(req)
+    req.approved_by_name = _resolve_approver_name(db, req.approved_by)
+    return req
+
+
+def get_leave_audit_log(db: Session, request_id: int):
+    """Return all audit log entries for a specific leave request."""
+    return (
+        db.query(LeaveAuditLog)
+        .filter(LeaveAuditLog.leave_request_id == request_id)
+        .order_by(LeaveAuditLog.changed_at.asc())
+        .all()
+    )
+
+
 def update_leave_request(db: Session, request_id: int, employee_id: int, payload: LeaveRequestCreate):
     req = db.query(LeaveRequest).filter(
         LeaveRequest.leave_request_id == request_id, 
@@ -905,7 +1048,7 @@ def update_leave_request(db: Session, request_id: int, employee_id: int, payload
             LeaveRequest.leave_request_id != request_id,
             LeaveRequest.start_date <= payload.end_date,
             LeaveRequest.end_date >= payload.start_date,
-            LeaveRequest.status.in_(["PENDING", "APPROVED"])
+            LeaveRequest.status.in_(["PENDING", "APPROVED", "REQ_INFO", "PENDING_MEDICAL"])
         )
         .first()
     )

@@ -8,11 +8,41 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/context/auth-context";
 import DepartmentSelect from "@/components/DepartmentSelect";
 
+function SectionCard({ icon, title, description, children }: { icon: React.ReactNode; title: string; description?: string; children: React.ReactNode }) {
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className="px-6 py-5 border-b border-gray-50 flex items-center gap-3">
+        <div className="w-9 h-9 rounded-xl bg-[#EE7F22]/10 flex items-center justify-center text-[#EE7F22] flex-shrink-0">
+          {icon}
+        </div>
+        <div>
+          <h2 className="text-[15px] font-bold text-gray-900">{title}</h2>
+          {description && <p className="text-xs text-gray-400 mt-0.5">{description}</p>}
+        </div>
+      </div>
+      <div className="p-6">{children}</div>
+    </div>
+  );
+}
+
+function FormField({ label, required, children, half }: { label: string; required?: boolean; children: React.ReactNode; half?: boolean }) {
+  return (
+    <div className={half ? "" : ""}>
+      <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">
+        {label}{required && <span className="text-red-500 ml-1">*</span>}
+      </label>
+      {children}
+    </div>
+  );
+}
+
+const inputCls = "w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-[14px] text-gray-900 placeholder-gray-400 outline-none focus:ring-2 focus:ring-[#EE7F22]/20 focus:border-[#EE7F22] focus:bg-white transition-all duration-200";
+const selectCls = `${inputCls} appearance-none cursor-pointer`;
+
 export default function EmployeeAddPage() {
   const router = useRouter();
   const { hasPermission, loading: authLoading } = useAuth();
 
-  // Permission guard — redirect immediately if user lacks employee:create
   useEffect(() => {
     if (!authLoading && !hasPermission("employee:create")) {
       router.replace("/dashboard/employees");
@@ -30,14 +60,11 @@ export default function EmployeeAddPage() {
     gender: "",
     maritalStatus: "",
     nationality: "",
-    // Emergency Contact
     emergencyContactName: "",
     emergencyContactPhone: "",
     emergencyContactRelation: "",
-    // Skills & Qualifications
     skills: "",
     qualifications: "",
-    // Bank Details
     bankName: "",
     bankAccountNo: "",
     bankBranch: "",
@@ -51,7 +78,6 @@ export default function EmployeeAddPage() {
   });
 
   const [roles, setRoles] = useState<{ id: number; role_name: string }[]>([]);
-
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showAdditionalInfo, setShowAdditionalInfo] = useState(false);
@@ -63,26 +89,19 @@ export default function EmployeeAddPage() {
   } | null>(null);
   const [customLeaveEntitlements, setCustomLeaveEntitlements] = useState<Record<number, string>>({});
 
-  // Initialize with a random ID
   useEffect(() => {
     const init = async () => {
       setFormData(prev => ({
         ...prev,
         employeeId: `EMP-${Math.floor(1000 + Math.random() * 9000)}`
       }));
-
       try {
         const roleData = await api.get<{ id: number; role_name: string }[]>("/roles/");
         setRoles(roleData);
-
         setFormData(prev => ({
           ...prev,
-          work: {
-            ...prev.work,
-            roleId: roleData.length > 0 ? roleData[0].id : null
-          }
+          work: { ...prev.work, roleId: roleData.length > 0 ? roleData[0].id : null }
         }));
-
         const matrix = await api.get<any>("/leave/entitlements");
         setEntitlementMatrix(matrix);
       } catch (err) {
@@ -92,26 +111,17 @@ export default function EmployeeAddPage() {
     init();
   }, []);
 
-  const inputClass = "w-full px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-[14px] text-gray-900 placeholder-gray-400 outline-none focus:ring-2 focus:ring-[#EE7F22]/20 focus:border-[#EE7F22] transition-colors duration-200 mt-1.5";
-  const labelClass = "block text-[12px] font-bold text-gray-700 uppercase";
-  const requiredAsterisk = <span className="text-[#EF4444] ml-1">*</span>;
-  const selectClass = `${inputClass} appearance-none cursor-pointer`;
-
   const handleSave = async (redirectToRole: boolean = false) => {
     if (!formData.employeeId || !formData.firstName || !formData.lastName || !formData.email || !formData.phone || !formData.work.designation || !formData.work.departmentId || !formData.work.roleId) {
-      setError("Please fill in all required fields (marked with *), including Department and Role.");
+      setError("Please fill in all required fields marked with *.");
       return;
     }
     setError(null);
     setIsSubmitting(true);
     try {
-      // Build leave_entitlements payload list
       const leave_entitlements = Object.entries(customLeaveEntitlements)
         .filter(([_, value]) => value !== "")
-        .map(([typeId, value]) => ({
-          leave_type_id: parseInt(typeId),
-          days: parseFloat(value)
-        }));
+        .map(([typeId, value]) => ({ leave_type_id: parseInt(typeId), days: parseFloat(value) }));
 
       if (leave_entitlements.some((e) => Number.isNaN(e.days) || e.days < 0 || e.days > 365)) {
         throw new Error("Pre-assigned leave days must be between 0 and 365.");
@@ -133,7 +143,6 @@ export default function EmployeeAddPage() {
         gender: formData.gender || null,
         marital_status: formData.maritalStatus || null,
         nationality: formData.nationality || null,
-        // New Fields
         emergency_contact_name: formData.emergencyContactName || null,
         emergency_contact_phone: formData.emergencyContactPhone || null,
         emergency_contact_relation: formData.emergencyContactRelation || null,
@@ -146,7 +155,6 @@ export default function EmployeeAddPage() {
       };
 
       const created = await api.post<{ id: number }>("/employees/", payload);
-
       if (redirectToRole && created?.id) {
         router.push(`/dashboard/EmployeeManagement/assign-role?id=${created.id}`);
       } else {
@@ -154,15 +162,10 @@ export default function EmployeeAddPage() {
       }
     } catch (err: any) {
       const msg = err?.message || "Failed to add employee.";
-      if (msg.toLowerCase().includes("email already used")) {
-        setError("This email is already used.");
-      } else if (msg.toLowerCase().includes("employee id already used")) {
-        setError("This Employee ID is already used.");
-      } else if (msg.includes("422")) {
-        setError("Please check all required fields.");
-      } else {
-        setError(msg);
-      }
+      if (msg.toLowerCase().includes("email already used")) setError("This email is already in use.");
+      else if (msg.toLowerCase().includes("employee id already used")) setError("This Employee ID is already in use.");
+      else if (msg.includes("422")) setError("Please check all required fields.");
+      else setError(msg);
     } finally {
       setIsSubmitting(false);
     }
@@ -171,297 +174,357 @@ export default function EmployeeAddPage() {
   const getDefaultEntitlement = (leaveTypeId: number) => {
     if (!entitlementMatrix) return "--";
     const selectedRoleId = formData.work.roleId;
-    const entry = entitlementMatrix.entries.find(
-      e => e.role_id === selectedRoleId && e.leave_type_id === leaveTypeId
-    );
-    if (entry && entry.days !== null) {
-      return entry.days;
-    }
+    const entry = entitlementMatrix.entries.find(e => e.role_id === selectedRoleId && e.leave_type_id === leaveTypeId);
+    if (entry && entry.days !== null) return entry.days;
     const lt = entitlementMatrix.leave_types.find(t => t.id === leaveTypeId);
     return lt && lt.default_days !== null ? lt.default_days : "Unlimited";
   };
 
   return (
-    <div className="max-w-[1000px] mx-auto pb-20 pt-2">
+    <div className="max-w-[860px] mx-auto pb-20 pt-2">
+      {/* Header */}
       <div className="mb-8">
-        <Link href="/dashboard/employees" className="inline-flex items-center gap-2 text-[14px] text-gray-500 hover:text-gray-800 transition-colors mb-4 font-medium">
-          <IconArrowLeft />
-          Back
+        <Link
+          href="/dashboard/employees"
+          className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors mb-5 font-medium group"
+        >
+          <span className="group-hover:-translate-x-0.5 transition-transform">
+            <IconArrowLeft />
+          </span>
+          Back to Employees
         </Link>
-        <h1 className="text-[28px] font-bold text-[#212B36]">Add New Employee</h1>
-        <p className="text-[14px] text-gray-400 mt-1">Enter employee details to register</p>
+        <div className="flex items-start gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-[#EE7F22]/100 flex items-center justify-center flex-shrink-0 shadow-md shadow-orange-200">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Add New Employee</h1>
+            <p className="text-sm text-gray-500 mt-1">Fill in the details below to register a new team member</p>
+          </div>
+        </div>
       </div>
 
+      {/* Progress steps hint */}
+      <div className="flex items-center gap-2 mb-6 text-xs text-gray-400 font-medium">
+        <span className="bg-[#EE7F22]/100 text-white px-2.5 py-0.5 rounded-full">1</span>
+        <span className="text-gray-600 font-semibold">Basic Details</span>
+        <span className="text-gray-300">→</span>
+        <span className="bg-gray-100 text-gray-400 px-2.5 py-0.5 rounded-full">2</span>
+        Work Info
+        <span className="text-gray-300">→</span>
+        <span className="bg-gray-100 text-gray-400 px-2.5 py-0.5 rounded-full">3</span>
+        Leave & More
+      </div>
 
-
-      <div className="space-y-6">
+      <div className="space-y-5">
         {/* Basic Information */}
-        <div className="bg-white rounded-xl border border-gray-200 p-8">
-          <h2 className="text-[16px] font-bold text-[#212B36] mb-6">Basic Information</h2>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            <div>
-              <label className={labelClass}>EMPLOYEE ID {requiredAsterisk}</label>
-              <input
-                type="text"
-                placeholder="EMP-0001"
-                value={formData.employeeId}
-                onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
-                className={inputClass}
-              />
-            </div>
-            <div className="hidden md:block"></div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            <div>
-              <label className={labelClass}>FIRST NAME {requiredAsterisk}</label>
-              <input type="text" placeholder="Enter first name" value={formData.firstName} onChange={(e) => setFormData({ ...formData, firstName: e.target.value })} className={inputClass} />
-            </div>
-            <div>
-              <label className={labelClass}>LAST NAME {requiredAsterisk}</label>
-              <input type="text" placeholder="Enter last name" value={formData.lastName} onChange={(e) => setFormData({ ...formData, lastName: e.target.value })} className={inputClass} />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            <div>
-              <label className={labelClass}>EMAIL {requiredAsterisk}</label>
-              <input type="email" placeholder="example@company.com" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} className={inputClass} />
-            </div>
-            <div>
-              <label className={labelClass}>PHONE {requiredAsterisk}</label>
-              <input type="tel" placeholder="+94 77 000 0000" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} className={inputClass} />
-            </div>
-          </div>
-
-          <div>
-            <label className={labelClass}>ADDRESS</label>
-            <input type="text" placeholder="Enter full address" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} className={inputClass} />
-          </div>
-        </div>
-
-        {/* Work Information - Moved up before additional info */}
-        <div className="bg-white rounded-xl border border-gray-200 p-8">
-          <h2 className="text-[16px] font-bold text-[#212B36] mb-6">Work Information</h2>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            <div>
-              <label className={labelClass}>DEPARTMENT {requiredAsterisk}</label>
-              <DepartmentSelect
-                value={formData.work.departmentId}
-                onChange={(id) => setFormData({ ...formData, work: { ...formData.work, departmentId: id } })}
-                selectClass={selectClass}
-              />
-            </div>
-            <div>
-              <label className={labelClass}>INITIAL ROLE {requiredAsterisk}</label>
-              <select value={formData.work.roleId || ""} onChange={(e) => setFormData({ ...formData, work: { ...formData.work, roleId: parseInt(e.target.value) } })} className={selectClass}>
-                <option value="" disabled>Select Role</option>
-                {roles.map(r => <option key={r.id} value={r.id}>{r.role_name}</option>)}
-              </select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            <div>
-              <label className={labelClass}>DESIGNATION {requiredAsterisk}</label>
-              <input type="text" placeholder="e.g., Senior Software Engineer" value={formData.work.designation} onChange={(e) => setFormData({ ...formData, work: { ...formData.work, designation: e.target.value } })} className={inputClass} />
-            </div>
-            <div className="hidden md:block"></div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className={labelClass}>JOINED DATE</label>
-              <input type="date" value={formData.work.joinedDate} onChange={(e) => setFormData({ ...formData, work: { ...formData.work, joinedDate: e.target.value } })} className={`${inputClass} [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-60`} />
-            </div>
-            <div>
-              <label className={labelClass}>EMPLOYMENT STATUS</label>
-              <div className="flex bg-gray-100 p-1.5 rounded-lg w-fit mt-1.5">
-                <button type="button" onClick={() => setFormData({ ...formData, work: { ...formData.work, status: "active" } })} className={`px-8 py-2 rounded-md text-[14px] font-medium transition-all duration-200 ${formData.work.status === "active" ? "bg-[#EE7F22] text-white shadow-sm" : "text-gray-500 hover:text-gray-700 hover:bg-gray-200/50"}`}>Active</button>
-                <button type="button" onClick={() => setFormData({ ...formData, work: { ...formData.work, status: "inactive" } })} className={`px-8 py-2 rounded-md text-[14px] font-medium transition-all duration-200 ${formData.work.status === "inactive" ? "bg-white text-gray-800 shadow-sm" : "text-gray-500 hover:text-gray-700 hover:bg-gray-200/50"}`}>Inactive</button>
+        <SectionCard
+          icon={<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>}
+          title="Basic Information"
+          description="Personal contact details for the employee"
+        >
+          <div className="space-y-5">
+            <FormField label="Employee ID" required>
+              <div className="flex gap-3">
+                <input
+                  type="text"
+                  placeholder="EMP-0001"
+                  value={formData.employeeId}
+                  onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
+                  className={`${inputCls} flex-1`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setFormData(prev => ({ ...prev, employeeId: `EMP-${Math.floor(1000 + Math.random() * 9000)}` }))}
+                  className="px-4 py-2.5 bg-gray-100 text-gray-600 rounded-xl text-xs font-semibold hover:bg-gray-200 transition-colors whitespace-nowrap"
+                  title="Regenerate ID"
+                >
+                  ↻ Regenerate
+                </button>
               </div>
+            </FormField>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <FormField label="First Name" required>
+                <input type="text" placeholder="Enter first name" value={formData.firstName} onChange={(e) => setFormData({ ...formData, firstName: e.target.value })} className={inputCls} />
+              </FormField>
+              <FormField label="Last Name" required>
+                <input type="text" placeholder="Enter last name" value={formData.lastName} onChange={(e) => setFormData({ ...formData, lastName: e.target.value })} className={inputCls} />
+              </FormField>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <FormField label="Email Address" required>
+                <input type="email" placeholder="name@company.com" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} className={inputCls} />
+              </FormField>
+              <FormField label="Phone Number" required>
+                <input type="tel" placeholder="+94 77 000 0000" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} className={inputCls} />
+              </FormField>
+            </div>
+
+            <FormField label="Address">
+              <input type="text" placeholder="Enter full address" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} className={inputCls} />
+            </FormField>
+          </div>
+        </SectionCard>
+
+        {/* Work Information */}
+        <SectionCard
+          icon={<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>}
+          title="Work Information"
+          description="Department, role, and employment details"
+        >
+          <div className="space-y-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <FormField label="Department" required>
+                <DepartmentSelect
+                  value={formData.work.departmentId}
+                  onChange={(id) => setFormData({ ...formData, work: { ...formData.work, departmentId: id } })}
+                  selectClass={selectCls}
+                />
+              </FormField>
+              <FormField label="Initial Role" required>
+                <select
+                  value={formData.work.roleId || ""}
+                  onChange={(e) => setFormData({ ...formData, work: { ...formData.work, roleId: parseInt(e.target.value) } })}
+                  className={selectCls}
+                >
+                  <option value="" disabled>Select Role</option>
+                  {roles.map(r => <option key={r.id} value={r.id}>{r.role_name}</option>)}
+                </select>
+              </FormField>
+            </div>
+
+            <FormField label="Designation" required>
+              <input type="text" placeholder="e.g., Senior Software Engineer" value={formData.work.designation} onChange={(e) => setFormData({ ...formData, work: { ...formData.work, designation: e.target.value } })} className={inputCls} />
+            </FormField>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <FormField label="Joined Date">
+                <input
+                  type="date"
+                  value={formData.work.joinedDate}
+                  onChange={(e) => setFormData({ ...formData, work: { ...formData.work, joinedDate: e.target.value } })}
+                  className={`${inputCls} [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-50`}
+                />
+              </FormField>
+              <FormField label="Employment Status">
+                <div className="flex bg-gray-100 p-1 rounded-xl w-fit mt-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, work: { ...formData.work, status: "active" } })}
+                    className={`px-6 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${formData.work.status === "active" ? "bg-white text-[#EE7F22] shadow-sm border border-[#EE7F22]/20" : "text-gray-500 hover:text-gray-700"}`}
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <span className={`flex-shrink-0 w-1.5 h-1.5 rounded-full ${formData.work.status === "active" ? "bg-[#EE7F22]" : "bg-gray-300"}`} />
+                      <span className="leading-none pt-[1px]">Active</span>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, work: { ...formData.work, status: "inactive" } })}
+                    className={`px-6 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${formData.work.status === "inactive" ? "bg-white text-gray-700 shadow-sm" : "text-gray-400 hover:text-gray-600"}`}
+                  >
+                    Inactive
+                  </button>
+                </div>
+              </FormField>
             </div>
           </div>
-        </div>
+        </SectionCard>
 
-        {/* Leave Information */}
+        {/* Leave Entitlements */}
         {entitlementMatrix && (
-          <div className="bg-white rounded-xl border border-gray-200 p-8 shadow-sm">
-            <h2 className="text-[16px] font-bold text-[#212B36] mb-3">Leave Information</h2>
-            <p className="text-[13px] text-gray-500 mb-6 font-medium">
-              You can override default leave entitlements for this employee (e.g. if joining mid-year). Leave empty to use default role/system entitlements.
-            </p>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+          <SectionCard
+            icon={<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>}
+            title="Leave Entitlements"
+            description="Optionally override default allocations (e.g. for mid-year joiners)"
+          >
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
               {entitlementMatrix.leave_types.map((type) => {
                 const defaultEnt = getDefaultEntitlement(type.id);
+                const hasCustom = !!customLeaveEntitlements[type.id];
                 return (
-                  <div key={type.id} className="border border-gray-100 rounded-xl p-4 bg-gray-50/50">
-                    <span className="block text-[12px] font-bold text-gray-700 uppercase truncate">
+                  <div key={type.id} className={`border rounded-xl p-4 transition-all ${hasCustom ? "border-[#EE7F22]/30 bg-[#EE7F22]/10/50" : "border-gray-100 bg-gray-50/50"}`}>
+                    <span className="block text-[12px] font-bold text-gray-700 uppercase tracking-wider truncate">
                       {type.name}
                     </span>
-                    <div className="text-[12px] text-gray-400 mt-1">
+                    <div className="text-[11px] text-gray-400 mt-1">
                       Default: <span className="font-semibold text-gray-600">{defaultEnt} days</span>
                     </div>
-                    <div className="mt-3">
+                    <div className="mt-3 relative">
                       <input
                         type="number"
                         step="0.5"
                         min="0"
-                        placeholder="Custom limit"
+                        placeholder="Custom limit..."
                         value={customLeaveEntitlements[type.id] || ""}
                         onChange={(e) => {
-                          setCustomLeaveEntitlements({
-                            ...customLeaveEntitlements,
-                            [type.id]: e.target.value,
-                          });
+                          setCustomLeaveEntitlements({ ...customLeaveEntitlements, [type.id]: e.target.value });
                         }}
-                        className="w-full px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-[13px] text-gray-900 outline-none focus:ring-2 focus:ring-[#EE7F22]/20 focus:border-[#EE7F22] transition-colors duration-200"
+                        className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-[13px] text-gray-900 outline-none focus:ring-2 focus:ring-[#EE7F22]/20 focus:border-[#EE7F22] transition-colors"
                       />
                     </div>
                   </div>
                 );
               })}
             </div>
-          </div>
+          </SectionCard>
         )}
 
+        {/* Additional Information Toggle */}
         {!showAdditionalInfo && (
-          <div className="flex justify-center mt-4">
-            <button 
-              type="button" 
-              onClick={() => setShowAdditionalInfo(true)}
-              className="text-[#EE7F22] hover:text-[#d66f1b] font-medium text-[14px] underline transition-colors"
-            >
-              + Add Additional Information (Optional)
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => setShowAdditionalInfo(true)}
+            className="w-full py-3.5 border-2 border-dashed border-gray-200 rounded-2xl text-sm font-medium text-gray-400 hover:border-orange-300 hover:text-[#EE7F22] transition-all duration-200 flex items-center justify-center gap-2"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add Additional Information (Optional)
+          </button>
         )}
 
         {showAdditionalInfo && (
           <>
             {/* Personal Information */}
-            <div className="bg-white rounded-xl border border-gray-200 p-8">
-          <h2 className="text-[16px] font-bold text-[#212B36] mb-6">Personal Information</h2>
+            <SectionCard
+              icon={<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>}
+              title="Personal Information"
+              description="Optional demographic and personal details"
+            >
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <FormField label="Date of Birth">
+                  <input type="date" value={formData.dateOfBirth} onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })} className={`${inputCls} [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-50`} />
+                </FormField>
+                <FormField label="Gender">
+                  <select value={formData.gender} onChange={(e) => setFormData({ ...formData, gender: e.target.value })} className={selectCls}>
+                    <option value="">Select gender</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                    <option value="Prefer not to say">Prefer not to say</option>
+                  </select>
+                </FormField>
+                <FormField label="Marital Status">
+                  <select value={formData.maritalStatus} onChange={(e) => setFormData({ ...formData, maritalStatus: e.target.value })} className={selectCls}>
+                    <option value="">Select status</option>
+                    <option value="Single">Single</option>
+                    <option value="Married">Married</option>
+                    <option value="Divorced">Divorced</option>
+                    <option value="Widowed">Widowed</option>
+                  </select>
+                </FormField>
+                <FormField label="Nationality">
+                  <input type="text" placeholder="e.g., Sri Lankan" value={formData.nationality} onChange={(e) => setFormData({ ...formData, nationality: e.target.value })} className={inputCls} />
+                </FormField>
+              </div>
+            </SectionCard>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            <div>
-              <label className={labelClass}>DATE OF BIRTH</label>
-              <input type="date" value={formData.dateOfBirth} onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })} className={`${inputClass} [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-60`} />
-            </div>
-            <div>
-              <label className={labelClass}>GENDER</label>
-              <select value={formData.gender} onChange={(e) => setFormData({ ...formData, gender: e.target.value })} className={selectClass}>
-                <option value="">Select gender</option>
-                <option value="Male">Male</option>
-                <option value="Female">Female</option>
-                <option value="Other">Other</option>
-                <option value="Prefer not to say">Prefer not to say</option>
-              </select>
-            </div>
-          </div>
+            {/* Emergency Contact */}
+            <SectionCard
+              icon={<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.36 13a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>}
+              title="Emergency Contact"
+              description="Person to contact in case of emergency"
+            >
+              <div className="space-y-5">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <FormField label="Contact Name">
+                    <input type="text" placeholder="Enter contact name" value={formData.emergencyContactName} onChange={(e) => setFormData({ ...formData, emergencyContactName: e.target.value })} className={inputCls} />
+                  </FormField>
+                  <FormField label="Relationship">
+                    <input type="text" placeholder="e.g., Spouse, Parent" value={formData.emergencyContactRelation} onChange={(e) => setFormData({ ...formData, emergencyContactRelation: e.target.value })} className={inputCls} />
+                  </FormField>
+                </div>
+                <FormField label="Phone Number">
+                  <input type="tel" placeholder="+94 77 000 0000" value={formData.emergencyContactPhone} onChange={(e) => setFormData({ ...formData, emergencyContactPhone: e.target.value })} className={inputCls} />
+                </FormField>
+              </div>
+            </SectionCard>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            <div>
-              <label className={labelClass}>MARITAL STATUS</label>
-              <select value={formData.maritalStatus} onChange={(e) => setFormData({ ...formData, maritalStatus: e.target.value })} className={selectClass}>
-                <option value="">Select status</option>
-                <option value="Single">Single</option>
-                <option value="Married">Married</option>
-                <option value="Divorced">Divorced</option>
-                <option value="Widowed">Widowed</option>
-              </select>
-            </div>
-            <div>
-              <label className={labelClass}>NATIONALITY</label>
-              <input type="text" placeholder="e.g., Sri Lankan" value={formData.nationality} onChange={(e) => setFormData({ ...formData, nationality: e.target.value })} className={inputClass} />
-            </div>
-          </div>
-        </div>
+            {/* Skills & Qualifications */}
+            <SectionCard
+              icon={<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>}
+              title="Skills & Qualifications"
+              description="Technical skills and educational background"
+            >
+              <div className="space-y-5">
+                <FormField label="Skills">
+                  <textarea
+                    placeholder="List skills separated by commas (e.g., JavaScript, React, SQL)"
+                    value={formData.skills}
+                    onChange={(e) => setFormData({ ...formData, skills: e.target.value })}
+                    className={`${inputCls} min-h-[90px] py-3 resize-none`}
+                  />
+                </FormField>
+                <FormField label="Qualifications">
+                  <textarea
+                    placeholder="Enter educational qualifications and certifications"
+                    value={formData.qualifications}
+                    onChange={(e) => setFormData({ ...formData, qualifications: e.target.value })}
+                    className={`${inputCls} min-h-[90px] py-3 resize-none`}
+                  />
+                </FormField>
+              </div>
+            </SectionCard>
 
-        {/* Emergency Contact */}
-        <div className="bg-white rounded-xl border border-gray-200 p-8">
-          <h2 className="text-[16px] font-bold text-[#212B36] mb-6">Emergency Contact</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            <div>
-              <label className={labelClass}>CONTACT NAME</label>
-              <input type="text" placeholder="Enter contact name" value={formData.emergencyContactName} onChange={(e) => setFormData({ ...formData, emergencyContactName: e.target.value })} className={inputClass} />
-            </div>
-            <div>
-              <label className={labelClass}>RELATIONSHIP</label>
-              <input type="text" placeholder="e.g., Spouse, Parent" value={formData.emergencyContactRelation} onChange={(e) => setFormData({ ...formData, emergencyContactRelation: e.target.value })} className={inputClass} />
-            </div>
-          </div>
-          <div>
-            <label className={labelClass}>PHONE NUMBER</label>
-            <input type="tel" placeholder="+94 77 000 0000" value={formData.emergencyContactPhone} onChange={(e) => setFormData({ ...formData, emergencyContactPhone: e.target.value })} className={inputClass} />
-          </div>
-        </div>
+            {/* Bank Details */}
+            <SectionCard
+              icon={<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>}
+              title="Bank Details"
+              description="For payroll and salary processing"
+            >
+              <div className="space-y-5">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <FormField label="Bank Name">
+                    <input type="text" placeholder="Enter bank name" value={formData.bankName} onChange={(e) => setFormData({ ...formData, bankName: e.target.value })} className={inputCls} />
+                  </FormField>
+                  <FormField label="Account Number">
+                    <input type="text" placeholder="Enter account number" value={formData.bankAccountNo} onChange={(e) => setFormData({ ...formData, bankAccountNo: e.target.value })} className={inputCls} />
+                  </FormField>
+                </div>
+                <FormField label="Branch Name">
+                  <input type="text" placeholder="Enter branch name" value={formData.bankBranch} onChange={(e) => setFormData({ ...formData, bankBranch: e.target.value })} className={inputCls} />
+                </FormField>
+              </div>
+            </SectionCard>
+          </>
+        )}
 
-        {/* Skills & Qualifications */}
-        <div className="bg-white rounded-xl border border-gray-200 p-8">
-          <h2 className="text-[16px] font-bold text-[#212B36] mb-6">Skills & Qualifications</h2>
-          <div className="space-y-6">
-            <div>
-              <label className={labelClass}>SKILLS</label>
-              <textarea
-                placeholder="List skills separated by commas (e.g., JavaScript, React, SQL)"
-                value={formData.skills}
-                onChange={(e) => setFormData({ ...formData, skills: e.target.value })}
-                className={`${inputClass} min-h-[100px] py-3 resize-none`}
-              />
-            </div>
-            <div>
-              <label className={labelClass}>QUALIFICATIONS</label>
-              <textarea
-                placeholder="Enter educational qualifications and certifications"
-                value={formData.qualifications}
-                onChange={(e) => setFormData({ ...formData, qualifications: e.target.value })}
-                className={`${inputClass} min-h-[100px] py-3 resize-none`}
-              />
-            </div>
+        {/* Error */}
+        {error && (
+          <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm flex items-start gap-3">
+            <svg className="mt-0.5 flex-shrink-0" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <span>{error}</span>
           </div>
-        </div>
-
-        {/* Bank Details */}
-        <div className="bg-white rounded-xl border border-gray-200 p-8">
-          <h2 className="text-[16px] font-bold text-[#212B36] mb-6">Bank Details</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            <div>
-              <label className={labelClass}>BANK NAME</label>
-              <input type="text" placeholder="Enter bank name" value={formData.bankName} onChange={(e) => setFormData({ ...formData, bankName: e.target.value })} className={inputClass} />
-            </div>
-            <div>
-              <label className={labelClass}>ACCOUNT NUMBER</label>
-              <input type="text" placeholder="Enter account number" value={formData.bankAccountNo} onChange={(e) => setFormData({ ...formData, bankAccountNo: e.target.value })} className={inputClass} />
-            </div>
-          </div>
-          <div>
-            <label className={labelClass}>BRANCH NAME</label>
-            <input type="text" placeholder="Enter branch name" value={formData.bankBranch} onChange={(e) => setFormData({ ...formData, bankBranch: e.target.value })} className={inputClass} />
-          </div>
-        </div>
-      </>
-    )}
-
-      {error && (
-        <div className="mt-6 p-4 bg-red-50 border border-red-200 rounded-xl text-red-600 text-[14px] flex items-center gap-2">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
-          {error}
-        </div>
-      )}
+        )}
 
         {/* Action Buttons */}
-        <div className="flex justify-end gap-3 mt-6">
-          <button type="button" onClick={() => handleSave(false)} disabled={isSubmitting} className="px-6 py-2.5 rounded-xl bg-[#F8F9FA] text-[#212B36] font-medium text-[14px] hover:bg-gray-100 transition-colors disabled:opacity-50">
-            {isSubmitting ? "Saving..." : "Save"}
-          </button>
-          <button type="button" onClick={() => handleSave(true)} disabled={isSubmitting} className="px-6 py-2.5 rounded-xl bg-[#EE7F22] text-white font-medium text-[14px] hover:bg-[#d66f1b] shadow-sm hover:shadow-md transition-all flex items-center gap-2 disabled:opacity-50">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-            {isSubmitting ? "Saving..." : "Save & Assign Role"}
-          </button>
+        <div className="flex justify-between items-center pt-2">
+          <Link
+            href="/dashboard/employees"
+            className="px-5 py-2.5 rounded-xl bg-gray-100 text-gray-600 font-medium text-sm hover:bg-gray-200 transition-colors"
+          >
+            Cancel
+          </Link>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => handleSave(false)}
+              disabled={isSubmitting}
+              className="px-5 py-2.5 rounded-xl bg-gray-100 text-gray-700 font-semibold text-sm hover:bg-gray-200 transition-colors disabled:opacity-50"
+            >
+              {isSubmitting ? "Saving…" : "Save Only"}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSave(true)}
+              disabled={isSubmitting}
+              className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#EE7F22]/100 text-white font-semibold text-sm hover:bg-orange-600 shadow-sm hover:shadow-md shadow-orange-200 transition-all duration-200 disabled:opacity-50"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              {isSubmitting ? "Saving…" : "Save & Assign Role"}
+            </button>
+          </div>
         </div>
       </div>
     </div>

@@ -7,9 +7,6 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/context/auth-context";
 import DeleteEmployeeModal, { DeletableEmployee } from "@/components/DeleteEmployeeModal";
 
-/**
- * Reusable Select Filter component with custom chevron
- */
 interface FilterSelectProps {
   value?: string;
   onChange?: (value: string) => void;
@@ -23,7 +20,7 @@ function FilterSelect({ value, onChange, children, className = "" }: FilterSelec
       <select
         value={value}
         onChange={(e) => onChange?.(e.target.value)}
-        className="appearance-none w-full bg-white border border-gray-200 rounded-lg pl-4 pr-10 py-2 text-sm text-gray-500 font-medium cursor-pointer focus:outline-none focus:ring-2 focus:ring-orange-100 transition"
+        className="appearance-none w-full bg-white border border-gray-200 rounded-lg pl-4 pr-9 py-2.5 text-sm text-gray-600 font-medium cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#EE7F22]/20 focus:border-[#EE7F22] transition"
       >
         {children}
       </select>
@@ -32,6 +29,18 @@ function FilterSelect({ value, onChange, children, className = "" }: FilterSelec
       </span>
     </div>
   );
+}
+
+function getInitials(first: string, last: string) {
+  return `${(first?.[0] || "").toUpperCase()}${(last?.[0] || "").toUpperCase()}`;
+}
+
+const avatarColors = [
+  "bg-gray-100 text-gray-700"
+];
+
+function getAvatarColor(id: number) {
+  return avatarColors[id % avatarColors.length];
 }
 
 interface Employee {
@@ -68,7 +77,6 @@ export default function EmployeeManagementPage() {
 
   useEffect(() => {
     fetchEmployees();
-    // Departments power the filter dropdown — fetched, never hardcoded.
     api.get<{ id: number; name: string }[]>("/departments/")
       .then((data) => setDepartments(data))
       .catch((err) => console.error("Failed to fetch departments:", err));
@@ -85,74 +93,108 @@ export default function EmployeeManagementPage() {
     return matchesSearch && matchesDept && matchesRole;
   });
 
+  const activeCount = employees.filter(e => e.status === "active").length;
+  const inactiveCount = employees.filter(e => e.status !== "active").length;
+
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8">
+    <div className="space-y-6">
       {/* Page Header */}
-      <div className="mb-6">
-        <h1 className="text-xl font-bold text-[#212B36]">Employee Management</h1>
-        <p className="text-sm text-gray-400 mt-0.5">Manage employees and their system access</p>
-      </div>
-
-      {/* Filters Bar */}
-      <div className="flex items-center gap-4 mb-6">
-        <div className="relative flex-1 max-w-xs">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
-            <IconSearch />
-          </span>
-          <input
-            type="text"
-            placeholder="search by name id"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm text-gray-600 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-100"
-          />
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Employee Management</h1>
+          <p className="text-sm text-gray-500 mt-1">Manage your workforce and system access</p>
         </div>
-        <FilterSelect className="w-44" value={department} onChange={setDepartment}>
-          <option value="all">All Departments</option>
-          {departments.map((d) => (
-            <option key={d.id} value={d.name}>{d.name}</option>
-          ))}
-        </FilterSelect>
-        <FilterSelect className="w-36" value={role} onChange={setRole}>
-          <option value="all">All Roles</option>
-        </FilterSelect>
+        {hasPermission("employee:create") && (
+          <Link
+            href="/dashboard/EmployeeManagement/add"
+            className="inline-flex items-center gap-2 bg-[#EE7F22] hover:bg-[#d66f1b] text-white font-semibold px-5 py-2.5 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 text-sm"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+            Add Employee
+          </Link>
+        )}
       </div>
 
-      {/* Scrollable Table */}
-      <div className="border border-gray-100 rounded-xl overflow-hidden">
-        <div className="max-h-[480px] overflow-y-auto scrollbar-thin">
-          <table className="w-full border-collapse">
-            <thead className="sticky top-0 z-10">
-              <tr className="bg-[#F9FAFB] border-b border-gray-100">
-                <th className="text-left px-6 py-4 text-[11px] font-bold text-gray-400 uppercase tracking-widest">Employee ID</th>
-                <th className="text-left px-6 py-4 text-[11px] font-bold text-gray-400 uppercase tracking-widest">Name</th>
-                <th className="text-left px-6 py-4 text-[11px] font-bold text-gray-400 uppercase tracking-widest">Department</th>
-                <th className="text-left px-6 py-4 text-[11px] font-bold text-gray-400 uppercase tracking-widest">Designation</th>
-                <th className="text-left px-6 py-4 text-[11px] font-bold text-gray-400 uppercase tracking-widest">Status</th>
-                <th className="px-6 py-4 sr-only">Actions</th>
+      {/* Stats Strip */}
+      <div className="grid grid-cols-3 gap-4">
+        <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Total Employees</p>
+          <p className="text-3xl font-bold text-gray-900">{loading ? "—" : employees.length}</p>
+        </div>
+        <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Active</p>
+          <p className="text-3xl font-bold text-[#F9A15D]">{loading ? "—" : activeCount}</p>
+        </div>
+        <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Inactive</p>
+          <p className="text-3xl font-bold text-gray-400">{loading ? "—" : inactiveCount}</p>
+        </div>
+      </div>
+
+      {/* Main Card */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        {/* Filters Bar */}
+        <div className="flex flex-wrap items-center gap-3 p-5 border-b border-gray-100">
+          <div className="relative flex-1 min-w-[200px] max-w-sm">
+            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400">
+              <IconSearch />
+            </span>
+            <input
+              type="text"
+              placeholder="Search by name or ID..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#EE7F22]/20 focus:border-[#EE7F22] transition focus:bg-white"
+            />
+          </div>
+          <FilterSelect className="w-48" value={department} onChange={setDepartment}>
+            <option value="all">All Departments</option>
+            {departments.map((d) => (
+              <option key={d.id} value={d.name}>{d.name}</option>
+            ))}
+          </FilterSelect>
+          <FilterSelect className="w-36" value={role} onChange={setRole}>
+            <option value="all">All Roles</option>
+          </FilterSelect>
+          <div className="ml-auto text-sm text-gray-400 font-medium whitespace-nowrap">
+            {loading ? "" : `${filteredEmployees.length} of ${employees.length} employees`}
+          </div>
+        </div>
+
+        {/* Table */}
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="bg-gray-50/70 border-b border-gray-100">
+                <th className="text-left px-6 py-3.5 text-[11px] font-bold text-gray-400 uppercase tracking-widest">Employee</th>
+                <th className="text-left px-6 py-3.5 text-[11px] font-bold text-gray-400 uppercase tracking-widest">Department</th>
+                <th className="text-left px-6 py-3.5 text-[11px] font-bold text-gray-400 uppercase tracking-widest">Designation</th>
+                <th className="text-left px-6 py-3.5 text-[11px] font-bold text-gray-400 uppercase tracking-widest">Status</th>
+                <th className="px-6 py-3.5 sr-only">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-gray-50">
               {loading ? (
                 <>
-                  {Array.from({ length: 7 }).map((_, ri) => (
+                  {Array.from({ length: 6 }).map((_, ri) => (
                     <tr key={ri} aria-hidden="true">
-                      {/* Employee ID */}
-                      <td className="px-6 py-5"><div className="skeleton-shimmer h-3.5 w-20 rounded" /></td>
-                      {/* Name */}
-                      <td className="px-6 py-5"><div className="skeleton-shimmer h-3.5 w-32 rounded" /></td>
-                      {/* Department */}
-                      <td className="px-6 py-5"><div className="skeleton-shimmer h-3.5 w-24 rounded" /></td>
-                      {/* Designation */}
-                      <td className="px-6 py-5"><div className="skeleton-shimmer h-3.5 w-28 rounded" /></td>
-                      {/* Status badge */}
-                      <td className="px-6 py-5"><div className="skeleton-shimmer h-5 w-16 rounded-full" /></td>
-                      {/* Actions */}
-                      <td className="px-6 py-5">
-                        <div className="flex items-center justify-end gap-4">
-                          <div className="skeleton-shimmer h-4 w-4 rounded" />
-                          <div className="skeleton-shimmer h-4 w-4 rounded" />
-                          <div className="skeleton-shimmer h-4 w-4 rounded" />
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="skeleton-shimmer h-9 w-9 rounded-full flex-shrink-0" />
+                          <div className="space-y-1.5">
+                            <div className="skeleton-shimmer h-3.5 w-32 rounded" />
+                            <div className="skeleton-shimmer h-3 w-20 rounded" />
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4"><div className="skeleton-shimmer h-3.5 w-28 rounded" /></td>
+                      <td className="px-6 py-4"><div className="skeleton-shimmer h-3.5 w-24 rounded" /></td>
+                      <td className="px-6 py-4"><div className="skeleton-shimmer h-5 w-16 rounded-full" /></td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center justify-end gap-3">
+                          <div className="skeleton-shimmer h-7 w-7 rounded-lg" />
+                          <div className="skeleton-shimmer h-7 w-7 rounded-lg" />
+                          <div className="skeleton-shimmer h-7 w-7 rounded-lg" />
                         </div>
                       </td>
                     </tr>
@@ -160,30 +202,64 @@ export default function EmployeeManagementPage() {
                 </>
               ) : filteredEmployees.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-10 text-center text-gray-400">No employees found</td>
+                  <td colSpan={5} className="px-6 py-16 text-center">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                      </div>
+                      <p className="text-sm font-medium text-gray-500">No employees found</p>
+                      <p className="text-xs text-gray-400">Try adjusting your search or filters</p>
+                    </div>
+                  </td>
                 </tr>
               ) : (
                 filteredEmployees.map((emp) => (
-                  <tr key={emp.id} className="hover:bg-gray-50/50 transition-colors">
-                    <td className="px-6 py-5 text-sm font-bold text-[#212B36]">{emp.employee_id}</td>
-                    <td className="px-6 py-5 text-sm text-gray-600">{emp.first_name} {emp.last_name}</td>
-                    <td className="px-6 py-5 text-sm text-gray-500">{emp.department_rel?.name || "N/A"}</td>
-                    <td className="px-6 py-5 text-sm text-gray-500">{emp.designation}</td>
-                    <td className="px-6 py-5">
-                      <span className={`inline-block px-4 py-1 rounded-full text-[11px] font-bold tracking-wider ${emp.status === "active"
-                        ? "bg-[#F9A15D] text-white"
-                        : "bg-[#919EAB] text-white"
-                        }`}>
-                        {emp.status}
+                  <tr key={emp.id} className="hover:bg-orange-50/30 transition-colors group">
+                    {/* Employee cell with avatar */}
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className={`h-9 w-9 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${getAvatarColor(emp.id)}`}>
+                          {getInitials(emp.first_name, emp.last_name)}
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-gray-900 leading-snug">{emp.first_name} {emp.last_name}</p>
+                          <p className="text-xs text-gray-400 font-medium mt-0.5">{emp.employee_id}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="text-sm text-gray-600">{emp.department_rel?.name || "—"}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="text-sm text-gray-600">{emp.designation || "—"}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold ${
+                        emp.status === "active"
+                          ? "bg-[#EE7F22]/10 text-[#EE7F22] border border-[#F9A15D]/50"
+                          : "bg-gray-100 text-gray-500 border border-gray-200"
+                      }`}>
+                        <span className={`flex-shrink-0 w-1.5 h-1.5 rounded-full ${emp.status === "active" ? "bg-[#F9A15D]" : "bg-gray-400"}`} />
+                        <span className="leading-none pt-[1px]">{emp.status === "active" ? "Active" : "Inactive"}</span>
                       </span>
                     </td>
-                    <td className="px-6 py-5">
-                      <div className="flex items-center justify-end gap-4 text-gray-400">
-                        <Link href={`/dashboard/EmployeeManagement/view?id=${emp.id}`} className="hover:text-gray-600 transition-colors" aria-label="View">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center justify-end gap-1 ">
+                        <Link
+                          href={`/dashboard/EmployeeManagement/view?id=${emp.id}`}
+                          className="p-1.5 rounded-lg text-gray-400 hover:text-[#EE7F22] hover:bg-[#EE7F22]/10 transition-colors"
+                          aria-label="View"
+                          title="View"
+                        >
                           <IconEye />
                         </Link>
                         {hasPermission("employee:update") && (
-                          <Link href={`/dashboard/EmployeeManagement/edit?id=${emp.id}`} className="hover:text-gray-600 transition-colors" aria-label="Edit">
+                          <Link
+                            href={`/dashboard/EmployeeManagement/edit?id=${emp.id}`}
+                            className="p-1.5 rounded-lg text-gray-400 hover:text-[#EE7F22] hover:bg-orange-50 transition-colors"
+                            aria-label="Edit"
+                            title="Edit"
+                          >
                             <IconEdit />
                           </Link>
                         )}
@@ -198,8 +274,9 @@ export default function EmployeeManagementPage() {
                               department: emp.department_rel?.name,
                               designation: emp.designation,
                             })}
-                            className="hover:text-red-500 transition-colors"
+                            className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
                             aria-label="Delete"
+                            title="Delete"
                           >
                             <IconTrash />
                           </button>
@@ -212,20 +289,16 @@ export default function EmployeeManagementPage() {
             </tbody>
           </table>
         </div>
-      </div>
 
-      {/* Add Employee Button */}
-      {hasPermission("employee:create") && (
-        <div className="mt-6 flex justify-end">
-          <Link
-            href="/dashboard/EmployeeManagement/add"
-            className="inline-flex items-center gap-2 bg-[#EE7F22] hover:bg-[#d66f1b] text-white font-semibold px-6 py-3 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-            Add Employee
-          </Link>
-        </div>
-      )}
+        {/* Table Footer */}
+        {!loading && filteredEmployees.length > 0 && (
+          <div className="px-6 py-3 border-t border-gray-50 bg-gray-50/50">
+            <p className="text-xs text-gray-400">
+              Showing <span className="font-semibold text-gray-600">{filteredEmployees.length}</span> employee{filteredEmployees.length !== 1 ? "s" : ""}
+            </p>
+          </div>
+        )}
+      </div>
 
       {employeeToDelete && (
         <DeleteEmployeeModal
