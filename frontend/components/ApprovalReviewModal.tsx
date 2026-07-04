@@ -1,5 +1,3 @@
-'use client';
-
 import React, { useEffect, useState } from 'react';
 import { X, CircleUserRound, Building2, Check, Info, Paperclip, ExternalLink, FileText, Image } from 'lucide-react';
 import { ApprovalRequest } from './ApprovalRequestCard';
@@ -25,6 +23,7 @@ interface Props {
   onConfirmApprove: (comment: string, approvedLeaveTypeId: number) => void;
   onConfirmReject: (reason: string) => void;
   onSendInfoRequest: (message: string) => void;
+  onConfirmMedicalRequest: (comment: string) => void;
   isSubmitting?: boolean;
 }
 
@@ -40,6 +39,7 @@ export default function ApprovalReviewModal({
   onConfirmApprove,
   onConfirmReject,
   onSendInfoRequest,
+  onConfirmMedicalRequest,
   isSubmitting = false,
 }: Props) {
   const [approveComment, setApproveComment] = useState('');
@@ -57,21 +57,17 @@ export default function ApprovalReviewModal({
   }, [mode, request]);
 
   const selectedType = leaveTypes.find((t) => t.id === approvedTypeId);
-  // Reclassifying to an approval-only type (e.g. Medical) requires an attachment.
-  const needsAttachment =
-    selectedType && !selectedType.directly_requestable &&
-    (!request.attachmentUrls || request.attachmentUrls.length === 0);
+  const isMedicalSelected = selectedType?.name.toLowerCase().includes('medical');
+  const needsAttachment = false; // Removed document requirement block per user request.
 
   const handleApproveSubmit = () => {
     if (isSubmitting) return;
-    if (needsAttachment) {
-      setValidationError(
-        `Approving as ${selectedType?.name} requires a supporting document, but this request has no attachment.`
-      );
-      return;
-    }
     setValidationError('');
-    onConfirmApprove(approveComment.trim(), approvedTypeId);
+    if (isMedicalSelected) {
+      onConfirmMedicalRequest(approveComment.trim());
+    } else {
+      onConfirmApprove(approveComment.trim(), approvedTypeId);
+    }
   };
 
   const handleRejectSubmit = () => {
@@ -253,18 +249,16 @@ export default function ApprovalReviewModal({
                     disabled={isSubmitting}
                     className="w-full rounded-[14px] border border-[#D0D5DD] bg-[#F9FAFB] px-4 py-3 text-[15px] text-[#344054] focus:outline-none disabled:cursor-not-allowed disabled:opacity-70"
                   >
-                    {leaveTypes.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.name}
-                        {t.id === request.leaveTypeId ? ' (as requested)' : ''}
-                      </option>
-                    ))}
+                    {leaveTypes.map((t) => {
+                      const isMed = t.name.toLowerCase().includes('medical');
+                      return (
+                        <option key={t.id} value={t.id}>
+                          {isMed ? `${t.name} (as a request)` : t.name}
+                          {t.id === request.leaveTypeId ? ' (as requested)' : ''}
+                        </option>
+                      );
+                    })}
                   </select>
-                  {selectedType && !selectedType.directly_requestable && (
-                    <p className="mt-2 text-[13px] text-[#667085]">
-                      Reclassifying to {selectedType.name} — a supporting document is required.
-                    </p>
-                  )}
                 </div>
               )}
               <div>
@@ -272,7 +266,7 @@ export default function ApprovalReviewModal({
                 <textarea
                   value={approveComment}
                   onChange={(e) => setApproveComment(e.target.value)}
-                  placeholder="Add any comment about this approval."
+                  placeholder={isMedicalSelected ? "Provide instructions on what medical reports/documents are needed." : "Add any comment about this approval."}
                   disabled={isSubmitting}
                   className="h-[112px] w-full resize-none rounded-[14px] border border-[#D0D5DD] bg-[#F9FAFB] px-4 py-3 text-[15px] text-[#344054] placeholder:text-[#98A2B3] focus:outline-none disabled:cursor-not-allowed disabled:opacity-70"
                 />
@@ -354,9 +348,11 @@ export default function ApprovalReviewModal({
               <button
                 onClick={handleApproveSubmit}
                 disabled={isSubmitting}
-                className="h-[48px] rounded-[12px] bg-[#F2924E] text-[16px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-70"
+                className={`h-[48px] rounded-[12px] text-[16px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-70 transition-colors ${
+                  isMedicalSelected ? 'bg-teal-600 hover:bg-teal-700' : 'bg-[#F2924E] hover:bg-orange-600'
+                }`}
               >
-                {isSubmitting ? 'Processing...' : 'Confirm Approval'}
+                {isSubmitting ? 'Processing...' : isMedicalSelected ? 'Confirm Request' : 'Confirm Approval'}
               </button>
               <button
                 onClick={onCancelAction}

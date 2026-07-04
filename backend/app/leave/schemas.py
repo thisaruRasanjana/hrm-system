@@ -60,6 +60,9 @@ class ResubmitLeaveRequest(BaseModel):
     attachment_urls: Optional[List[str]] = []
     reason: Optional[str] = None
 
+class RequestMedicalLeave(BaseModel):
+    manager_comment: Optional[str] = None
+
 class LeaveTypeCreate(BaseModel):
     name: str
     description: Optional[str] = None

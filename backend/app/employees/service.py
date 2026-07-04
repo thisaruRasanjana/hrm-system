@@ -49,12 +49,21 @@ def get_all_employees(db: Session):
 def get_active_employees(db: Session):
     """Return only active employees. Used by recruitment interview panel dropdowns."""
     from sqlalchemy.orm import joinedload
-    return db.query(Employee).options(
+    from app.leave.models import EmployeeLeaveEntitlement
+    
+    overridden_ids = {r[0] for r in db.query(EmployeeLeaveEntitlement.employee_id).distinct().all()}
+    
+    employees = db.query(Employee).options(
         joinedload(Employee.user).joinedload(User.roles)
     ).filter(
         Employee.status == "active",
         (Employee.is_deleted == False) | (Employee.is_deleted == None)
     ).order_by(Employee.last_name, Employee.first_name).all()
+    
+    for emp in employees:
+        emp.has_leave_override = emp.id in overridden_ids
+        
+    return employees
 
 
 def create_employee(db: Session, employee: EmployeeCreate, background_tasks: BackgroundTasks):

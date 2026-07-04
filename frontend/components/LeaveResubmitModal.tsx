@@ -13,6 +13,7 @@ interface LeaveRequest {
   half_day: boolean;
   reason?: string | null;
   manager_comment?: string | null;
+  status?: string;
 }
 
 interface LeaveResubmitModalProps {
@@ -33,6 +34,7 @@ export default function LeaveResubmitModal({
 
   const requestId = request.leave_request_id;
   const managerComment = request.manager_comment;
+  const isPendingMedical = request.status === 'PENDING_MEDICAL';
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -50,7 +52,7 @@ export default function LeaveResubmitModal({
     setError('');
 
     if (attachments.length === 0 && !reason.trim()) {
-      setError('Please provide a new document or a comment to resubmit.');
+      setError('Please provide a supporting medical report/document or a comment to resubmit.');
       return;
     }
 
@@ -108,7 +110,9 @@ export default function LeaveResubmitModal({
         
         {/* Header */}
         <div className="flex items-center justify-between mb-2">
-          <h2 className="text-xl font-bold text-gray-900">Action Required</h2>
+          <h2 className="text-xl font-bold text-gray-900">
+            {isPendingMedical ? 'Medical Docs Required' : 'Action Required'}
+          </h2>
           <button
             onClick={() => !isSubmitting && onClose()}
             disabled={isSubmitting}
@@ -118,7 +122,9 @@ export default function LeaveResubmitModal({
           </button>
         </div>
         <p className="text-sm text-gray-500 mb-4">
-          HR has requested additional information for Leave Request LR-{requestId}.
+          {isPendingMedical
+            ? `HR has requested supporting medical documentation for Leave Request LR-${requestId}.`
+            : `HR has requested additional information for Leave Request LR-${requestId}.`}
         </p>
 
         {/* Request Details Summary Table */}

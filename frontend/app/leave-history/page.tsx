@@ -17,7 +17,7 @@ interface LeaveRequest {
   end_date: string;
   total_days: number;
   half_day: boolean;
-  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'REQ_INFO';
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'REQ_INFO' | 'PENDING_MEDICAL';
   reason?: string | null;
   attachment_urls?: string[];
   rejection_reason?: string | null;
@@ -38,6 +38,8 @@ const getStatusBadgeColor = (status: string) => {
       return 'bg-red-100 text-red-600';
     case 'REQ_INFO':
       return 'bg-yellow-100 text-yellow-700';
+    case 'PENDING_MEDICAL':
+      return 'bg-teal-100 text-teal-700 border border-teal-200';
     default:
       return 'bg-gray-100 text-gray-600';
   }
@@ -82,6 +84,8 @@ export default function LeaveHistoryPage() {
         let backendStatus = status.toUpperCase();
         if (backendStatus === "ACTION REQUIRED") {
           backendStatus = "REQ_INFO";
+        } else if (backendStatus === "MEDICAL DOCS REQUIRED") {
+          backendStatus = "PENDING_MEDICAL";
         }
         params.append("status", backendStatus);
       }
@@ -187,6 +191,7 @@ export default function LeaveHistoryPage() {
                   <option>Pending</option>
                   <option>Rejected</option>
                   <option>Action Required</option>
+                  <option>Medical Docs Required</option>
                 </select>
 
                 <select
@@ -261,12 +266,16 @@ export default function LeaveHistoryPage() {
                             {request.half_day ? '0.5 days' : `${request.total_days} days`}
                           </td>
                           <td className="px-6 py-4 text-sm">
-                            {request.status === 'REQ_INFO' ? (
+                            {request.status === 'REQ_INFO' || request.status === 'PENDING_MEDICAL' ? (
                               <button
                                 onClick={() => setSelectedRequestForInfo(request)}
-                                className="px-3 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-700 hover:bg-red-200 border border-red-200 transition-colors cursor-pointer shadow-sm animate-pulse"
+                                className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors cursor-pointer shadow-sm animate-pulse ${
+                                  request.status === 'PENDING_MEDICAL'
+                                    ? 'bg-teal-50 text-teal-700 hover:bg-teal-100 border-teal-200'
+                                    : 'bg-red-100 text-red-700 hover:bg-red-200 border-red-200'
+                                }`}
                               >
-                                Action Req
+                                {request.status === 'PENDING_MEDICAL' ? 'Upload Medical' : 'Action Req'}
                               </button>
                             ) : (
                               <div className="flex items-center gap-2">

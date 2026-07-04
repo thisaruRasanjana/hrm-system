@@ -8,6 +8,7 @@ import {
   Paperclip,
   CircleUserRound,
   CheckCircle2,
+  Stethoscope,
 } from 'lucide-react';
 
 export interface ApprovalRequest {
@@ -29,6 +30,7 @@ export interface ApprovalRequest {
     annual: string;
     casual: string;
   };
+  status: string;
 }
 
 interface Props {
@@ -37,19 +39,47 @@ interface Props {
 }
 
 export default function ApprovalRequestCard({ request, onReview }: Props) {
+  const isPendingMedical = request.status === 'PENDING_MEDICAL';
+  const isReportUploaded = 
+    request.status === 'PENDING' && 
+    request.leaveType.toLowerCase().includes('medical') && 
+    request.hasAttachment;
+
   return (
-    <div className="rounded-[18px] border border-[#E4E7EC] bg-white p-4 shadow-sm">
-      <div className="flex items-start gap-3">
-        <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#F2F4F7]">
-          <CircleUserRound size={22} className="text-[#667085]" />
+    <div className={`rounded-[18px] border p-4 shadow-sm transition-all ${
+      isPendingMedical 
+        ? 'border-teal-200 bg-teal-50/40 hover:bg-teal-50/60' 
+        : isReportUploaded 
+          ? 'border-emerald-200 bg-emerald-50/30 hover:bg-emerald-50/50'
+          : 'border-[#E4E7EC] bg-white hover:bg-gray-50/50'
+    }`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#F2F4F7]">
+            <CircleUserRound size={22} className="text-[#667085]" />
+          </div>
+
+          <div>
+            <h3 className="text-[16px] font-semibold text-[#1F2937]">
+              {request.employeeName}
+            </h3>
+            <p className="text-[14px] text-[#98A2B3]">{request.employeeCode}</p>
+          </div>
         </div>
 
-        <div>
-          <h3 className="text-[16px] font-semibold text-[#1F2937]">
-            {request.employeeName}
-          </h3>
-          <p className="text-[14px] text-[#98A2B3]">{request.employeeCode}</p>
-        </div>
+        {isPendingMedical && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-teal-100 px-2.5 py-0.5 text-xs font-semibold text-teal-800">
+            <Stethoscope size={13} />
+            Pending Medical
+          </span>
+        )}
+
+        {isReportUploaded && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-800 border border-emerald-200 animate-pulse">
+            <CheckCircle2 size={13} />
+            Report Uploaded
+          </span>
+        )}
       </div>
 
       <div className="mt-4 space-y-3">
@@ -61,7 +91,7 @@ export default function ApprovalRequestCard({ request, onReview }: Props) {
           </div>
         </div>
 
-        <div>
+        <div className="flex items-center gap-2">
           <span className="inline-flex rounded-full bg-[#F2924E] px-3 py-1 text-[13px] font-medium text-white">
             {request.leaveType}
           </span>
@@ -95,7 +125,13 @@ export default function ApprovalRequestCard({ request, onReview }: Props) {
 
       <button
         onClick={onReview}
-        className="mt-5 flex h-[42px] w-full items-center justify-center gap-2 rounded-[12px] bg-[#667085] text-[16px] font-medium text-white"
+        className={`mt-5 flex h-[42px] w-full items-center justify-center gap-2 rounded-[12px] text-[16px] font-medium text-white transition-colors ${
+          isPendingMedical 
+            ? 'bg-teal-600 hover:bg-teal-700' 
+            : isReportUploaded 
+              ? 'bg-emerald-600 hover:bg-emerald-700'
+              : 'bg-[#667085] hover:bg-slate-600'
+        }`}
       >
         <CheckCircle2 size={17} />
         Review

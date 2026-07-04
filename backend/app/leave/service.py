@@ -378,7 +378,7 @@ def get_pending_requests(db: Session, user: dict):
     query = (
         db.query(LeaveRequest, LeaveType.name.label("leave_type_name"))
         .join(LeaveType, LeaveRequest.leave_type_id == LeaveType.id)
-        .filter(LeaveRequest.status == "PENDING")
+        .filter(LeaveRequest.status.in_(["PENDING", "PENDING_MEDICAL"]))
     )
 
     # HR → see all except their own
@@ -593,7 +593,7 @@ def approve_leave_request(
     if not req:
         return None
 
-    if req.status != "PENDING":
+    if req.status != "PENDING" and req.status != "PENDING_MEDICAL":
         raise ValueError("Only pending leave requests can be approved")
 
     # If approved_leave_type_id is provided and different, check requirements
@@ -602,11 +602,6 @@ def approve_leave_request(
         if not new_lt:
             raise ValueError("Invalid approved leave type ID")
         
-        # If the new type is not directly requestable (e.g. Medical), enforce attachment
-        if not new_lt.directly_requestable:
-            if not req.attachment_urls or len(req.attachment_urls) == 0:
-                raise ValueError(f"Approving as {new_lt.name} requires at least one supporting document/attachment")
-
         # Enforce balance on the new type, excluding current request's old type/days
         _enforce_balance(db, req.employee_id, new_lt, req.total_days, req.start_date, exclude_request_id=req.leave_request_id)
         req.leave_type_id = approved_leave_type_id
@@ -650,7 +645,7 @@ def reject_leave_request(
     if not req:
         return None
 
-    if req.status != "PENDING":
+    if req.status != "PENDING" and req.status != "PENDING_MEDICAL":
         raise ValueError("Only pending leave requests can be rejected")
 
     if not rejection_reason or not rejection_reason.strip():
@@ -695,7 +690,7 @@ def request_info_leave_request(
     if not req:
         return None
 
-    if req.status != "PENDING":
+    if req.status != "PENDING" and req.status != "PENDING_MEDICAL":
         raise ValueError("Only pending leave requests can be marked as request info")
 
     if not manager_comment or not manager_comment.strip():
@@ -739,8 +734,8 @@ def resubmit_leave_request(
     if not req:
         raise ValueError("Leave request not found or not authorized")
 
-    if req.status != "REQ_INFO":
-        raise ValueError("Only requests needing info can be resubmitted")
+    if req.status != "REQ_INFO" and req.status != "PENDING_MEDICAL":
+        raise ValueError("Only requests needing info or pending medical can be resubmitted")
 
     # Append new attachments to existing ones
     if attachment_urls:
@@ -770,6 +765,62 @@ def resubmit_leave_request(
         db.commit()
     except Exception as e:
         _notif_logger.error(f"[Leave] Notification failed for resubmit: {e}")
+
+    return req
+
+
+def request_medical_leave(
+    db: Session,
+    request_id: int,
+    reviewed_by: int,
+    manager_comment: str | None = None,
+):
+    """
+    HR marks a leave request as PENDING_MEDICAL — indicating that they want the
+    employee to provide medical documentation before the leave can be approved.
+    The request remains visible in the HR approval panel (highlighted) and the
+    employee is notified to upload their medical certificate.
+    """
+    req = db.query(LeaveRequest).filter(LeaveRequest.leave_request_id == request_id).first()
+
+    if not req:
+        return None
+
+    if req.status not in ("PENDING", "PENDING_MEDICAL"):
+        raise ValueError("Only PENDING leave requests can be flagged for medical documentation")
+
+    # Set leave type to Medical
+    medical_lt = db.query(LeaveType).filter(LeaveType.name.ilike("%medical%")).first()
+    if not medical_lt:
+        raise ValueError("Medical leave type not found in the database")
+
+    req.leave_type_id = medical_lt.id
+    req.status = "PENDING_MEDICAL"
+    req.approved_by = reviewed_by
+    req.manager_comment = manager_comment.strip() if manager_comment and manager_comment.strip() else None
+
+    db.commit()
+    db.refresh(req)
+
+    # ── Notify requesting employee ────────────────────────────────────
+    try:
+        from app.notifications.service import notify_employee
+        msg = (
+            f"HR has requested medical documentation for your Medical Leave request "
+            f"({req.start_date} \u2013 {req.end_date}). "
+            f"Please upload your medical certificate to proceed."
+        )
+        if manager_comment and manager_comment.strip():
+            msg += f" Note: {manager_comment.strip()}"
+        notify_employee(
+            db, req.employee_id,
+            msg,
+            category="leave", type="warning", link="/leave-history",
+            entity_type="leave_request", entity_id=str(req.leave_request_id),
+        )
+        db.commit()
+    except Exception as e:
+        _notif_logger.error(f"[Leave] Notification failed for request_medical: {e}")
 
     return req
 
@@ -969,8 +1020,7 @@ def create_medical_conversion(db: Session, employee_id: int, request_id: int, da
     if data.start_date > data.end_date:
         raise ValueError("start_date cannot be after end_date")
 
-    if not data.attachment_urls or len(data.attachment_urls) == 0:
-        raise ValueError("Medical reclassification requires at least one supporting document/attachment")
+    # Attachment is optional at request time — HR can require it via PENDING_MEDICAL flow.
 
     existing_overlap = (
         db.query(LeaveMedicalConversion)
