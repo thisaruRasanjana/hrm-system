@@ -83,6 +83,7 @@ function mapBackendToFrontend(item: BackendLeaveRequest): ApprovalRequest {
       annual: '--',
       casual: '--',
     },
+    status: item.status,
   };
 }
 
@@ -393,6 +394,42 @@ export default function ApprovalPage() {
     }
   };
 
+  const handleRequestMedical = async (comment: string) => {
+    if (!selectedRequest) return;
+
+    try {
+      setActionLoading(true);
+
+      const response = await apiFetch(
+        `/leave/requests/${selectedRequest.id}/request-medical`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({
+            manager_comment: comment || null,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorMessage = await parseErrorResponse(response);
+        throw new Error(errorMessage || 'Failed to request medical reports');
+      }
+
+      setActionMessage('Medical documentation request sent successfully.');
+      setMessageType('success');
+      closeModal();
+      await loadPendingRequests();
+    } catch (error) {
+      console.error('handleRequestMedical error:', error);
+      setActionMessage(
+        error instanceof Error ? error.message : 'Failed to request medical reports.'
+      );
+      setMessageType('error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   if (authLoading) {
     return null;
   }
@@ -537,6 +574,7 @@ export default function ApprovalPage() {
           onConfirmApprove={handleApprove}
           onConfirmReject={handleReject}
           onSendInfoRequest={handleRequestInfo}
+          onConfirmMedicalRequest={handleRequestMedical}
         />
       )}
 

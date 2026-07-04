@@ -112,5 +112,6 @@ class EmployeePanelOption(BaseModel):
     first_name: str
     last_name: str
     designation: Optional[str] = None
+    has_leave_override: Optional[bool] = False
 
     model_config = {"from_attributes": True}

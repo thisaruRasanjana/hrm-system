@@ -25,6 +25,7 @@ type EmployeePanelOption = {
   last_name: string;
   department_name: string | null;
   designation: string | null;
+  has_leave_override?: boolean;
 };
 
 type EmployeeEntitlementEntry = {
@@ -220,6 +221,14 @@ export default function LeaveSettingsPage() {
         d[empCellKey(e.leave_type_id)] = e.days === null ? '' : String(e.days);
       }
       setEmpDraft(d);
+
+      const stillHasOverride = data.entries.some((e) => e.is_override);
+      setEmployees((prev) =>
+        prev.map((emp) =>
+          emp.id === selectedEmployeeId ? { ...emp, has_leave_override: stillHasOverride } : emp
+        )
+      );
+
       setMessage('Employee leave entitlements saved.');
       setMessageType('success');
     } catch (err) {
@@ -228,6 +237,36 @@ export default function LeaveSettingsPage() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleResetRole = () => {
+    if (!matrix) return;
+    const d: Record<string, string> = {};
+    for (const e of matrix.entries) {
+      d[cellKey(e.role_id, e.leave_type_id)] = e.days === null ? '' : String(e.days);
+    }
+    setDraft(d);
+  };
+
+  const handleResetEmployee = () => {
+    if (!empData) return;
+    const d: Record<string, string> = {};
+    for (const e of empData.entries) {
+      d[empCellKey(e.leave_type_id)] = e.days === null ? '' : String(e.days);
+    }
+    setEmpDraft(d);
+  };
+
+  const hasUnsavedChanges = (empId: number) => {
+    if (empId !== selectedEmployeeId || !empData) return false;
+    for (const e of empData.entries) {
+      const draftVal = (empDraft[empCellKey(e.leave_type_id)] ?? '').trim();
+      const savedVal = e.days === null ? '' : String(e.days);
+      if (draftVal !== savedVal) {
+        return true;
+      }
+    }
+    return false;
   };
 
   if (authLoading) return null;
@@ -286,7 +325,7 @@ export default function LeaveSettingsPage() {
         </div>
         <div className="flex items-center gap-3">
           <button
-            onClick={activeTab === 'role' ? loadRoleEntitlements : () => selectedEmployeeId && loadEmployeeEntitlements(selectedEmployeeId)}
+            onClick={activeTab === 'role' ? handleResetRole : handleResetEmployee}
             disabled={loading || saving || (activeTab === 'employee' && !selectedEmployeeId)}
             className="flex items-center gap-1.5 border border-gray-300 text-gray-700 hover:bg-gray-50 text-sm font-medium px-4 py-2 rounded-lg transition disabled:opacity-50"
           >
@@ -394,22 +433,37 @@ export default function LeaveSettingsPage() {
               />
             </div>
             <div className="flex-1 overflow-y-auto max-h-96 space-y-1">
-              {filteredEmployees.map(emp => (
-                <button
-                  key={emp.id}
-                  onClick={() => setSelectedEmployeeId(emp.id)}
-                  className={`w-full text-left px-3 py-2 rounded-lg transition-colors text-sm ${
-                    selectedEmployeeId === emp.id 
-                      ? 'bg-orange-50 text-orange-900 font-medium border border-orange-200' 
-                      : 'text-gray-700 hover:bg-gray-50 border border-transparent'
-                  }`}
-                >
-                  <div className="flex justify-between items-center">
-                    <span>{emp.first_name} {emp.last_name}</span>
-                    <span className="text-xs text-gray-400">{emp.employee_id}</span>
-                  </div>
-                </button>
-              ))}
+              {filteredEmployees.map(emp => {
+                const isModified = hasUnsavedChanges(emp.id);
+                return (
+                  <button
+                    key={emp.id}
+                    onClick={() => setSelectedEmployeeId(emp.id)}
+                    className={`w-full text-left px-3 py-2 rounded-lg transition-colors text-sm ${
+                      selectedEmployeeId === emp.id 
+                        ? 'bg-orange-50 text-orange-900 font-medium border border-orange-200' 
+                        : 'text-gray-700 hover:bg-gray-50 border border-transparent'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center min-w-0">
+                        <span className="truncate">{emp.first_name} {emp.last_name}</span>
+                        {isModified && (
+                          <span className="ml-2 flex-shrink-0 inline-flex items-center rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 border border-amber-200 animate-pulse">
+                            Unsaved
+                          </span>
+                        )}
+                        {emp.has_leave_override && !isModified && (
+                          <span className="ml-2 flex-shrink-0 inline-flex items-center rounded bg-teal-50 px-1.5 py-0.5 text-[10px] font-medium text-teal-800 border border-teal-200">
+                            Custom
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-xs text-gray-400 flex-shrink-0 ml-2">{emp.employee_id}</span>
+                    </div>
+                  </button>
+                );
+              })}
               {filteredEmployees.length === 0 && (
                 <div className="text-center py-4 text-sm text-gray-500">No employees found.</div>
               )}

@@ -23,6 +23,7 @@ from app.leave.schemas import (
     RejectLeaveRequest,
     RequestInfoLeaveRequest,
     ResubmitLeaveRequest,
+    RequestMedicalLeave,
     EmployeeEntitlementItem,
     EmployeeEntitlementOut,
     MedicalConversionCreate,
@@ -48,6 +49,7 @@ from app.leave.service import (
     reject_leave_request,
     request_info_leave_request,
     resubmit_leave_request,
+    request_medical_leave,
     delete_leave_request,
     update_leave_request,
     create_medical_conversion,
@@ -363,6 +365,41 @@ def resubmit_request(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+
+# -----------------------------
+# REQUEST MEDICAL DOCS (HR only)
+# -----------------------------
+@router.patch("/requests/{request_id}/request-medical", response_model=LeaveRequestOut)
+def request_medical_docs(
+    request_id: int,
+    payload: RequestMedicalLeave,
+    current_user: dict = Depends(leave_actor("leave:approve")),
+    db: Session = Depends(get_db),
+):
+    """
+    HR flags a leave request as PENDING_MEDICAL — the employee must upload
+    medical documentation before the leave can be approved.
+    The request remains visible in the HR approval panel (highlighted).
+    """
+    req = get_leave_request_by_id(db, request_id)
+
+    if not req:
+        raise HTTPException(status_code=404, detail="Leave request not found")
+
+    if req.employee_id == current_user["id"]:
+        raise HTTPException(status_code=403, detail="Cannot flag your own request")
+
+    _guard_assigned_request(req, current_user)
+
+    try:
+        return request_medical_leave(
+            db,
+            request_id,
+            reviewed_by=current_user["id"],
+            manager_comment=payload.manager_comment,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 # -----------------------------
