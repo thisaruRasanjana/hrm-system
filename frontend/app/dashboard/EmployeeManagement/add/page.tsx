@@ -7,6 +7,7 @@ import { IconArrowLeft } from "@/components/Icons";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/auth-context";
 import DepartmentSelect from "@/components/DepartmentSelect";
+import DesignationSelect from "@/components/DesignationSelect";
 
 function SectionCard({ icon, title, description, children }: { icon: React.ReactNode; title: string; description?: string; children: React.ReactNode }) {
   return (
@@ -71,7 +72,9 @@ export default function EmployeeAddPage() {
     work: {
       departmentId: null as number | null,
       roleId: null as number | null,
-      designation: "",
+      designationId: null as number | null,
+      designationStartDate: "",
+      designationEndDate: "",
       joinedDate: "",
       status: "active",
     },
@@ -82,11 +85,8 @@ export default function EmployeeAddPage() {
   const [error, setError] = useState<string | null>(null);
   const [showAdditionalInfo, setShowAdditionalInfo] = useState(false);
 
-  const [entitlementMatrix, setEntitlementMatrix] = useState<{
-    roles: { id: number; name: string }[];
-    leave_types: { id: number; name: string; default_days: number | null }[];
-    entries: { role_id: number; leave_type_id: number; days: number | null }[];
-  } | null>(null);
+  const [leaveTypes, setLeaveTypes] = useState<{ id: number; name: string; default_days: number | null }[]>([]);
+  const [showDesignationOverrides, setShowDesignationOverrides] = useState(false);
   const [customLeaveEntitlements, setCustomLeaveEntitlements] = useState<Record<number, string>>({});
 
   useEffect(() => {
@@ -102,8 +102,8 @@ export default function EmployeeAddPage() {
           ...prev,
           work: { ...prev.work, roleId: roleData.length > 0 ? roleData[0].id : null }
         }));
-        const matrix = await api.get<any>("/leave/entitlements");
-        setEntitlementMatrix(matrix);
+        const types = await api.get<any>("/leave/leave-types/");
+        setLeaveTypes(types);
       } catch (err) {
         console.error("Failed to fetch initial data", err);
       }
@@ -112,7 +112,7 @@ export default function EmployeeAddPage() {
   }, []);
 
   const handleSave = async (redirectToRole: boolean = false) => {
-    if (!formData.employeeId || !formData.firstName || !formData.lastName || !formData.email || !formData.phone || !formData.work.designation || !formData.work.departmentId || !formData.work.roleId) {
+    if (!formData.employeeId || !formData.firstName || !formData.lastName || !formData.email || !formData.phone || !formData.work.designationId || !formData.work.departmentId || !formData.work.roleId) {
       setError("Please fill in all required fields marked with *.");
       return;
     }
@@ -136,7 +136,9 @@ export default function EmployeeAddPage() {
         address: formData.address || null,
         department_id: formData.work.departmentId,
         role_id: formData.work.roleId,
-        designation: formData.work.designation,
+        designation_id: formData.work.designationId,
+        designation_start_date: formData.work.designationStartDate || formData.work.joinedDate || null,
+        designation_end_date: formData.work.designationEndDate || null,
         joined_date: formData.work.joinedDate || null,
         status: formData.work.status,
         date_of_birth: formData.dateOfBirth || null,
@@ -151,7 +153,7 @@ export default function EmployeeAddPage() {
         bank_name: formData.bankName || null,
         bank_account_no: formData.bankAccountNo || null,
         bank_branch: formData.bankBranch || null,
-        leave_entitlements: leave_entitlements.length > 0 ? leave_entitlements : null,
+        designation_leave_overrides: leave_entitlements.length > 0 ? leave_entitlements : null,
       };
 
       const created = await api.post<{ id: number }>("/employees/", payload);
@@ -171,14 +173,6 @@ export default function EmployeeAddPage() {
     }
   };
 
-  const getDefaultEntitlement = (leaveTypeId: number) => {
-    if (!entitlementMatrix) return "--";
-    const selectedRoleId = formData.work.roleId;
-    const entry = entitlementMatrix.entries.find(e => e.role_id === selectedRoleId && e.leave_type_id === leaveTypeId);
-    if (entry && entry.days !== null) return entry.days;
-    const lt = entitlementMatrix.leave_types.find(t => t.id === leaveTypeId);
-    return lt && lt.default_days !== null ? lt.default_days : "Unlimited";
-  };
 
   return (
     <div className="max-w-[860px] mx-auto pb-20 pt-2">
@@ -296,7 +290,11 @@ export default function EmployeeAddPage() {
             </div>
 
             <FormField label="Designation" required>
-              <input type="text" placeholder="e.g., Senior Software Engineer" value={formData.work.designation} onChange={(e) => setFormData({ ...formData, work: { ...formData.work, designation: e.target.value } })} className={inputCls} />
+              <DesignationSelect
+                value={formData.work.designationId}
+                onChange={(id) => setFormData({ ...formData, work: { ...formData.work, designationId: id } })}
+                selectClass={selectCls}
+              />
             </FormField>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -333,41 +331,66 @@ export default function EmployeeAddPage() {
           </div>
         </SectionCard>
 
-        {/* Leave Entitlements */}
-        {entitlementMatrix && (
+                {/* Designation Period & Leave Overrides */}
+        {!showDesignationOverrides ? (
+          <button
+            type="button"
+            onClick={() => setShowDesignationOverrides(true)}
+            className="w-full py-3 border-2 border-dashed border-gray-200 rounded-2xl text-[13px] font-medium text-gray-400 hover:border-[#EE7F22]/30 hover:text-[#EE7F22] hover:bg-[#EE7F22]/5 transition-all duration-200 flex items-center justify-center gap-2"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Set Designation Period & Leave Overrides
+          </button>
+        ) : (
           <SectionCard
             icon={<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>}
-            title="Leave Entitlements"
-            description="Optionally override default allocations (e.g. for mid-year joiners)"
+            title="Designation Period & Leave Overrides"
+            description="Optional. If no period is set, the system assumes an open-ended designation with default leave rules."
           >
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-              {entitlementMatrix.leave_types.map((type) => {
-                const defaultEnt = getDefaultEntitlement(type.id);
-                const hasCustom = !!customLeaveEntitlements[type.id];
-                return (
-                  <div key={type.id} className={`border rounded-xl p-4 transition-all ${hasCustom ? "border-[#EE7F22]/30 bg-[#EE7F22]/10/50" : "border-gray-100 bg-gray-50/50"}`}>
-                    <span className="block text-[12px] font-bold text-gray-700 uppercase tracking-wider truncate">
-                      {type.name}
-                    </span>
-                    <div className="text-[11px] text-gray-400 mt-1">
-                      Default: <span className="font-semibold text-gray-600">{defaultEnt} days</span>
-                    </div>
-                    <div className="mt-3 relative">
-                      <input
-                        type="number"
-                        step="0.5"
-                        min="0"
-                        placeholder="Custom limit..."
-                        value={customLeaveEntitlements[type.id] || ""}
-                        onChange={(e) => {
-                          setCustomLeaveEntitlements({ ...customLeaveEntitlements, [type.id]: e.target.value });
-                        }}
-                        className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-[13px] text-gray-900 outline-none focus:ring-2 focus:ring-[#EE7F22]/20 focus:border-[#EE7F22] transition-colors"
-                      />
-                    </div>
-                  </div>
-                );
-              })}
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <FormField label="Start Date">
+                  <input type="date" value={formData.work.designationStartDate || formData.work.joinedDate} onChange={(e) => setFormData({ ...formData, work: { ...formData.work, designationStartDate: e.target.value } })} className={inputCls} />
+                </FormField>
+                <FormField label="End Date">
+                  <input type="date" value={formData.work.designationEndDate} onChange={(e) => setFormData({ ...formData, work: { ...formData.work, designationEndDate: e.target.value } })} className={inputCls} />
+                  <p className="text-[11px] text-gray-400 mt-1">Leave blank if open-ended</p>
+                </FormField>
+              </div>
+              <div>
+                <h3 className="text-[12px] font-bold text-gray-700 uppercase tracking-wider mb-3">Leave Overrides for this period</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                  {leaveTypes.map((type) => {
+                    const hasCustom = !!customLeaveEntitlements[type.id];
+                    return (
+                      <div key={type.id} className={`border rounded-xl p-4 transition-all ${hasCustom ? "border-[#EE7F22]/30 bg-[#EE7F22]/10/50" : "border-gray-100 bg-gray-50/50"}`}>
+                        <span className="block text-[12px] font-bold text-gray-700 uppercase tracking-wider truncate">
+                          {type.name}
+                        </span>
+                        <div className="text-[11px] text-gray-400 mt-1">
+                          Default: <span className="font-semibold text-gray-600">{type.default_days != null ? `${type.default_days} days` : "Unlimited"}</span>
+                        </div>
+                        <div className="mt-3 relative">
+                          <input
+                            type="number"
+                            step="0.5"
+                            min="0"
+                            placeholder="Custom limit..."
+                            value={customLeaveEntitlements[type.id] || ""}
+                            onChange={(e) => {
+                              setCustomLeaveEntitlements({ ...customLeaveEntitlements, [type.id]: e.target.value });
+                            }}
+                            className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-[13px] text-gray-900 outline-none focus:ring-2 focus:ring-[#EE7F22]/20 focus:border-[#EE7F22] transition-colors"
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="flex justify-end">
+                <button type="button" onClick={() => setShowDesignationOverrides(false)} className="text-[13px] text-gray-500 hover:text-gray-700 transition-colors">Cancel</button>
+              </div>
             </div>
           </SectionCard>
         )}

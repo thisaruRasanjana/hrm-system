@@ -58,3 +58,10 @@ def test_email(email: str):
     from app.employees.email import send_welcome_email
     send_welcome_email(email, "Test Admin", "test-password-123")
     return {"message": f"Test email triggered for {email}. Check backend logs for results."}
+
+
+@router.get("/{employee_id}/designation-history", 
+            response_model=List[schemas.DesignationHistoryEntry],
+            dependencies=[Depends(require_permission("employee:view_all"))])
+def get_designation_history(employee_id: int, db: Session = Depends(get_db)):
+    return service.get_designation_history(db, employee_id)

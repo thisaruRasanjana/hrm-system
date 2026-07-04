@@ -85,10 +85,10 @@ def create_employee(db: Session, employee: EmployeeCreate, background_tasks: Bac
     # Validate any pre-assigned leave entitlements up front so a bad value fails
     # cleanly (400) instead of a rolled-back 500 on an FK/constraint violation,
     # and so negative days can never be stored (mirrors set_employee_leave_entitlements).
-    if employee.leave_entitlements:
+    if employee.designation_leave_overrides:
         from app.leave.models import LeaveType as _LeaveType
         _seen_types: set[int] = set()
-        for ent in employee.leave_entitlements:
+        for ent in employee.designation_leave_overrides:
             if ent.days is None or ent.days < 0 or ent.days > 365:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -153,10 +153,35 @@ def create_employee(db: Session, employee: EmployeeCreate, background_tasks: Bac
         db.add(db_user)
         db.flush()
 
-        employee_data = employee.model_dump(exclude={"role_id", "leave_entitlements"})
+        employee_data = employee.model_dump(exclude={"role_id", "designation_id", "designation_start_date", "designation_end_date", "designation_leave_overrides"})
         db_employee = Employee(**employee_data, user_id=db_user.id)
         db.add(db_employee)
         db.flush()
+
+        # --- Designation history ---
+        if employee.designation_id or employee.designation:
+            from app.designations.models import Designation as _Designation
+            from app.employees.models import EmployeeDesignationHistory
+            from datetime import date as _date
+
+            desig_name = employee.designation or ""
+            if employee.designation_id:
+                d = db.query(_Designation).filter(_Designation.id == employee.designation_id).first()
+                if d:
+                    desig_name = d.name
+                    db_employee.designation = desig_name      # sync string field
+                    db_employee.designation_id = employee.designation_id
+
+            hist = EmployeeDesignationHistory(
+                employee_id=db_employee.id,
+                designation_id=employee.designation_id,
+                designation_name=desig_name,
+                start_date=employee.designation_start_date or employee.joined_date or _date.today(),
+                end_date=employee.designation_end_date,
+                leave_overrides=[e.model_dump() for e in employee.designation_leave_overrides] 
+                                 if employee.designation_leave_overrides else None,
+            )
+            db.add(hist)
 
         # Eager-load permissions so the relationship is fully populated after commit
         from sqlalchemy.orm import joinedload as _jl
@@ -176,16 +201,7 @@ def create_employee(db: Session, employee: EmployeeCreate, background_tasks: Bac
         if dept:
             db_user.department = dept.name
 
-        # Create leave entitlements overrides if provided
-        if employee.leave_entitlements:
-            from app.leave.models import EmployeeLeaveEntitlement
-            for ent in employee.leave_entitlements:
-                db_ent = EmployeeLeaveEntitlement(
-                    employee_id=db_employee.id,
-                    leave_type_id=ent.leave_type_id,
-                    days=ent.days
-                )
-                db.add(db_ent)
+
 
         db.commit()
         db.refresh(db_employee)
@@ -226,8 +242,41 @@ def update_employee(db: Session, employee_id: int, employee_update: EmployeeUpda
     db_employee = db.query(Employee).filter(Employee.id == employee_id).first()
     if db_employee:
         update_data = employee_update.model_dump(exclude_unset=True)
+        
+        # Handle designation change
+        new_designation_str = update_data.get("designation")
+        # In a more complete implementation, you might pass designation_id from the frontend too.
+        # But if the string changes, we should capture it.
+        designation_changed = False
+        if "designation" in update_data and update_data["designation"] != db_employee.designation:
+            designation_changed = True
+            
         for key, value in update_data.items():
             setattr(db_employee, key, value)
+            
+        if designation_changed:
+            from app.employees.models import EmployeeDesignationHistory
+            from datetime import date as _date
+            
+            # Close the current one
+            current_hist = db.query(EmployeeDesignationHistory).filter(
+                EmployeeDesignationHistory.employee_id == employee_id,
+                EmployeeDesignationHistory.end_date == None
+            ).order_by(EmployeeDesignationHistory.start_date.desc()).first()
+            
+            if current_hist:
+                current_hist.end_date = _date.today()
+                
+            # Create a new one
+            new_hist = EmployeeDesignationHistory(
+                employee_id=employee_id,
+                designation_id=None, # if not provided
+                designation_name=new_designation_str or "",
+                start_date=_date.today(),
+                end_date=None,
+                leave_overrides=None,
+            )
+            db.add(new_hist)
 
         if db_employee.user:
             user = db_employee.user
@@ -271,3 +320,11 @@ def deactivate_employee(db: Session, employee_id: int) -> dict:
     db_employee.status = "inactive"
     db.commit()
     return {"message": f"Employee {employee_id} deactivated successfully."}
+
+
+def get_designation_history(db: Session, employee_id: int):
+    from app.employees.models import EmployeeDesignationHistory
+    return db.query(EmployeeDesignationHistory)\
+             .filter(EmployeeDesignationHistory.employee_id == employee_id)\
+             .order_by(EmployeeDesignationHistory.start_date.desc())\
+             .all()
