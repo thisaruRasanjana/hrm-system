@@ -40,6 +40,7 @@ from app.leave.router         import router as leave_router
 from app.reports.router       import router as reports_router
 import app.leave.models             # noqa: F401 — register leave tables for create_all
 from app.departments.router   import router as departments_router
+from app.designations.router  import router as designations_router
 from app.dashboard.router     import router as dashboard_router
 from app.messages.router      import router as messages_router
 from app.announcements.router import router as announcements_router
@@ -450,6 +451,7 @@ app.include_router(employee_router,      prefix="/employees",     tags=["Employe
 app.include_router(leave_router,         tags=["Leave"])  # router defines its own /leave prefix
 app.include_router(reports_router,       tags=["Reports"])
 app.include_router(departments_router,   prefix="/departments",   tags=["Departments"])
+app.include_router(designations_router,  prefix="/designations",  tags=["Designations"])
 app.include_router(dashboard_router,     prefix="/dashboard",     tags=["Dashboard"])
 app.include_router(messages_router,      prefix="/messages",      tags=["Messages"])
 app.include_router(announcements_router, prefix="/announcements", tags=["Announcements"])

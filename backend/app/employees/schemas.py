@@ -42,7 +42,10 @@ class EmployeeLeaveEntitlementCreate(BaseModel):
 class EmployeeCreate(EmployeeBase):
     department_id: int
     role_id: int
-    leave_entitlements: Optional[List[EmployeeLeaveEntitlementCreate]] = None
+    designation_id: Optional[int] = None
+    designation_start_date: Optional[date] = None
+    designation_end_date: Optional[date] = None
+    designation_leave_overrides: Optional[List[EmployeeLeaveEntitlementCreate]] = None
 
 
 class EmployeeUpdate(BaseModel):
@@ -82,11 +85,27 @@ class DepartmentInfo(BaseModel):
     model_config = {"from_attributes": True}
 
 
+from datetime import datetime
+
+class DesignationHistoryEntry(BaseModel):
+    id: int
+    designation_id: Optional[int] = None
+    designation_name: str
+    start_date: date
+    end_date: Optional[date] = None
+    leave_overrides: Optional[List[dict]] = None
+    created_at: datetime
+    model_config = {"from_attributes": True}
+
+
 class EmployeeOut(EmployeeBase):
     id: int
     user_id: Optional[int] = None
     role: Optional[RoleInfo] = None
     department_rel: Optional[DepartmentInfo] = None
+    
+    designation_id: Optional[int] = None
+    designation_history: Optional[List[DesignationHistoryEntry]] = []
 
     model_config = {"from_attributes": True}
 

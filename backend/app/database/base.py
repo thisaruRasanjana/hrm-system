@@ -4,6 +4,7 @@ Base = declarative_base()
 
 # Import all models that use this Base so that
 # Base.metadata.create_all() picks them up at startup.
+import app.designations.models      # noqa: E402, F401
 import app.departments.models       # noqa: E402, F401  — must come before employees (FK target)
 import app.roles.models             # noqa: E402, F401  — must come before auth.models (FK target)
 import app.auth.models              # noqa: E402, F401
