@@ -89,7 +89,7 @@ function EmployeeViewContent() {
     Promise.all([
       api.get<Employee>(`/employees/${id}`),
       api.get<DesignationHistoryEntry[]>(`/employees/${id}/designation-history`),
-      api.get<any[]>("/leave/leave-types/")
+      api.get<any[]>("/leave/types")
     ])
       .then(([emp, history, types]) => {
         setEmployee(emp);

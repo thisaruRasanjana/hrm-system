@@ -28,7 +28,11 @@ const MONTHS = [
 ];
 
 function toYMD(date: Date): string {
-  return date.toISOString().split("T")[0];
+  // Use local date parts (not UTC) so the calendar reflects the user's timezone.
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
 }
 
 function parseYMD(str: string): Date {
