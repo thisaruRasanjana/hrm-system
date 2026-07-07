@@ -99,7 +99,7 @@ function EmployeeEditContent() {
         const roleData = await api.get<{ id: number; role_name: string }[]>("/roles/");
         setRoles(roleData);
         
-        const types = await api.get<any>("/leave/leave-types/");
+        const types = await api.get<any>("/leave/types");
         setLeaveTypes(types);
 
         const employeeData = await api.get<any>(`/employees/${id}`);

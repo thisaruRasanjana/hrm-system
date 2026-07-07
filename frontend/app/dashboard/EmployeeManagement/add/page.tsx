@@ -102,7 +102,7 @@ export default function EmployeeAddPage() {
           ...prev,
           work: { ...prev.work, roleId: roleData.length > 0 ? roleData[0].id : null }
         }));
-        const types = await api.get<any>("/leave/leave-types/");
+        const types = await api.get<any>("/leave/types");
         setLeaveTypes(types);
       } catch (err) {
         console.error("Failed to fetch initial data", err);

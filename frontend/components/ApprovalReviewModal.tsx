@@ -58,14 +58,18 @@ export default function ApprovalReviewModal({
 
   const selectedType = leaveTypes.find((t) => t.id === approvedTypeId);
   const isMedicalSelected = selectedType?.name.toLowerCase().includes('medical');
-  const needsAttachment = false; // Removed document requirement block per user request.
+  // If medical is selected but the employee has already uploaded the document,
+  // we should directly approve — not re-request medical docs.
+  const medicalDocUploaded = isMedicalSelected && request.hasAttachment;
 
   const handleApproveSubmit = () => {
     if (isSubmitting) return;
     setValidationError('');
-    if (isMedicalSelected) {
+    if (isMedicalSelected && !medicalDocUploaded) {
+      // No document yet — ask employee to upload medical report first
       onConfirmMedicalRequest(approveComment.trim());
     } else {
+      // Either not medical, or document already uploaded — proceed with approval
       onConfirmApprove(approveComment.trim(), approvedTypeId);
     }
   };
@@ -252,7 +256,6 @@ export default function ApprovalReviewModal({
                       return (
                         <option key={t.id} value={t.id}>
                           {isMed ? `${t.name} (as a request)` : t.name}
-                          {t.id === request.leaveTypeId ? ' (as requested)' : ''}
                         </option>
                       );
                     })}
@@ -264,7 +267,11 @@ export default function ApprovalReviewModal({
                 <textarea
                   value={approveComment}
                   onChange={(e) => setApproveComment(e.target.value)}
-                  placeholder={isMedicalSelected ? "Provide instructions on what medical reports/documents are needed." : "Add any comment about this approval."}
+                  placeholder={
+                    isMedicalSelected && !medicalDocUploaded
+                      ? 'Provide instructions on what medical reports/documents are needed.'
+                      : 'Add any comment about this approval.'
+                  }
                   disabled={isSubmitting}
                   className="h-[112px] w-full resize-none rounded-[14px] border border-[#D0D5DD] bg-[#F9FAFB] px-4 py-3 text-[15px] text-[#344054] placeholder:text-[#98A2B3] focus:outline-none disabled:cursor-not-allowed disabled:opacity-70"
                 />
@@ -347,10 +354,14 @@ export default function ApprovalReviewModal({
                 onClick={handleApproveSubmit}
                 disabled={isSubmitting}
                 className={`h-[48px] rounded-[12px] text-[16px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-70 transition-colors ${
-                  isMedicalSelected ? 'bg-teal-600 hover:bg-teal-700' : 'bg-[#F2924E] hover:bg-orange-600'
+                  isMedicalSelected && !medicalDocUploaded ? 'bg-teal-600 hover:bg-teal-700' : 'bg-[#F2924E] hover:bg-orange-600'
                 }`}
               >
-                {isSubmitting ? 'Processing...' : isMedicalSelected ? 'Confirm Request' : 'Confirm Approval'}
+                {isSubmitting
+                  ? 'Processing...'
+                  : isMedicalSelected && !medicalDocUploaded
+                  ? 'Confirm Request'
+                  : 'Confirm Approval'}
               </button>
               <button
                 onClick={onCancelAction}
