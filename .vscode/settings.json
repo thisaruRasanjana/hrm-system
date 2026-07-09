@@ -6,6 +6,9 @@
     ],
     "python.analysis.typeCheckingMode": "off",
     "python.analysis.diagnosticMode": "openFilesOnly",
+    "python.analysis.autoSearchPaths": true,
+    "python.analysis.autoImportCompletions": true,
     "python.analysis.ignore": [],
-    "python.languageServer": "Pylance"
+    "python.languageServer": "Pylance",
+    "python.envFile": "${workspaceFolder}/backend/.env"
 }
