@@ -77,6 +77,7 @@ class UserResponse(BaseModel):
     bank_branch: Optional[str] = None
     skills: Optional[str] = None
     qualifications: Optional[str] = None
+    designation_history: Optional[List[dict]] = None
 
     model_config = {"from_attributes": True}
 

@@ -327,6 +327,15 @@ def get_me(
             "bank_branch": emp.bank_branch,
             "skills": emp.skills,
             "qualifications": emp.qualifications,
+            "designation_history": [
+                {
+                    "designation_name": h.designation_name,
+                    "start_date": str(h.start_date) if h.start_date else None,
+                    "end_date": str(h.end_date) if h.end_date else None,
+                    "promotion_letter_sent": h.promotion_letter_sent
+                }
+                for h in sorted(emp.designation_history, key=lambda x: x.start_date or datetime.min.date(), reverse=True)
+            ] if emp.designation_history else [],
         })
 
     return user_dict

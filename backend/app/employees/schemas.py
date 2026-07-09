@@ -97,6 +97,7 @@ class DesignationHistoryEntry(BaseModel):
     designation_name: str
     start_date: date
     end_date: Optional[date] = None
+    promotion_letter_sent: bool = False
     leave_overrides: Optional[List[dict]] = None
     created_at: datetime
     model_config = {"from_attributes": True}

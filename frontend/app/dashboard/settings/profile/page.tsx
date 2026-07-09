@@ -33,6 +33,11 @@ export default function ProfileSettingsPage() {
     joined_date: "",
     status: "",
     role: "", // Wait, Role is also read-only
+    designation_history: [] as Array<{
+      designation_name: string;
+      start_date: string | null;
+      end_date: string | null;
+    }>,
   });
 
   const [isLoading, setIsLoading] = useState(false);
@@ -69,6 +74,7 @@ export default function ProfileSettingsPage() {
             joined_date: data.joined_date || "",
             status: data.status || "",
             role: data.role || "",
+            designation_history: data.designation_history || [],
           });
         }
       } catch (err) {
@@ -229,6 +235,35 @@ export default function ProfileSettingsPage() {
                   <input type="text" value={formData.joined_date} readOnly className={readOnlyClass} />
                 </div>
               </div>
+
+              {/* Designation History (Read Only) */}
+              {formData.designation_history.length > 0 && (
+                <div className="mt-8 pt-6 border-t border-gray-100">
+                  <h4 className="text-sm font-bold text-gray-800 mb-4">Designation History</h4>
+                  <div className="space-y-3">
+                    {formData.designation_history.map((hist, idx) => (
+                      <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-lg bg-gray-50 border border-gray-100">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-[#f08a4b]/10 text-[#f08a4b] flex items-center justify-center">
+                            <Briefcase size={14} />
+                          </div>
+                          <div>
+                            <p className="text-sm font-bold text-gray-800">{hist.designation_name}</p>
+                            <p className="text-xs text-gray-500">
+                              {hist.start_date ? new Date(hist.start_date).toLocaleDateString() : 'N/A'} - {hist.end_date ? new Date(hist.end_date).toLocaleDateString() : 'Present'}
+                            </p>
+                          </div>
+                        </div>
+                        {idx === 0 && !hist.end_date && (
+                          <span className="mt-2 sm:mt-0 text-[10px] font-bold uppercase tracking-wider text-green-600 bg-green-100 px-2.5 py-1 rounded-full w-fit">
+                            Current
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Basic Information */}

@@ -22,9 +22,13 @@ import {
 type Props = {
   content: string;
   onChange: (html: string) => void;
+  placeholders?: string[];
 };
 
-export default function RichTextEditor({ content, onChange }: Props) {
+export default function RichTextEditor({ content, onChange, placeholders }: Props) {
+  const defaultPlaceholders = ["{{employee_name}}", "{{date}}", "{{purpose}}", "{{department}}", "{{designation}}"];
+  const currentPlaceholders = placeholders || defaultPlaceholders;
+
   const editor = useEditor({
     extensions: [
       StarterKit,
@@ -32,7 +36,7 @@ export default function RichTextEditor({ content, onChange }: Props) {
       TextAlign.configure({ types: ["heading", "paragraph"] }),
       Placeholder.configure({
         placeholder:
-          "Write your template here... Use placeholders like {{employee_name}}, {{date}}, {{purpose}}",
+          `Write your template here... Use placeholders like ${currentPlaceholders.slice(0, 3).join(", ")}`,
       }),
     ],
     content,
@@ -185,9 +189,9 @@ export default function RichTextEditor({ content, onChange }: Props) {
       <EditorContent editor={editor} />
 
       {/* Placeholder hint */}
-      <div className="px-4 py-3 border-t border-gray-100 bg-gray-50/50 flex flex-wrap gap-2">
-        <span className="text-xs text-gray-400">Placeholders:</span>
-        {["{{employee_name}}", "{{date}}", "{{purpose}}", "{{department}}", "{{designation}}"].map(
+      <div className="px-4 py-3 border-t border-gray-100 bg-gray-50/50 flex flex-wrap gap-2 items-center">
+        <span className="text-xs text-gray-400 font-medium">Placeholders:</span>
+        {currentPlaceholders.map(
           (ph) => (
             <button
               key={ph}

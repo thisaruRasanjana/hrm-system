@@ -14,6 +14,7 @@ import {
   IconRibbon
 } from "@/components/Icons";
 import { api } from "@/lib/api";
+import { useAuth } from "@/context/auth-context";
 
 function DataField({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -50,6 +51,7 @@ interface DesignationHistoryEntry {
 
 interface Employee {
   id: number;
+  user_id?: number;
   employee_id: string;
   first_name: string;
   last_name: string;
@@ -83,6 +85,7 @@ function EmployeeViewContent() {
   const [designationHistory, setDesignationHistory] = useState<DesignationHistoryEntry[]>([]);
   const [leaveTypes, setLeaveTypes] = useState<Record<number, string>>({});
   const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
 
   useEffect(() => {
     if (!id) return;
@@ -183,13 +186,15 @@ function EmployeeViewContent() {
 
           {/* Quick Actions */}
           <div className="flex gap-2 flex-shrink-0">
-            <Link
-              href={`/dashboard/EmployeeManagement/edit?id=${employee.id}`}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:border-orange-300 hover:text-[#EE7F22] transition-all shadow-sm"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-              Edit
-            </Link>
+            {employee.user_id !== user?.id && (
+              <Link
+                href={`/dashboard/EmployeeManagement/edit?id=${employee.id}`}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:border-orange-300 hover:text-[#EE7F22] transition-all shadow-sm"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                Edit
+              </Link>
+            )}
           </div>
         </div>
       </div>
