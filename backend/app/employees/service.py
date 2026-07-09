@@ -28,7 +28,8 @@ def get_employee_by_id(db: Session, employee_id: int):
     from sqlalchemy.orm import joinedload
     return db.query(Employee).options(
         joinedload(Employee.department_rel),
-        joinedload(Employee.user).joinedload(User.roles)
+        joinedload(Employee.user).joinedload(User.roles),
+        joinedload(Employee.designation_history)
     ).filter(
         Employee.id == employee_id,
         (Employee.is_deleted == False) | (Employee.is_deleted == None)
