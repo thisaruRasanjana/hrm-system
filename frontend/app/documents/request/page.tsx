@@ -142,7 +142,7 @@ export default function HRRequestDocumentPage() {
           <select
             value={documentType}
             onChange={(e) => setDocumentType(e.target.value)}
-            className="mt-2 w-full border-0 bg-gray-50/80 rounded-lg px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#F2924E]/30 transition shadow-sm"
+            className="mt-2 w-full border border-gray-200 bg-white shadow-sm rounded-lg px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#F2924E]/30 transition"
           >
             <option value="">Select document type</option>
 
@@ -164,7 +164,7 @@ export default function HRRequestDocumentPage() {
             rows={4}
             value={purpose}
             onChange={(e) => setPurpose(e.target.value)}
-            className="mt-2 w-full border-0 bg-gray-50/80 rounded-lg px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#F2924E]/30 transition shadow-sm"
+            className="mt-2 w-full border border-gray-200 bg-white shadow-sm rounded-lg px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#F2924E]/30 transition"
           />
         </div>
 
