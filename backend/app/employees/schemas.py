@@ -57,6 +57,10 @@ class EmployeeUpdate(BaseModel):
     address: Optional[str] = None
     department_id: Optional[int] = None
     designation: Optional[str] = None
+    designation_id: Optional[int] = None
+    designation_start_date: Optional[date] = None
+    designation_end_date: Optional[date] = None
+    designation_leave_overrides: Optional[List[EmployeeLeaveEntitlementCreate]] = None
     joined_date: Optional[date] = None
     status: Optional[EmployeeStatus] = None
     date_of_birth: Optional[date] = None
@@ -128,9 +132,26 @@ class EmployeeOut(EmployeeBase):
 class EmployeePanelOption(BaseModel):
     """Minimal employee view for interview panel dropdowns."""
     id: int
+    employee_id: Optional[str] = None
     first_name: str
     last_name: str
     designation: Optional[str] = None
+    department_name: Optional[str] = None
     has_leave_override: Optional[bool] = False
 
     model_config = {"from_attributes": True}
+
+    @classmethod
+    def from_employee(cls, emp: Any) -> "EmployeePanelOption":
+        dept_name = None
+        if hasattr(emp, "department_rel") and emp.department_rel:
+            dept_name = emp.department_rel.name
+        return cls(
+            id=emp.id,
+            employee_id=emp.employee_id,
+            first_name=emp.first_name,
+            last_name=emp.last_name,
+            designation=emp.designation,
+            department_name=dept_name,
+            has_leave_override=getattr(emp, "has_leave_override", False),
+        )
