@@ -254,7 +254,7 @@ def create_employee(db: Session, employee: EmployeeCreate, background_tasks: Bac
         error_msg = str(e).lower()
         if "ix_users_email" in error_msg or ("unique constraint" in error_msg and "email" in error_msg):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This email is already used.")
-        if "ix_employees_employee_id" in error_msg or "employee_id" in error_msg:
+        if "ix_employees_employee_id" in error_msg or ("unique constraint" in error_msg and "employee_id" in error_msg):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This Employee ID is already used.")
         if isinstance(e, HTTPException):
             raise e
