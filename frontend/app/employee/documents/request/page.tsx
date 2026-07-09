@@ -129,7 +129,7 @@ export default function EmployeeRequestDocumentPage() {
           <select
             value={documentType}
             onChange={(e) => setDocumentType(e.target.value)}
-            className="w-full border border-gray-100 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#F2924E]/20 focus:border-[#F2924E] transition-all bg-gray-50/30"
+            className="w-full border border-gray-200 shadow-sm rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#F2924E]/20 focus:border-[#F2924E] transition-all bg-white"
           >
             <option value="">Select document type</option>
             {documentTypes.map((type) => (
@@ -145,7 +145,7 @@ export default function EmployeeRequestDocumentPage() {
             rows={3}
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            className="w-full border border-gray-100 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#F2924E]/20 focus:border-[#F2924E] transition-all bg-gray-50/30 placeholder-gray-400"
+            className="w-full border border-gray-200 shadow-sm rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#F2924E]/20 focus:border-[#F2924E] transition-all bg-white placeholder-gray-400"
             placeholder="Please specify why you need this document..."
           />
         </div>
@@ -181,11 +181,10 @@ export default function EmployeeRequestDocumentPage() {
                 <p className="text-[11px] text-gray-400 font-medium">Requested on {new Date(req.created_at).toLocaleDateString()}</p>
               </div>
               <div className="flex items-center gap-3">
-                <span className={`px-3 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full border ${
-                  req.status === 'IN_PROGRESS' 
-                    ? 'bg-orange-50 text-[#F2924E] border-orange-100' 
-                    : 'bg-gray-50 text-gray-500 border-gray-100'
-                }`}>
+                <span className={`px-3 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full border ${req.status === 'IN_PROGRESS'
+                  ? 'bg-orange-50 text-[#F2924E] border-orange-100'
+                  : 'bg-gray-50 text-gray-500 border-gray-100'
+                  }`}>
                   {req.status}
                 </span>
                 <button
@@ -214,11 +213,10 @@ export default function EmployeeRequestDocumentPage() {
                 <p className="text-[11px] text-gray-400 font-medium">Requested on {new Date(req.created_at).toLocaleDateString()}</p>
               </div>
               <div className="flex items-center gap-3">
-                <span className={`px-3 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full border ${
-                  req.status === 'COMPLETED' 
-                    ? 'bg-orange-50 text-[#F2924E] border-orange-100' 
-                    : 'bg-gray-50 text-gray-400 border-gray-100'
-                }`}>
+                <span className={`px-3 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full border ${req.status === 'COMPLETED'
+                  ? 'bg-orange-50 text-[#F2924E] border-orange-100'
+                  : 'bg-gray-50 text-gray-400 border-gray-100'
+                  }`}>
                   {req.status}
                 </span>
                 <button
@@ -238,35 +236,34 @@ export default function EmployeeRequestDocumentPage() {
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/30 backdrop-blur-sm p-4" onClick={() => setSelectedRequest(null)}>
           <div className="bg-white w-[420px] rounded-3xl shadow-xl border border-gray-200 p-6 relative animate-modal overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <button onClick={() => setSelectedRequest(null)} className="absolute right-4 top-4 text-gray-300 hover:text-gray-900 transition-colors p-2"><X size={20} /></button>
-            
+
             <div className="flex items-center gap-3 mb-6">
               <div className="bg-[#F2924E]/10 p-2.5 rounded-xl"><FileText size={20} className="text-[#F2924E]" /></div>
               <h2 className="text-[18px] font-bold text-gray-900 tracking-tight">Request Details</h2>
             </div>
-            
+
             <div className="space-y-4">
               <div className="flex justify-between items-center bg-gray-50 p-3.5 rounded-xl border border-gray-100">
                 <span className="text-[11px] text-gray-500 font-bold uppercase tracking-wider">Document</span>
                 <span className="font-bold text-gray-900 text-sm">{selectedRequest.document_type}</span>
               </div>
-              
+
               <div className="flex justify-between items-center px-2">
                 <span className="text-[11px] text-gray-500 font-bold uppercase tracking-wider">Status</span>
-                <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
-                  selectedRequest.status === 'COMPLETED' ? 'bg-orange-50 text-[#F2924E] border-orange-100' : 
+                <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${selectedRequest.status === 'COMPLETED' ? 'bg-orange-50 text-[#F2924E] border-orange-100' :
                   selectedRequest.status === 'REJECTED' ? 'bg-gray-50 text-gray-400 border-gray-100' :
-                  selectedRequest.status === 'IN_PROGRESS' ? 'bg-orange-50 text-[#F2924E] border-orange-100' :
-                  'bg-gray-50 text-gray-500 border-gray-100'
-                }`}>
+                    selectedRequest.status === 'IN_PROGRESS' ? 'bg-orange-50 text-[#F2924E] border-orange-100' :
+                      'bg-gray-50 text-gray-500 border-gray-100'
+                  }`}>
                   {selectedRequest.status}
                 </span>
               </div>
-              
+
               <div className="flex justify-between items-center px-2">
                 <span className="text-[11px] text-gray-500 font-bold uppercase tracking-wider">Requested Date</span>
                 <span className="font-bold text-gray-900 text-sm">{new Date(selectedRequest.created_at).toLocaleDateString()}</span>
               </div>
-              
+
               <div className="bg-gray-50/50 p-4 rounded-xl space-y-1.5 border border-gray-100">
                 <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Your Reason</p>
                 <p className="text-[13px] text-gray-700 font-medium leading-relaxed italic">"{selectedRequest.reason}"</p>
@@ -279,7 +276,7 @@ export default function EmployeeRequestDocumentPage() {
                 </div>
               )}
             </div>
-            
+
             <div className="flex flex-col gap-2 mt-8">
               {selectedRequest.status === 'COMPLETED' && selectedRequest.generated_document_path && (
                 <button
@@ -289,8 +286,8 @@ export default function EmployeeRequestDocumentPage() {
                   <Download size={18} /> Download Document
                 </button>
               )}
-              <button 
-                onClick={() => setSelectedRequest(null)} 
+              <button
+                onClick={() => setSelectedRequest(null)}
                 className="w-full py-3 text-[13px] font-bold rounded-2xl bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all border border-gray-100 shadow-sm"
               >
                 Close
