@@ -35,6 +35,7 @@ from app.employees.models import Employee, EmployeeDesignationHistory
 from app.notifications.models import Notification
 from app.designations.models import Designation
 from app.documents.models.template_model import DocumentTemplate
+from app.documents.models.request_model import DocumentRequest, RequestStatus
 from app.documents.services import document_generator
 from app.documents.services.email_service import send_document_to_requester
 
@@ -346,6 +347,26 @@ def send_promotion_letter(
                 f"[Promotion Letter] Failed to email letter to {employee.email}: {exc}"
             )
 
+    # Determine the target designation for the description
+    target_designation = employee.designation
+    if data.new_designation_id:
+        desig = db.query(Designation).filter_by(id=data.new_designation_id).first()
+        if desig:
+            target_designation = desig.name
+    
+    target_designation = target_designation or "new role"
+
+    # Create a DocumentRequest record so it appears in the employee's previous requests tab
+    doc_request = DocumentRequest(
+        employee_id=employee.id,
+        source="INTERNAL",
+        document_type="Promotion Letter",
+        reason=f"Promotion letter for the designation of {target_designation}.",
+        status=RequestStatus.COMPLETED,
+        generated_document_path=final_path
+    )
+    db.add(doc_request)
+
     # Perform the promotion if requested
     promoted = False
     if data.new_designation_id and data.new_designation_id != employee.designation_id:
@@ -396,7 +417,8 @@ def send_promotion_letter(
         if employee.designation_history:
             active_history = max(employee.designation_history, key=lambda h: (h.start_date or date.min))
             active_history.promotion_letter_sent = True
-            db.commit()
+        
+        db.commit()
 
     background_tasks.add_task(_email_task)
 
