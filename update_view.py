@@ -29,7 +29,7 @@ content = content.replace(old_state, new_state)
 # 3. Add fetch
 old_fetch = """    api.get<Employee>(`/employees/${id}`)
       .then(setEmployee)
-      .catch((err) => console.error("Failed to fetch employee:", err))
+      .catch((err) => console.error("Failed to fetch employee:", err)) 
       .finally(() => setLoading(false));"""
 new_fetch = """    Promise.all([
       api.get<Employee>(`/employees/${id}`),

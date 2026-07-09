@@ -20,14 +20,14 @@ export default function LeaveTabs() {
     ...(hasPermission("leave:request")
       ? [{ name: "Request Leave", path: "/apply-leave" }]
       : []),
+    ...(hasPermission("leave:approve")
+      ? [{ name: "Approval panel", path: "/approval" }]
+      : []),
     ...(hasPermission("leave:assign")
       ? [{ name: "Assign Leave", path: "/assign-leave" }]
       : []),
     ...(hasPermission("leave:view_history")
       ? [{ name: "Leave History", path: "/leave-history" }]
-      : []),
-    ...(hasPermission("leave:approve")
-      ? [{ name: "Approval panel", path: "/approval" }]
       : []),
     ...(hasPermission("leave:report")
       ? [{ name: "Get Reports", path: "/reports" }]

@@ -54,7 +54,8 @@ def get_active_employees(db: Session):
     overridden_ids = {r[0] for r in db.query(EmployeeLeaveEntitlement.employee_id).distinct().all()}
     
     employees = db.query(Employee).options(
-        joinedload(Employee.user).joinedload(User.roles)
+        joinedload(Employee.user).joinedload(User.roles),
+        joinedload(Employee.department_rel),
     ).filter(
         Employee.status == "active",
         (Employee.is_deleted == False) | (Employee.is_deleted == None)
@@ -182,6 +183,28 @@ def create_employee(db: Session, employee: EmployeeCreate, background_tasks: Bac
                                  if employee.designation_leave_overrides else None,
             )
             db.add(hist)
+            db.flush()
+
+        # If leave overrides were provided at creation time, write them to EmployeeLeaveEntitlement
+        # so the leave module immediately sees the custom allocation (not just in history JSON)
+        if employee.designation_leave_overrides:
+            from app.leave.models import EmployeeLeaveEntitlement as _ELE, LeaveType as _LeaveType2
+            for override in employee.designation_leave_overrides:
+                lt = db.query(_LeaveType2).filter(_LeaveType2.id == override.leave_type_id).first()
+                if not lt:
+                    continue
+                row = db.query(_ELE).filter(
+                    _ELE.employee_id == db_employee.id,
+                    _ELE.leave_type_id == override.leave_type_id,
+                ).first()
+                if row:
+                    row.days = override.days
+                else:
+                    db.add(_ELE(
+                        employee_id=db_employee.id,
+                        leave_type_id=override.leave_type_id,
+                        days=override.days,
+                    ))
 
         # Eager-load permissions so the relationship is fully populated after commit
         from sqlalchemy.orm import joinedload as _jl
@@ -243,40 +266,87 @@ def update_employee(db: Session, employee_id: int, employee_update: EmployeeUpda
     if db_employee:
         update_data = employee_update.model_dump(exclude_unset=True)
         
-        # Handle designation change
-        new_designation_str = update_data.get("designation")
-        # In a more complete implementation, you might pass designation_id from the frontend too.
-        # But if the string changes, we should capture it.
-        designation_changed = False
-        if "designation" in update_data and update_data["designation"] != db_employee.designation:
-            designation_changed = True
-            
+        from app.designations.models import Designation as _Designation
+        from app.employees.models import EmployeeDesignationHistory
+        from app.leave.models import EmployeeLeaveEntitlement, LeaveType as _LeaveType
+        from datetime import date as _date
+
+        # Pop designation-specific fields so they never hit setattr on Employee columns that don't exist
+        new_designation_id = update_data.pop("designation_id", None)
+        designation_start_date = update_data.pop("designation_start_date", None)
+        designation_end_date = update_data.pop("designation_end_date", None)
+        designation_leave_overrides_raw = update_data.pop("designation_leave_overrides", None)
+
+        # Determine current designation state
+        resolved_designation_id = new_designation_id if new_designation_id is not None else db_employee.designation_id
+        new_designation_str = update_data.get("designation", db_employee.designation)
+        
+        # Check if designation actually changed
+        changed = (
+            (new_designation_id is not None and new_designation_id != db_employee.designation_id) or
+            ("designation" in update_data and update_data["designation"] != db_employee.designation)
+        )
+
+        # Apply basic scalar updates
         for key, value in update_data.items():
             setattr(db_employee, key, value)
+
+        # Sync designation_id FK if provided
+        if new_designation_id is not None:
+            db_employee.designation_id = new_designation_id
             
-        if designation_changed:
-            from app.employees.models import EmployeeDesignationHistory
-            from datetime import date as _date
+        if changed:
+            # Resolve the designation string name from the ID
+            if resolved_designation_id:
+                d = db.query(_Designation).filter(_Designation.id == resolved_designation_id).first()
+                if d:
+                    new_designation_str = d.name
+                    db_employee.designation = d.name
+                    db_employee.designation_id = resolved_designation_id
             
-            # Close the current one
+            # Close any currently-open history entry
             current_hist = db.query(EmployeeDesignationHistory).filter(
                 EmployeeDesignationHistory.employee_id == employee_id,
                 EmployeeDesignationHistory.end_date == None
-            ).order_by(EmployeeDesignationHistory.start_date.desc()).first()
-            
+            ).first()
             if current_hist:
                 current_hist.end_date = _date.today()
-                
-            # Create a new one
+            
+            # Create new history entry
             new_hist = EmployeeDesignationHistory(
                 employee_id=employee_id,
-                designation_id=None, # if not provided
+                designation_id=resolved_designation_id,
                 designation_name=new_designation_str or "",
-                start_date=_date.today(),
-                end_date=None,
-                leave_overrides=None,
+                start_date=designation_start_date or _date.today(),
+                end_date=designation_end_date,
+                leave_overrides=[e if isinstance(e, dict) else e.model_dump() for e in designation_leave_overrides_raw]
+                                 if designation_leave_overrides_raw else None,
             )
             db.add(new_hist)
+            db.flush()
+
+        # Apply leave overrides to EmployeeLeaveEntitlement regardless of whether designation changed
+        # (user might update overrides without changing the designation itself)
+        if designation_leave_overrides_raw is not None:
+            for override in designation_leave_overrides_raw:
+                # Support both dict items (from model_dump) and Pydantic objects
+                lt_id = override["leave_type_id"] if isinstance(override, dict) else override.leave_type_id
+                lt_days = override["days"] if isinstance(override, dict) else override.days
+                lt = db.query(_LeaveType).filter(_LeaveType.id == lt_id).first()
+                if not lt:
+                    continue
+                row = db.query(EmployeeLeaveEntitlement).filter(
+                    EmployeeLeaveEntitlement.employee_id == employee_id,
+                    EmployeeLeaveEntitlement.leave_type_id == lt_id,
+                ).first()
+                if row:
+                    row.days = lt_days
+                else:
+                    db.add(EmployeeLeaveEntitlement(
+                        employee_id=employee_id,
+                        leave_type_id=lt_id,
+                        days=lt_days,
+                    ))
 
         if db_employee.user:
             user = db_employee.user

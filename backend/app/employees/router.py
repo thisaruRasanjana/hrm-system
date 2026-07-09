@@ -16,7 +16,8 @@ def read_employees(skip: int = 0, limit: int = 100, db: Session = Depends(get_db
 @router.get("/panel-options", response_model=List[schemas.EmployeePanelOption])
 def list_panel_options(db: Session = Depends(get_db)):
     """Return minimal active employee data for recruitment interview panel dropdowns."""
-    return service.get_active_employees(db)
+    employees = service.get_active_employees(db)
+    return [schemas.EmployeePanelOption.from_employee(emp) for emp in employees]
 
 
 @router.get("/{employee_id}", response_model=schemas.EmployeeOut, dependencies=[Depends(require_permission("employee:view_all"))])

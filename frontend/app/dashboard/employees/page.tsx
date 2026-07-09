@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { IconSearch, IconChevron, IconEye, IconEdit, IconTrash } from "@/components/Icons";
 import { api } from "@/lib/api";
@@ -36,7 +36,14 @@ function getInitials(first: string, last: string) {
 }
 
 const avatarColors = [
-  "bg-gray-100 text-gray-700"
+  "bg-orange-100 text-orange-700",
+  "bg-blue-100 text-blue-700",
+  "bg-emerald-100 text-emerald-700",
+  "bg-violet-100 text-violet-700",
+  "bg-rose-100 text-rose-700",
+  "bg-amber-100 text-amber-700",
+  "bg-sky-100 text-sky-700",
+  "bg-teal-100 text-teal-700",
 ];
 
 function getAvatarColor(id: number) {
@@ -61,6 +68,7 @@ export default function EmployeeManagementPage() {
   const [department, setDepartment] = useState("all");
   const [role, setRole] = useState("all");
   const [employeeToDelete, setEmployeeToDelete] = useState<DeletableEmployee | null>(null);
+  const [sortBy, setSortBy] = useState("name_az");
 
   const { hasPermission } = useAuth();
 
@@ -82,16 +90,52 @@ export default function EmployeeManagementPage() {
       .catch((err) => console.error("Failed to fetch departments:", err));
   }, []);
 
-  const filteredEmployees = employees.filter((emp) => {
-    const fullName = `${emp.first_name} ${emp.last_name}`.toLowerCase();
-    const matchesSearch =
-      searchQuery === "" ||
-      fullName.includes(searchQuery.toLowerCase()) ||
-      (emp.employee_id?.toLowerCase() || "").includes(searchQuery.toLowerCase());
-    const matchesDept = department === "all" || emp.department_rel?.name === department;
-    const matchesRole = role === "all" || emp.designation === role;
-    return matchesSearch && matchesDept && matchesRole;
-  });
+  const filteredEmployees = useMemo(() => {
+    let list = employees.filter((emp) => {
+      const fullName = `${emp.first_name} ${emp.last_name}`.toLowerCase();
+      const matchesSearch =
+        searchQuery === "" ||
+        fullName.includes(searchQuery.toLowerCase()) ||
+        (emp.employee_id?.toLowerCase() || "").includes(searchQuery.toLowerCase());
+      const matchesDept = department === "all" || emp.department_rel?.name === department;
+      const matchesRole = role === "all" || emp.designation === role;
+      return matchesSearch && matchesDept && matchesRole;
+    });
+
+    switch (sortBy) {
+      case "name_az":
+        list = [...list].sort((a, b) => `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`));
+        break;
+      case "name_za":
+        list = [...list].sort((a, b) => `${b.first_name} ${b.last_name}`.localeCompare(`${a.first_name} ${a.last_name}`));
+        break;
+      case "emp_id":
+        list = [...list].sort((a, b) => (a.employee_id || "").localeCompare(b.employee_id || ""));
+        break;
+      case "department":
+        list = [...list].sort((a, b) => (a.department_rel?.name || "").localeCompare(b.department_rel?.name || ""));
+        break;
+      case "designation":
+        list = [...list].sort((a, b) => (a.designation || "").localeCompare(b.designation || ""));
+        break;
+      case "status_active":
+        list = [...list].sort((a, b) => (a.status === "active" ? -1 : 1) - (b.status === "active" ? -1 : 1));
+        break;
+      case "status_inactive":
+        list = [...list].sort((a, b) => (a.status !== "active" ? -1 : 1) - (b.status !== "active" ? -1 : 1));
+        break;
+      case "id_asc":
+        list = [...list].sort((a, b) => a.id - b.id);
+        break;
+      case "id_desc":
+        list = [...list].sort((a, b) => b.id - a.id);
+        break;
+      default:
+        break;
+    }
+
+    return list;
+  }, [employees, searchQuery, department, role, sortBy]);
 
   const activeCount = employees.filter(e => e.status === "active").length;
   const inactiveCount = employees.filter(e => e.status !== "active").length;
@@ -156,6 +200,17 @@ export default function EmployeeManagementPage() {
           <FilterSelect className="w-36" value={role} onChange={setRole}>
             <option value="all">All Roles</option>
           </FilterSelect>
+          <FilterSelect className="w-44" value={sortBy} onChange={setSortBy}>
+            <option value="name_az">Sort: Name A → Z</option>
+            <option value="name_za">Sort: Name Z → A</option>
+            <option value="emp_id">Sort: Employee ID</option>
+            <option value="department">Sort: Department</option>
+            <option value="designation">Sort: Designation</option>
+            <option value="status_active">Sort: Active First</option>
+            <option value="status_inactive">Sort: Inactive First</option>
+            <option value="id_asc">Sort: Oldest Added</option>
+            <option value="id_desc">Sort: Newest Added</option>
+          </FilterSelect>
           <div className="ml-auto text-sm text-gray-400 font-medium whitespace-nowrap">
             {loading ? "" : `${filteredEmployees.length} of ${employees.length} employees`}
           </div>
@@ -170,7 +225,7 @@ export default function EmployeeManagementPage() {
                 <th className="text-left px-6 py-3.5 text-[11px] font-bold text-gray-400 uppercase tracking-widest">Department</th>
                 <th className="text-left px-6 py-3.5 text-[11px] font-bold text-gray-400 uppercase tracking-widest">Designation</th>
                 <th className="text-left px-6 py-3.5 text-[11px] font-bold text-gray-400 uppercase tracking-widest">Status</th>
-                <th className="px-6 py-3.5 sr-only">Actions</th>
+                <th className="px-6 py-3.5 text-right text-[11px] font-bold text-gray-400 uppercase tracking-widest">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -214,37 +269,48 @@ export default function EmployeeManagementPage() {
                 </tr>
               ) : (
                 filteredEmployees.map((emp) => (
-                  <tr key={emp.id} className="hover:bg-orange-50/30 transition-colors group">
-                    {/* Employee cell with avatar */}
+                  <tr key={emp.id} className="hover:bg-orange-50/20 transition-colors group border-b border-gray-50 last:border-0">
+                    {/* Employee cell */}
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        <div className={`h-9 w-9 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${getAvatarColor(emp.id)}`}>
+                        <div className={`h-10 w-10 rounded-xl flex items-center justify-center text-xs font-bold flex-shrink-0 ${getAvatarColor(emp.id)}`}>
                           {getInitials(emp.first_name, emp.last_name)}
                         </div>
                         <div>
                           <p className="text-sm font-semibold text-gray-900 leading-snug">{emp.first_name} {emp.last_name}</p>
-                          <p className="text-xs text-gray-400 font-medium mt-0.5">{emp.employee_id}</p>
+                          <p className="text-[11px] text-gray-400 font-mono mt-0.5">{emp.employee_id}</p>
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <span className="text-sm text-gray-600">{emp.department_rel?.name || "—"}</span>
+                      {emp.department_rel?.name ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gray-100 text-gray-600 text-[12px] font-medium">
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-60"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+                          {emp.department_rel.name}
+                        </span>
+                      ) : (
+                        <span className="text-gray-300 text-sm">—</span>
+                      )}
                     </td>
                     <td className="px-6 py-4">
-                      <span className="text-sm text-gray-600">{emp.designation || "—"}</span>
+                      {emp.designation ? (
+                        <span className="text-[13px] text-gray-600 font-medium">{emp.designation}</span>
+                      ) : (
+                        <span className="text-gray-300 text-sm">—</span>
+                      )}
                     </td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold ${
                         emp.status === "active"
-                          ? "bg-[#EE7F22]/10 text-[#EE7F22] border border-[#F9A15D]/50"
+                          ? "bg-[#EE7F22]/10 text-[#EE7F22] border border-[#F9A15D]/40"
                           : "bg-gray-100 text-gray-500 border border-gray-200"
                       }`}>
-                        <span className={`flex-shrink-0 w-1.5 h-1.5 rounded-full ${emp.status === "active" ? "bg-[#F9A15D]" : "bg-gray-400"}`} />
+                        <span className={`flex-shrink-0 w-1.5 h-1.5 rounded-full ${emp.status === "active" ? "bg-[#EE7F22]" : "bg-gray-400"}`} />
                         <span className="leading-none pt-[1px]">{emp.status === "active" ? "Active" : "Inactive"}</span>
                       </span>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="flex items-center justify-end gap-1 ">
+                      <div className="flex items-center justify-end gap-1">
                         <Link
                           href={`/dashboard/EmployeeManagement/view?id=${emp.id}`}
                           className="p-1.5 rounded-lg text-gray-400 hover:text-[#EE7F22] hover:bg-[#EE7F22]/10 transition-colors"
@@ -274,7 +340,7 @@ export default function EmployeeManagementPage() {
                               department: emp.department_rel?.name,
                               designation: emp.designation,
                             })}
-                            className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                            className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
                             aria-label="Delete"
                             title="Delete"
                           >
