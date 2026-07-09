@@ -1,11 +1,11 @@
 {
     "python.defaultInterpreterPath": "${workspaceFolder}/backend/venv/Scripts/python.exe",
     "python.analysis.extraPaths": [
-        "${workspaceFolder}/backend"
+        "${workspaceFolder}/backend",
+        "${workspaceFolder}/backend/venv/Lib/site-packages"
     ],
     "python.analysis.typeCheckingMode": "off",
     "python.analysis.diagnosticMode": "openFilesOnly",
-    "python.analysis.ignore": [
-        "${workspaceFolder}/backend/alembic/**"
-    ]
+    "python.analysis.ignore": [],
+    "python.languageServer": "Pylance"
 }
