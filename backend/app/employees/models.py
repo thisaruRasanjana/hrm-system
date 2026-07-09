@@ -60,6 +60,7 @@ class EmployeeDesignationHistory(Base):
     designation_name = Column(String(100), nullable=False)
     start_date       = Column(Date, nullable=False)
     end_date         = Column(Date, nullable=True)
+    promotion_letter_sent = Column(Boolean, default=False, nullable=False)
     
     # Optional per-employee leave day overrides for this designation period
     # Stored as: [{"leave_type_id": 1, "days": 14}, ...]

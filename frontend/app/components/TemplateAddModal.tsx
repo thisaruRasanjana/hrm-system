@@ -14,6 +14,7 @@ type Props = {
 const CATEGORIES = [
   "Service Letters",
   "Salary Letters",
+  "Promotion Letter",
   "Employment Confirmation",
   "Bank Letters",
   "HR Notices",
@@ -151,6 +152,7 @@ export default function TemplateAddModal({ onClose, onSuccess }: Props) {
             </select>
           </div>
 
+
           {/* Template Type Toggle */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -189,6 +191,11 @@ export default function TemplateAddModal({ onClose, onSuccess }: Props) {
               <RichTextEditor
                 content={content}
                 onChange={setContent}
+                placeholders={
+                  category === "Promotion Letter" 
+                    ? ["[Promotion Date]", "[Employee Name]", "[Employee ID]", "[Department]", "[New Designation]", "[Previous Designation]", "[Time Period in Previous Designation]", "[Effective Date]", "[Authorized Signatory Name]", "[Designation]"]
+                    : undefined
+                }
               />
             </div>
           )}

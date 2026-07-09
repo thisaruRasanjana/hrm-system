@@ -52,6 +52,7 @@ function getAvatarColor(id: number) {
 
 interface Employee {
   id: number;
+  user_id?: number;
   employee_id: string;
   first_name: string;
   last_name: string;
@@ -70,7 +71,7 @@ export default function EmployeeManagementPage() {
   const [employeeToDelete, setEmployeeToDelete] = useState<DeletableEmployee | null>(null);
   const [sortBy, setSortBy] = useState("name_az");
 
-  const { hasPermission } = useAuth();
+  const { hasPermission, user } = useAuth();
 
   const fetchEmployees = async () => {
     try {
@@ -319,7 +320,7 @@ export default function EmployeeManagementPage() {
                         >
                           <IconEye />
                         </Link>
-                        {hasPermission("employee:update") && (
+                        {hasPermission("employee:update") && emp.user_id !== user?.id && (
                           <Link
                             href={`/dashboard/EmployeeManagement/edit?id=${emp.id}`}
                             className="p-1.5 rounded-lg text-gray-400 hover:text-[#EE7F22] hover:bg-orange-50 transition-colors"
@@ -329,7 +330,7 @@ export default function EmployeeManagementPage() {
                             <IconEdit />
                           </Link>
                         )}
-                        {hasPermission("employee:delete") && (
+                        {hasPermission("employee:delete") && emp.user_id !== user?.id && (
                           <button
                             type="button"
                             onClick={() => setEmployeeToDelete({

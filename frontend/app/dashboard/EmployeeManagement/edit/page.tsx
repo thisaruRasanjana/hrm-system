@@ -8,6 +8,7 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/context/auth-context";
 import DepartmentSelect from "@/components/DepartmentSelect";
 import DesignationSelect from "@/components/DesignationSelect";
+import PromotionLetterModal from "@/components/PromotionLetterModal";
 
 function SectionCard({ icon, title, description, children }: { icon: React.ReactNode; title: string; description?: string; children: React.ReactNode }) {
   return (
@@ -44,7 +45,7 @@ function EmployeeEditContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const id = searchParams.get("id");
-  const { hasPermission, loading: authLoading } = useAuth();
+  const { hasPermission, loading: authLoading, user } = useAuth();
 
   useEffect(() => {
     if (!authLoading && !hasPermission("employee:create")) {
@@ -92,17 +93,51 @@ function EmployeeEditContent() {
   const [showDesignationOverrides, setShowDesignationOverrides] = useState(false);
   const [customLeaveEntitlements, setCustomLeaveEntitlements] = useState<Record<number, string>>({});
 
+  // Promotion letter state
+  const [initialDesignationId, setInitialDesignationId] = useState<number | null>(null);
+  const [initialPromotionLetterSent, setInitialPromotionLetterSent] = useState(false);
+  const [designationNames, setDesignationNames] = useState<Record<number, string>>({});
+  const [showPromotionModal, setShowPromotionModal] = useState(false);
+
   useEffect(() => {
     if (!id) return;
     const init = async () => {
       try {
         const roleData = await api.get<{ id: number; role_name: string }[]>("/roles/");
         setRoles(roleData);
-        
+
         const types = await api.get<any>("/leave/types");
         setLeaveTypes(types);
 
+        // Fetch designations list so we can look up names by ID
+        const designationList = await api.get<{ id: number; name: string }[]>("/designations/");
+        const nameMap: Record<number, string> = {};
+        designationList.forEach((d) => { nameMap[d.id] = d.name; });
+        setDesignationNames(nameMap);
+
         const employeeData = await api.get<any>(`/employees/${id}`);
+
+        if (employeeData.user_id === user?.id) {
+          router.replace("/dashboard/employees");
+          return;
+        }
+
+        // Store the initial designation ID to detect if it changes
+        setInitialDesignationId(employeeData.designation_id || null);
+
+        // Check if the current designation has already had a promotion letter sent
+        let letterSent = false;
+        if (employeeData.designation_history && employeeData.designation_history.length > 0) {
+          // Sort descending by start_date to find the active/most recent record
+          const sorted = [...employeeData.designation_history].sort((a, b) => 
+            new Date(b.start_date).getTime() - new Date(a.start_date).getTime()
+          );
+          if (sorted[0].designation_id === employeeData.designation_id) {
+            letterSent = sorted[0].promotion_letter_sent || false;
+          }
+        }
+        setInitialPromotionLetterSent(letterSent);
+
         setFormData({
           employeeId: employeeData.employee_id,
           firstName: employeeData.first_name, lastName: employeeData.last_name,
@@ -124,7 +159,7 @@ function EmployeeEditContent() {
             status: employeeData.status
           }
         });
-        
+
         // Show additional info if any exists
         if (employeeData.date_of_birth || employeeData.emergency_contact_name || employeeData.skills || employeeData.bank_name) {
           setShowAdditionalInfo(true);
@@ -322,10 +357,43 @@ function EmployeeEditContent() {
             <FormField label="Designation" required>
               <DesignationSelect
                 value={formData.work.designationId}
-                onChange={(id) => setFormData({ ...formData, work: { ...formData.work, designationId: id } })}
+                onChange={(desigId) => setFormData({ ...formData, work: { ...formData.work, designationId: desigId } })}
                 selectClass={selectCls}
               />
             </FormField>
+
+            {/* Promotion Letter Action */}
+            {formData.work.designationId && 
+             (formData.work.designationId !== initialDesignationId || !initialPromotionLetterSent) && (
+              <div className="flex items-center justify-between gap-3 px-4 py-3 bg-[#EE7F22]/5 border border-[#EE7F22]/20 rounded-xl mt-2">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-7 h-7 rounded-lg bg-[#EE7F22]/10 flex items-center justify-center text-[#EE7F22] flex-shrink-0">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                  </div>
+                  <div>
+                    {formData.work.designationId !== initialDesignationId ? (
+                      <>
+                        <p className="text-xs font-semibold text-[#EE7F22]">Designation Changed</p>
+                        <p className="text-[11px] text-gray-500">You can send a promotion letter after saving the changes.</p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-xs font-semibold text-[#EE7F22]">Promotion Letter</p>
+                        <p className="text-[11px] text-gray-500">Generate and send a promotion letter for the current designation.</p>
+                      </>
+                    )}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowPromotionModal(true)}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#EE7F22] text-white text-xs font-semibold rounded-lg hover:bg-orange-600 transition-colors shadow-sm whitespace-nowrap flex-shrink-0"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                  Send Promotion Letter
+                </button>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <FormField label="Joined Date">
@@ -364,7 +432,7 @@ function EmployeeEditContent() {
           </div>
         </SectionCard>
 
-                {/* Designation Period & Leave Overrides */}
+        {/* Designation Period & Leave Overrides */}
         {!showDesignationOverrides ? (
           <button
             type="button"
@@ -583,6 +651,17 @@ function EmployeeEditContent() {
           </div>
         </div>
       </div>
+
+      {/* Promotion Letter Modal */}
+      {showPromotionModal && formData.work.designationId && (
+        <PromotionLetterModal
+          employeeId={parseInt(id as string)}
+          newDesignationId={formData.work.designationId}
+          effectiveDate={formData.work.designationStartDate || undefined}
+          onClose={() => setShowPromotionModal(false)}
+          onSuccess={() => window.location.reload()}
+        />
+      )}
     </div>
   );
 }

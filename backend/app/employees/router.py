@@ -4,6 +4,7 @@ from typing import List
 from app.database.database import get_db
 from app.employees import service, schemas
 from app.core.deps import get_current_user, require_permission
+from app.auth.models import User
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
 
@@ -37,8 +38,18 @@ def create_employee(
     return service.create_employee(db, employee, background_tasks)
 
 
-@router.put("/{employee_id}", response_model=schemas.EmployeeOut, dependencies=[Depends(require_permission("employee:update"))])
-def update_employee(employee_id: int, employee_update: schemas.EmployeeUpdate, db: Session = Depends(get_db)):
+@router.put("/{employee_id}", response_model=schemas.EmployeeOut)
+def update_employee(
+    employee_id: int, 
+    employee_update: schemas.EmployeeUpdate, 
+    current_user: User = Depends(require_permission("employee:update")),
+    db: Session = Depends(get_db)
+):
+    if current_user.employee and current_user.employee.id == employee_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You cannot edit your own employee record. Another HR manager or admin must do this."
+        )
     db_employee = service.update_employee(db=db, employee_id=employee_id, employee_update=employee_update)
     if db_employee is None:
         raise HTTPException(status_code=404, detail="Employee not found")
