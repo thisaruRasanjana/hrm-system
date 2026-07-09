@@ -42,6 +42,7 @@ export default function ProfileSettingsPage() {
 
   const [isLoading, setIsLoading] = useState(false);
   const [msg, setMsg] = useState({ text: "", type: "" });
+  const [historyExpanded, setHistoryExpanded] = useState(false);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -236,31 +237,61 @@ export default function ProfileSettingsPage() {
                 </div>
               </div>
 
-              {/* Designation History (Read Only) */}
+              {/* Designation History (Read Only) — collapsed by default */}
               {formData.designation_history.length > 0 && (
                 <div className="mt-8 pt-6 border-t border-gray-100">
-                  <h4 className="text-sm font-bold text-gray-800 mb-4">Designation History</h4>
-                  <div className="space-y-3">
-                    {formData.designation_history.map((hist, idx) => (
-                      <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-lg bg-gray-50 border border-gray-100">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-[#f08a4b]/10 text-[#f08a4b] flex items-center justify-center">
-                            <Briefcase size={14} />
+                  <button
+                    type="button"
+                    onClick={() => setHistoryExpanded((prev) => !prev)}
+                    className="w-full flex items-center justify-between group"
+                  >
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-sm font-bold text-gray-800">Designation History</h4>
+                      <span className="text-[11px] text-gray-400 font-medium bg-gray-100 px-2 py-0.5 rounded-full">
+                        {formData.designation_history.length} {formData.designation_history.length === 1 ? "entry" : "entries"}
+                      </span>
+                    </div>
+                    <svg
+                      width="16" height="16" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                      className={`text-gray-400 group-hover:text-gray-600 transition-transform duration-200 ${
+                        historyExpanded ? "rotate-180" : "rotate-0"
+                      }`}
+                    >
+                      <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                  </button>
+
+                  <div
+                    style={{
+                      maxHeight: historyExpanded ? "600px" : "0px",
+                      opacity: historyExpanded ? 1 : 0,
+                      overflow: "hidden",
+                      transition: "max-height 0.35s cubic-bezier(0.4,0,0.2,1), opacity 0.25s ease",
+                    }}
+                  >
+                    <div className="mt-4 space-y-3">
+                      {formData.designation_history.map((hist, idx) => (
+                        <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-lg bg-gray-50 border border-gray-100">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-[#f08a4b]/10 text-[#f08a4b] flex items-center justify-center">
+                              <Briefcase size={14} />
+                            </div>
+                            <div>
+                              <p className="text-sm font-bold text-gray-800">{hist.designation_name}</p>
+                              <p className="text-xs text-gray-500">
+                                {hist.start_date ? new Date(hist.start_date).toLocaleDateString() : 'N/A'} - {hist.end_date ? new Date(hist.end_date).toLocaleDateString() : 'Present'}
+                              </p>
+                            </div>
                           </div>
-                          <div>
-                            <p className="text-sm font-bold text-gray-800">{hist.designation_name}</p>
-                            <p className="text-xs text-gray-500">
-                              {hist.start_date ? new Date(hist.start_date).toLocaleDateString() : 'N/A'} - {hist.end_date ? new Date(hist.end_date).toLocaleDateString() : 'Present'}
-                            </p>
-                          </div>
+                          {idx === 0 && !hist.end_date && (
+                            <span className="mt-2 sm:mt-0 text-[10px] font-bold uppercase tracking-wider text-green-600 bg-green-100 px-2.5 py-1 rounded-full w-fit">
+                              Current
+                            </span>
+                          )}
                         </div>
-                        {idx === 0 && !hist.end_date && (
-                          <span className="mt-2 sm:mt-0 text-[10px] font-bold uppercase tracking-wider text-green-600 bg-green-100 px-2.5 py-1 rounded-full w-fit">
-                            Current
-                          </span>
-                        )}
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
                 </div>
               )}
