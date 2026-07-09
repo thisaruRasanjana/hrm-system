@@ -413,11 +413,33 @@ def send_promotion_letter(
             promoted = True
 
     if not promoted:
-        # Just mark the current designation history as having the promotion letter sent
-        if employee.designation_history:
-            active_history = max(employee.designation_history, key=lambda h: (h.start_date or date.min))
+        # Query the history directly to avoid stale lazy-loaded relationship data
+        from app.employees.models import EmployeeDesignationHistory as EDH
+        active_history = (
+            db.query(EDH)
+            .filter(EDH.employee_id == employee.id)
+            .order_by(EDH.start_date.desc().nullslast())
+            .first()
+        )
+
+        if active_history and active_history.designation_id == employee.designation_id:
             active_history.promotion_letter_sent = True
-        
+        else:
+            eff_date = date.today()
+            if data.effective_date:
+                try:
+                    eff_date = datetime.strptime(data.effective_date, "%Y-%m-%d").date()
+                except ValueError:
+                    pass
+            new_history = EmployeeDesignationHistory(
+                employee_id=employee.id,
+                designation_id=employee.designation_id,
+                designation_name=employee.designation,
+                start_date=eff_date,
+                promotion_letter_sent=True
+            )
+            db.add(new_history)
+
         db.commit()
 
     background_tasks.add_task(_email_task)

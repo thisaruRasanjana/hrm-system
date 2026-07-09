@@ -128,13 +128,12 @@ function EmployeeEditContent() {
         // Check if the current designation has already had a promotion letter sent
         let letterSent = false;
         if (employeeData.designation_history && employeeData.designation_history.length > 0) {
-          // Sort descending by start_date to find the active/most recent record
-          const sorted = [...employeeData.designation_history].sort((a, b) => 
-            new Date(b.start_date).getTime() - new Date(a.start_date).getTime()
-          );
-          if (sorted[0].designation_id === employeeData.designation_id) {
-            letterSent = sorted[0].promotion_letter_sent || false;
-          }
+          // Find any history entry for the current designation that has a letter sent
+          letterSent = employeeData.designation_history.some((h: any) => {
+            const sameById = h.designation_id != null && h.designation_id === employeeData.designation_id;
+            const sameByName = h.designation_name && h.designation_name === employeeData.designation;
+            return (sameById || sameByName) && h.promotion_letter_sent === true;
+          });
         }
         setInitialPromotionLetterSent(letterSent);
 
