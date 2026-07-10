@@ -493,16 +493,32 @@ def get_weekly_stats(
             ot_sum = round(ot_sum + live_ot, 2)
             regular = round(max(0.0, total - ot_sum), 2)
 
-    # Average clock-in time (HH:MM)
+    # Average clock-in time — use the earliest check_in from TimeCheckPair per day
     avg_clock_in = None
-    all_start_times = [e for e in day_entries if e.start_time]
-    if all_start_times:
-        avg_mins = sum(e.start_time.hour * 60 + e.start_time.minute for e in all_start_times) // len(all_start_times)
-        if avg_mins < 720:
-            avg_clock_in = f"{avg_mins // 60:02d}:{avg_mins % 60:02d} AM"
-        else:
-            pm_mins = avg_mins - 720
-            avg_clock_in = f"{pm_mins // 60 + 12:02d}:{avg_mins % 60:02d} PM"
+    from sqlalchemy import func as sa_func
+    first_checkins = (
+        db.query(
+            TimeCheckPair.date,
+            sa_func.min(TimeCheckPair.check_in).label("first_check_in"),
+        )
+        .filter(
+            TimeCheckPair.user_id == current_user.id,
+            TimeCheckPair.date >= monday.date(),
+            TimeCheckPair.date <= sunday.date(),
+        )
+        .group_by(TimeCheckPair.date)
+        .all()
+    )
+    if first_checkins:
+        total_mins = sum(fc.first_check_in.hour * 60 + fc.first_check_in.minute for fc in first_checkins)
+        avg_mins = total_mins // len(first_checkins)
+        h24 = avg_mins // 60
+        m = avg_mins % 60
+        period = "AM" if h24 < 12 else "PM"
+        h12 = h24 % 12
+        if h12 == 0:
+            h12 = 12
+        avg_clock_in = f"{h12}:{m:02d} {period}"
 
     current_threshold = _get_current_threshold(db)
 
