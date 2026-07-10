@@ -174,6 +174,9 @@ export default function ApprovalReviewModal({
               />
               <DetailRow label="Applied On" value={<span>{request.appliedOn}</span>} />
               <DetailRow label="Reason" value={<span>{request.reason}</span>} />
+              {request.assignedByName && (
+                <DetailRow label="Assigned By" value={<span className="font-semibold text-orange-600 bg-orange-50 px-2 py-0.5 rounded border border-orange-100">{request.assignedByName}</span>} />
+              )}
 
               {/* Attachments */}
               {request.attachmentUrls && request.attachmentUrls.length > 0 && (

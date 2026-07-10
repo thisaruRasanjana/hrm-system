@@ -256,12 +256,10 @@ const AssignLeaveForm: React.FC<Props> = ({ balances, onSubmitted }) => {
 
   const [dateSelection, setDateSelection] = useState({ startDate: "", endDate: "", halfDay: false });
   const [reason, setReason] = useState("");
-  const [attachments, setAttachments] = useState<File[]>([]);
   const [errors, setErrors] = useState<string[]>([]);
-  const [success, setSuccess] = useState(false);
+  const [success, setSuccess] = useState<string | null>(null);
   const [loadingTypes, setLoadingTypes] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
   const [holidays, setHolidays] = useState<any[]>([]);
 
   const fromDate = dateSelection.startDate;
@@ -269,16 +267,7 @@ const AssignLeaveForm: React.FC<Props> = ({ balances, onSubmitted }) => {
   const halfDay = dateSelection.halfDay;
   const days = calculateWorkingDays(fromDate, toDate, halfDay, holidays);
 
-  const addFiles = (newFiles: FileList | File[]) => {
-    setAttachments((prev) => [...prev, ...Array.from(newFiles)]);
-  };
-  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => { e.preventDefault(); setIsDragging(true); };
-  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => { e.preventDefault(); setIsDragging(false); };
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault(); setIsDragging(false);
-    if (e.dataTransfer.files?.length > 0) addFiles(e.dataTransfer.files);
-  };
-  const removeFile = (i: number) => setAttachments((prev) => prev.filter((_, idx) => idx !== i));
+
 
   useEffect(() => {
     const fetchLeaveTypes = async () => {
@@ -311,8 +300,6 @@ const AssignLeaveForm: React.FC<Props> = ({ balances, onSubmitted }) => {
     if (fromDate && toDate && new Date(toDate) < new Date(fromDate))
       errs.push("To date cannot be earlier than From date");
     if (!reason.trim()) errs.push("Reason is required");
-    if (selectedLeaveType?.name.toLowerCase().includes("medical") && attachments.length === 0)
-      errs.push("Medical leave requires a supporting document");
     setErrors(errs);
     return errs.length === 0;
   };
@@ -320,7 +307,6 @@ const AssignLeaveForm: React.FC<Props> = ({ balances, onSubmitted }) => {
   const resetForm = () => {
     setDateSelection({ startDate: "", endDate: "", halfDay: false });
     setReason("");
-    setAttachments([]);
     setErrors([]);
     setSelectedEmployee(null);
     if (leaveTypes.length > 0) setLeaveTypeId(String(leaveTypes[0].id));
@@ -329,19 +315,10 @@ const AssignLeaveForm: React.FC<Props> = ({ balances, onSubmitted }) => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSuccess(false);
+    setSuccess(null);
     if (!validate()) return;
     setSubmitting(true);
     try {
-      let uploadedFileUrls: string[] = [];
-      for (const file of attachments) {
-        const formData = new FormData();
-        formData.append("file", file);
-        const uploadRes = await apiFetch(`/leave/upload`, { method: "POST", body: formData });
-        const uploadData = await uploadRes.json();
-        if (!uploadRes.ok) throw new Error(uploadData.detail || `Failed to upload ${file.name}`);
-        uploadedFileUrls.push(uploadData.file_url);
-      }
       const payload = {
         employee_id: selectedEmployee!.id,
         leave_type_id: Number(leaveTypeId),
@@ -349,15 +326,16 @@ const AssignLeaveForm: React.FC<Props> = ({ balances, onSubmitted }) => {
         end_date: toDate,
         half_day: halfDay,
         reason,
-        attachment_urls: uploadedFileUrls,
+        attachment_urls: [],
       };
       const res = await apiFetch(`/leave/assign`, { method: "POST", body: JSON.stringify(payload) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || "Failed to submit leave request");
-      setSuccess(true);
+      // Use the status returned by the API to show the right message
+      setSuccess(data.status ?? "APPROVED");
       resetForm();
       onSubmitted?.();
-      setTimeout(() => setSuccess(false), 3000);
+      setTimeout(() => setSuccess(null), 4000);
     } catch (error) {
       setErrors([error instanceof Error ? error.message : "Something went wrong"]);
     } finally {
@@ -370,8 +348,26 @@ const AssignLeaveForm: React.FC<Props> = ({ balances, onSubmitted }) => {
   return (
     <form onSubmit={handleSubmit} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 mt-6">
       {success && (
-        <div className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-4 py-3 rounded-xl mb-5 flex items-center gap-2 text-sm font-medium">
-          ✓ Leave assigned successfully — pending HR/Admin approval
+        <div className={`px-4 py-3 rounded-xl mb-5 flex items-center gap-2 text-sm font-medium border ${
+          success === "PENDING_MEDICAL"
+            ? "bg-amber-50 text-amber-700 border-amber-200"
+            : "bg-emerald-50 text-emerald-700 border-emerald-200"
+        }`}>
+          {success === "PENDING_MEDICAL" ? (
+            <>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+              Medical leave assigned — pending HR/Admin review
+            </>
+          ) : (
+            <>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+              Leave assigned and approved successfully
+            </>
+          )}
         </div>
       )}
       {errors.length > 0 && (
@@ -437,55 +433,7 @@ const AssignLeaveForm: React.FC<Props> = ({ balances, onSubmitted }) => {
         />
       </div>
 
-      {/* Attachment */}
-      <div className="mb-6">
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">
-          Attachment <span className="text-gray-400 font-normal">(optional)</span>
-        </label>
-        <div
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-          className={`flex justify-center items-center px-6 py-8 border border-dashed rounded-xl transition-colors ${
-            isDragging ? "border-[#EE7F22] bg-orange-50" : "border-gray-200 bg-gray-50/50"
-          }`}
-        >
-          <div className="flex flex-col items-center gap-2 text-center">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-gray-300">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
-            </svg>
-            <div className="flex items-center gap-1 text-sm text-gray-500">
-              <label htmlFor="file-upload" className="cursor-pointer font-medium text-[#EE7F22] hover:text-orange-600 transition-colors">
-                Click to upload
-                <input id="file-upload" name="attachments" type="file" multiple className="sr-only"
-                  onChange={(e) => { if (e.target.files) addFiles(e.target.files); }} />
-              </label>
-              <span>or drag and drop</span>
-            </div>
-            <p className="text-xs text-gray-400">PDF, JPG up to 5MB</p>
-          </div>
-        </div>
 
-        {attachments.length > 0 && (
-          <ul className="mt-3 space-y-1.5">
-            {attachments.map((file, i) => (
-              <li key={i} className="flex items-center justify-between bg-gray-50 border border-gray-100 px-3 py-2 rounded-lg text-sm">
-                <div className="flex items-center gap-2 min-w-0">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400 flex-shrink-0">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
-                  </svg>
-                  <span className="truncate text-gray-700">{file.name}</span>
-                </div>
-                <button type="button" onClick={() => removeFile(i)} className="flex-shrink-0 text-gray-400 hover:text-red-500 transition-colors ml-3">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-                  </svg>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
 
       {/* Actions */}
       <div className="flex justify-end gap-3 pt-2 border-t border-gray-100">

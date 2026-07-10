@@ -31,6 +31,8 @@ type BackendLeaveRequest = {
   manager_comment?: string | null;
   approved_by?: number | null;
   approved_date?: string | null;
+  assigned_by?: number | null;
+  assigned_by_name?: string | null;
   employee_name?: string | null;
   employee_code?: string | null;
   department?: string | null;
@@ -81,6 +83,7 @@ function mapBackendToFrontend(item: BackendLeaveRequest): ApprovalRequest {
     reason: item.reason || 'No reason provided',
     balances: [],
     status: item.status,
+    assignedByName: item.assigned_by_name || null,
   };
 }
 
