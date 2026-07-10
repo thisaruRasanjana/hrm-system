@@ -403,20 +403,16 @@ def get_pending_requests(db: Session, user: dict):
         .filter(LeaveRequest.status.in_(["PENDING", "PENDING_MEDICAL"]))
     )
 
-    # HR → see all except their own
+    # HR → see all except their own self-requested leaves
     if role == "hr":
         query = query.filter(LeaveRequest.employee_id != user["id"])
-        # Assigned leaves (assigned_by set) can only be actioned by HR/Admin
-        # (leave:assign holders), never by the assigner. Hide the ones a reviewer
-        # can't act on so the queue only shows actionable items.
-        if user.get("can_assign"):
-            query = query.filter(
-                or_(LeaveRequest.assigned_by.is_(None),
-                    LeaveRequest.assigned_by != user["id"])
-            )
-        else:
-            # Managers (who also hold leave:approve) see only non-assigned leaves
-            # from their department team members
+        # All HR/Admin with can_assign see ALL assigned-pending leaves
+        # (including ones they themselves assigned) so the queue is never empty.
+        # The approval gate in router.py still prevents the assigner from
+        # approving their own assigned leaves (separation of duties).
+        if not user.get("can_assign"):
+            # Managers (leave:approve but not leave:assign) see only
+            # non-assigned leaves from their department team members.
             team = get_team_members(db, user["id"])
             query = query.filter(
                 LeaveRequest.assigned_by.is_(None),
@@ -431,6 +427,8 @@ def get_pending_requests(db: Session, user: dict):
     for leave, leave_type_name in results:
         leave.leave_type_name = leave_type_name
         _attach_employee_info(db, leave)
+        # Resolve who assigned this leave (if applicable)
+        leave.assigned_by_name = _resolve_approver_name(db, leave.assigned_by)
         output.append(leave)
 
     return output
@@ -535,11 +533,25 @@ def create_leave(db: Session, employee_id: int, data: LeaveRequestCreate, auto_a
     leave_type = db.query(LeaveType).filter(LeaveType.id == data.leave_type_id).first()
 
     if has_overlapping_leave(db, employee_id, data.start_date, data.end_date):
-        raise HTTPException(status_code=400,detail="You already have a leave request for these dates")
+        raise HTTPException(status_code=400, detail="You already have a leave request for these dates")
 
     total_days = calculate_total_days(db, data.start_date, data.end_date, data.half_day)
 
     _enforce_balance(db, employee_id, leave_type, total_days, data.start_date)
+
+    # ── Determine initial status for assigned leaves ───────────────────────────
+    # Medical leave assigned by HR stays PENDING so another HR/Admin can review it.
+    # All other leave types (Annual, Casual, etc.) are immediately APPROVED when
+    # HR assigns them on behalf of an employee.
+    is_medical = leave_type is not None and "medical" in leave_type.name.lower()
+    if assigned_by is not None:
+        if is_medical:
+            initial_status = "PENDING_MEDICAL"
+        else:
+            initial_status = "APPROVED"
+            auto_approve = True  # used below to gate notifications
+    else:
+        initial_status = "APPROVED" if auto_approve else "PENDING"
 
     req = LeaveRequest(
         employee_id=employee_id,
@@ -548,10 +560,13 @@ def create_leave(db: Session, employee_id: int, data: LeaveRequestCreate, auto_a
         end_date=data.end_date,
         total_days=total_days,
         half_day=data.half_day,
-        status="APPROVED" if auto_approve else "PENDING",
+        status=initial_status,
         reason=data.reason,
         attachment_urls=data.attachment_urls,
         assigned_by=assigned_by,
+        # When auto-approving an assigned leave, record the assigner as approver
+        approved_by=assigned_by if (assigned_by is not None and not is_medical) else None,
+        approved_date=date.today() if (assigned_by is not None and not is_medical) else None,
     )
 
     try:
@@ -561,30 +576,40 @@ def create_leave(db: Session, employee_id: int, data: LeaveRequestCreate, auto_a
         db.commit()
         db.refresh(req)
 
-        # ── If HR assigned this leave, notify the employee + HR/Admin approvers ─
+        # ── If HR assigned this leave, send notifications ──────────────────────
         if assigned_by is not None:
             try:
                 from app.notifications.service import notify_permission, notify_employee, get_employee_name
                 _emp_name = get_employee_name(db, employee_id)
                 _lt = leave_type.name if leave_type else "leave"
-                notify_employee(
-                    db, employee_id,
-                    f"HR assigned a {_lt} leave for you, pending approval",
-                    category="leave", type="info", link="/leave-history",
-                    entity_type="leave_request", entity_id=str(req.leave_request_id),
-                )
-                notify_permission(
-                    db, "leave:assign",
-                    f"{_emp_name}'s {_lt} leave was assigned and needs approval",
-                    category="leave", type="info", link="/approval",
-                    entity_type="leave_request", entity_id=str(req.leave_request_id),
-                    exclude_employee_id=assigned_by,
-                )
+                if is_medical:
+                    # Medical: still pending, notify employee and other HR/Admin to review
+                    notify_employee(
+                        db, employee_id,
+                        f"HR assigned a {_lt} leave for you — pending approval",
+                        category="leave", type="info", link="/leave-history",
+                        entity_type="leave_request", entity_id=str(req.leave_request_id),
+                    )
+                    notify_permission(
+                        db, "leave:assign",
+                        f"{_emp_name}'s {_lt} leave was assigned and needs approval",
+                        category="leave", type="info", link="/approval",
+                        entity_type="leave_request", entity_id=str(req.leave_request_id),
+                        exclude_employee_id=assigned_by,
+                    )
+                else:
+                    # Non-medical: auto-approved, just notify the employee
+                    notify_employee(
+                        db, employee_id,
+                        f"HR assigned and approved a {_lt} leave for you",
+                        category="leave", type="success", link="/leave-history",
+                        entity_type="leave_request", entity_id=str(req.leave_request_id),
+                    )
                 db.commit()
             except Exception as e:
                 _notif_logger.error(f"[Leave] Notification failed for assign: {e}")
 
-        # ── Notify leave approvers ──────────────────────────────────────
+        # ── Notify leave approvers for self-requested (non-assigned) leaves ────
         if assigned_by is None and not auto_approve:
             try:
                 from app.notifications.service import notify_permission, get_employee_name
@@ -592,7 +617,7 @@ def create_leave(db: Session, employee_id: int, data: LeaveRequestCreate, auto_a
                 leave_type_name = leave_type.name if leave_type else "leave"
                 notify_permission(
                     db, "leave:approve",
-                    f"{emp_name} requested {leave_type_name} leave ({data.start_date} \u2013 {data.end_date})",
+                    f"{emp_name} requested {leave_type_name} leave ({data.start_date} – {data.end_date})",
                     category="leave", type="info", link="/approval",
                     entity_type="leave_request", entity_id=str(req.leave_request_id),
                     exclude_employee_id=employee_id,

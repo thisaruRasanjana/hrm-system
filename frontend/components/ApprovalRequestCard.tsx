@@ -9,6 +9,7 @@ import {
   CircleUserRound,
   CheckCircle2,
   Stethoscope,
+  UserCheck,
 } from 'lucide-react';
 
 export interface ApprovalRequest {
@@ -31,6 +32,7 @@ export interface ApprovalRequest {
     remaining?: number | string | null;
   }[];
   status: string;
+  assignedByName?: string | null;
 }
 
 interface Props {
@@ -40,6 +42,7 @@ interface Props {
 
 export default function ApprovalRequestCard({ request, onReview }: Props) {
   const isPendingMedical = request.status === 'PENDING_MEDICAL';
+  const isAssigned = !!request.assignedByName;
   const isReportUploaded = 
     request.status === 'PENDING' && 
     request.leaveType.toLowerCase().includes('medical') && 
@@ -67,19 +70,28 @@ export default function ApprovalRequestCard({ request, onReview }: Props) {
           </div>
         </div>
 
-        {isPendingMedical && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-teal-100 px-2.5 py-0.5 text-xs font-semibold text-teal-800">
-            <Stethoscope size={13} />
-            Pending Medical
-          </span>
-        )}
+        <div className="flex flex-col items-end gap-1.5">
+          {isPendingMedical && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-teal-100 px-2.5 py-0.5 text-xs font-semibold text-teal-800">
+              <Stethoscope size={13} />
+              Pending Medical
+            </span>
+          )}
 
-        {isReportUploaded && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-800 border border-emerald-200 animate-pulse">
-            <CheckCircle2 size={13} />
-            Report Uploaded
-          </span>
-        )}
+          {isReportUploaded && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-800 border border-emerald-200 animate-pulse">
+              <CheckCircle2 size={13} />
+              Report Uploaded
+            </span>
+          )}
+
+          {isAssigned && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-semibold text-orange-700 border border-orange-200">
+              <UserCheck size={12} />
+              Assigned
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="mt-4 space-y-3">
@@ -119,6 +131,16 @@ export default function ApprovalRequestCard({ request, onReview }: Props) {
           <div className="flex items-center gap-2">
             <Paperclip size={16} className="text-[#667085]" />
             <p className="text-[14px] text-[#344054]">Has attachment</p>
+          </div>
+        )}
+
+        {isAssigned && request.assignedByName && (
+          <div className="flex items-center gap-2 rounded-lg bg-orange-50 border border-orange-100 px-2.5 py-1.5">
+            <UserCheck size={14} className="text-orange-500 flex-shrink-0" />
+            <div>
+              <p className="text-[11px] text-orange-400 leading-none">Assigned by HR</p>
+              <p className="text-[13px] font-medium text-orange-700">{request.assignedByName}</p>
+            </div>
           </div>
         )}
       </div>

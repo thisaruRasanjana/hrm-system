@@ -113,12 +113,13 @@ def leave_actor(*permissions: str):
     return _dep
 
 
-def _guard_assigned_request(req, current_user: dict) -> None:
+def _guard_self_approve(req, current_user: dict) -> None:
     """
-    Extra gate for leaves created via /leave/assign (assigned_by is set):
-    only HR/Admin (leave:assign holders) may action them, and never the person
-    who assigned it (separation of duties). Managers are excluded.
-    Normal self-requests (assigned_by is None) are unaffected.
+    Prevents an HR/Admin user from approving a leave that they themselves
+    assigned (separation of duties — only approval is restricted).
+    Other actions (reject, request-info, request-medical) are allowed
+    even for the original assigner.
+    Normal self-requested leaves (assigned_by is None) are unaffected.
     """
     if getattr(req, "assigned_by", None) is None:
         return
@@ -280,7 +281,6 @@ def approve_request(
     if req.employee_id == current_user["id"]:
         raise HTTPException(status_code=403, detail="Cannot approve your own request")
 
-    _guard_assigned_request(req, current_user)
 
     try:
         return approve_leave_request(
@@ -312,8 +312,6 @@ def reject_request(
     if req.employee_id == current_user["id"]:
         raise HTTPException(status_code=403, detail="Cannot reject your own request")
 
-    _guard_assigned_request(req, current_user)
-
     return reject_leave_request(
         db,
         request_id,
@@ -339,8 +337,6 @@ def request_info(
 
     if req.employee_id == current_user["id"]:
         raise HTTPException(status_code=403, detail="Cannot request info for own request")
-
-    _guard_assigned_request(req, current_user)
 
     return request_info_leave_request(
         db,
@@ -394,8 +390,6 @@ def request_medical_docs(
 
     if req.employee_id == current_user["id"]:
         raise HTTPException(status_code=403, detail="Cannot flag your own request")
-
-    _guard_assigned_request(req, current_user)
 
     try:
         return request_medical_leave(
