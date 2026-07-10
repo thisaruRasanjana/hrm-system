@@ -47,10 +47,12 @@ export default function EventsPage() {
 
   useEffect(() => { load(); }, [filter]);
 
-  const filtered = events.filter((e) =>
-    e.title.toLowerCase().includes(search.toLowerCase()) ||
-    (e.location ?? "").toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = events
+    .filter((e) =>
+      e.title.toLowerCase().includes(search.toLowerCase()) ||
+      (e.location ?? "").toLowerCase().includes(search.toLowerCase())
+    )
+    .sort((a, b) => new Date(b.event_date).getTime() - new Date(a.event_date).getTime());
 
   const openCreate = () => { setEditItem(null); setFormTitle(""); setFormDesc(""); setFormDate(""); setFormLocation(""); setModalOpen(true); };
   const openEdit = (ev: Event) => { setEditItem(ev); setFormTitle(ev.title); setFormDesc(ev.description || ""); setFormDate(ev.event_date.slice(0, 16)); setFormLocation(ev.location || ""); setModalOpen(true); };
@@ -95,8 +97,10 @@ export default function EventsPage() {
     const diffTime = eDate.getTime() - tDate.getTime();
     const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
 
-    if (diffDays <= 0) return "Today";
+    if (diffDays === 0) return "Today";
     if (diffDays === 1) return "Tomorrow";
+    if (diffDays === -1) return "Yesterday";
+    if (diffDays < -1) return `${Math.abs(diffDays)} days ago`;
     return `In ${diffDays} days`;
   };
 
