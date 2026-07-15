@@ -4,6 +4,7 @@ from datetime import date
 from sqlalchemy import or_, cast, String, func, extract
 
 from app.leave.models import LeaveRequest, LeaveType, LeaveEntitlement, EmployeeLeaveEntitlement, LeaveAuditLog
+from app.leave.accrual_models import EmployeeLeaveAccrualRule
 from app.leave.schemas import LeaveRequestCreate
 
 from fastapi import HTTPException
@@ -131,6 +132,18 @@ def _entitlement_for(db: Session, employee_id: int, leave_type: LeaveType,
     if emp_override is not None:
         return float(emp_override.days)
 
+    # 1.5. Check if employee is on a fixed term contract (has an end_date)
+    from app.employees.models import EmployeeDesignationHistory
+    latest_desig = (
+        db.query(EmployeeDesignationHistory)
+        .filter(EmployeeDesignationHistory.employee_id == employee_id)
+        .order_by(EmployeeDesignationHistory.start_date.desc())
+        .first()
+    )
+    if latest_desig is not None and latest_desig.end_date is not None:
+        # Fixed-term employees ONLY get leave they are explicitly overridden for
+        return 0.0
+
     # 2. Per-role entitlement
     if role_id is None:
         role_id = _employee_role_id(db, employee_id)
@@ -162,6 +175,88 @@ def _entitlement_for(db: Session, employee_id: int, leave_type: LeaveType,
     return base_entitlement
 
 
+def _get_accrual_balance(db: Session, employee_id: int, leave_type_id: int, today: date | None = None) -> dict | None:
+    """Compute the accrual-mode balance for one employee/type pair.
+
+    Returns None if no accrual rule exists (caller falls back to flat mode).
+
+    Logic:
+      • elapsed_months = full calendar months from period_start up to
+        min(today, period_end) — inclusive of the start month.
+      • total_accrued  = elapsed_months × days_per_month, optionally capped
+        so the running balance never exceeds max_carry_forward.
+      • total_used     = APPROVED leaves taken since period_start.
+      • total_balance  = max(0, total_accrued - total_used).
+      • this_month_balance = days earned this month minus days used this month.
+    """
+    if today is None:
+        today = date.today()
+
+    rule = (
+        db.query(EmployeeLeaveAccrualRule)
+        .filter(
+            EmployeeLeaveAccrualRule.employee_id == employee_id,
+            EmployeeLeaveAccrualRule.leave_type_id == leave_type_id,
+        )
+        .first()
+    )
+    if rule is None:
+        return None
+
+    # Effective accrual window ceiling
+    accrual_end = min(today, rule.period_end) if rule.period_end else today
+
+    # Months elapsed — any started month counts as a full month
+    y_diff = accrual_end.year - rule.period_start.year
+    m_diff = accrual_end.month - rule.period_start.month
+    elapsed_months = max(0, y_diff * 12 + m_diff + 1)  # +1 includes start month
+
+    raw_accrued = elapsed_months * rule.days_per_month
+
+    # Total days approved since period_start
+    total_used = float(
+        db.query(func.coalesce(func.sum(LeaveRequest.total_days), 0.0))
+        .filter(
+            LeaveRequest.employee_id == employee_id,
+            LeaveRequest.leave_type_id == leave_type_id,
+            LeaveRequest.status == "APPROVED",
+            LeaveRequest.start_date >= rule.period_start,
+        )
+        .scalar()
+        or 0.0
+    )
+
+    # Carry forward is now unlimited
+    total_accrued = raw_accrued
+
+    total_balance = max(0.0, total_accrued - total_used)
+
+    # Sub-ledger for the current calendar month
+    month_start = today.replace(day=1)
+    used_this_month = float(
+        db.query(func.coalesce(func.sum(LeaveRequest.total_days), 0.0))
+        .filter(
+            LeaveRequest.employee_id == employee_id,
+            LeaveRequest.leave_type_id == leave_type_id,
+            LeaveRequest.status == "APPROVED",
+            LeaveRequest.start_date >= month_start,
+            LeaveRequest.start_date <= today,
+        )
+        .scalar()
+        or 0.0
+    )
+    this_month_balance = max(0.0, rule.days_per_month - used_this_month)
+
+    return {
+        "mode": "accrual",
+        "days_per_month": rule.days_per_month,
+        "total_accrued": round(total_accrued, 2),
+        "total_used": round(total_used, 2),
+        "total_balance": round(total_balance, 2),
+        "this_month_balance": round(this_month_balance, 2),
+    }
+
+
 def get_leave_balances(db: Session, employee_id: int, year: int | None = None) -> list[dict]:
     """
     Per-type balance for the current year:
@@ -169,10 +264,36 @@ def get_leave_balances(db: Session, employee_id: int, year: int | None = None) -
     """
     if year is None:
         year = date.today().year
+    today = date.today()
     role_id = _employee_role_id(db, employee_id)
     balances = []
     for lt in db.query(LeaveType).order_by(LeaveType.id).all():
+        # --- Accrual mode: check for a monthly accrual rule first ---
+        accrual = _get_accrual_balance(db, employee_id, lt.id, today=today)
+        if accrual is not None:
+            # pending days are still counted from leave requests
+            pending = _used_days(db, employee_id, lt.id, year, ["PENDING", "REQ_INFO"])
+            balances.append({
+                "leave_type_id": lt.id,
+                "leave_type_name": lt.name,
+                "entitlement": None,        # not applicable in accrual mode
+                "used_days": accrual["total_used"],
+                "pending_days": pending,
+                "remaining": max(0.0, accrual["total_balance"] - pending),  # maps to the widget 'remaining' field
+                # accrual-specific extras
+                "mode": "accrual",
+                "days_per_month": accrual["days_per_month"],
+                "total_accrued": accrual["total_accrued"],
+                "total_balance": accrual["total_balance"],
+                "this_month_balance": accrual["this_month_balance"],
+            })
+            continue
+
+        # --- Flat mode (existing logic, unchanged) ---
         entitlement = _entitlement_for(db, employee_id, lt, role_id=role_id, year=year)
+        if entitlement == 0.0:
+            continue  # Hide leave types that the employee is not entitled to
+
         used = _used_days(db, employee_id, lt.id, year, ["APPROVED"])
         pending = _used_days(db, employee_id, lt.id, year, ["PENDING", "REQ_INFO"])
         remaining = None
@@ -185,15 +306,36 @@ def get_leave_balances(db: Session, employee_id: int, year: int | None = None) -
             "used_days": used,
             "pending_days": pending,
             "remaining": remaining,
+            "mode": "flat",
         })
     return balances
 
 
 def _enforce_balance(db: Session, employee_id: int, leave_type: LeaveType, requested_days: float,
                      start_date: date, exclude_request_id: int | None = None) -> None:
-    """Reject the request if it exceeds the remaining entitlement for that year."""
+    """Reject the request if it exceeds the remaining balance (accrual or flat)."""
     if leave_type is None:
         return
+
+    # --- Accrual mode: check against dynamically computed total_balance ---
+    accrual = _get_accrual_balance(db, employee_id, leave_type.id)
+    if accrual is not None:
+        # Also count pending/req-info requests as committed so they can't be stacked
+        year = start_date.year
+        pending_committed = _used_days(
+            db, employee_id, leave_type.id, year,
+            ["PENDING", "REQ_INFO"],
+            exclude_request_id=exclude_request_id,
+        )
+        available = max(0.0, accrual["total_balance"] - pending_committed)
+        if requested_days > available:
+            raise ValueError(
+                f"Insufficient {leave_type.name} leave balance: "
+                f"{available:g} day(s) available (accrual), {requested_days:g} requested"
+            )
+        return
+
+    # --- Flat mode (existing logic) ---
     year = start_date.year
     entitlement = _entitlement_for(db, employee_id, leave_type, year=year)
     if entitlement is None:
@@ -295,14 +437,26 @@ def get_employee_leave_entitlements(db: Session, employee_id: int) -> dict:
         for e in db.query(EmployeeLeaveEntitlement).filter(EmployeeLeaveEntitlement.employee_id == employee_id).all()
     }
 
+    from app.leave.models import EmployeeLeaveAccrualRule
+    accrual_rules = {
+        r.leave_type_id: r
+        for r in db.query(EmployeeLeaveAccrualRule).filter(EmployeeLeaveAccrualRule.employee_id == employee_id).all()
+    }
+
     entries = []
     for lt in types:
         override = overrides.get(lt.id)
+        accrual = accrual_rules.get(lt.id)
+        
+        mode = "accrual" if accrual else "flat"
+        
         entries.append({
             "leave_type_id": lt.id,
             "leave_type_name": lt.name,
             "days": override if override is not None else None,
-            "is_override": override is not None,
+            "is_override": override is not None or accrual is not None,
+            "mode": mode,
+            "days_per_month": accrual.days_per_month if accrual else None,
         })
         
     return {
@@ -326,6 +480,19 @@ def set_employee_leave_entitlements(db: Session, employee_id: int, items: list) 
             raise ValueError(f"Invalid leave_type_id {item.leave_type_id}")
         if item.days is not None and item.days < 0:
             raise ValueError("Entitlement days cannot be negative")
+
+        # Check if days_per_month was explicitly provided in the payload
+        if "days_per_month" in item.model_dump(exclude_unset=True):
+            from app.leave.models import EmployeeLeaveAccrualRule
+            accrual_rule = db.query(EmployeeLeaveAccrualRule).filter(
+                EmployeeLeaveAccrualRule.employee_id == employee_id,
+                EmployeeLeaveAccrualRule.leave_type_id == item.leave_type_id
+            ).first()
+            if accrual_rule:
+                if item.days_per_month is None:
+                    db.delete(accrual_rule)
+                else:
+                    accrual_rule.days_per_month = item.days_per_month
 
         row = (
             db.query(EmployeeLeaveEntitlement)
@@ -414,9 +581,11 @@ def get_pending_requests(db: Session, user: dict):
             # Managers (leave:approve but not leave:assign) see only
             # non-assigned leaves from their department team members.
             team = get_team_members(db, user["id"])
+            if not team:
+                return []
             query = query.filter(
                 LeaveRequest.assigned_by.is_(None),
-                LeaveRequest.employee_id.in_(team) if team else False,
+                LeaveRequest.employee_id.in_(team),
             )
     else:
         return []

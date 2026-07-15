@@ -94,6 +94,13 @@ class LeaveBalanceOut(BaseModel):
     pending_days: float
     remaining: Optional[float] = None     # None = unlimited
 
+    # --- Monthly accrual mode fields (populated only when mode == "accrual") ---
+    mode: str = "flat"                        # "flat" | "accrual"
+    days_per_month: Optional[float] = None    # accrual rate
+    total_accrued: Optional[float] = None     # total days earned so far in the period
+    total_balance: Optional[float] = None     # total_accrued - total_used (the true available balance)
+    this_month_balance: Optional[float] = None  # balance available specifically for the current month
+
 
 class EntitlementItem(BaseModel):
     role_id: int
@@ -130,6 +137,7 @@ class EntitlementMatrixOut(BaseModel):
 class EmployeeEntitlementItem(BaseModel):
     leave_type_id: int
     days: Optional[float] = None
+    days_per_month: Optional[float] = None
 
 
 class EmployeeEntitlementEntry(BaseModel):
@@ -137,6 +145,8 @@ class EmployeeEntitlementEntry(BaseModel):
     leave_type_name: str
     days: Optional[float] = None
     is_override: bool
+    mode: str = "flat"
+    days_per_month: Optional[float] = None
 
 
 class EmployeeEntitlementOut(BaseModel):

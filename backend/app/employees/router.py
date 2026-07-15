@@ -21,6 +21,24 @@ def list_panel_options(db: Session = Depends(get_db)):
     return [schemas.EmployeePanelOption.from_employee(emp) for emp in employees]
 
 
+@router.get("/{employee_id}/accrual-rules", dependencies=[Depends(require_permission("employee:view_all"))])
+def get_accrual_rules(employee_id: int, db: Session = Depends(get_db)):
+    """Return all monthly accrual rules for an employee."""
+    from app.leave.accrual_models import EmployeeLeaveAccrualRule
+    rules = db.query(EmployeeLeaveAccrualRule).filter(
+        EmployeeLeaveAccrualRule.employee_id == employee_id
+    ).all()
+    return [
+        {
+            "leave_type_id": r.leave_type_id,
+            "days_per_month": r.days_per_month,
+            "period_start": str(r.period_start),
+            "period_end": str(r.period_end) if r.period_end else None,
+        }
+        for r in rules
+    ]
+
+
 @router.get("/{employee_id}", response_model=schemas.EmployeeOut, dependencies=[Depends(require_permission("employee:view_all"))])
 def read_employee(employee_id: int, db: Session = Depends(get_db)):
     db_employee = service.get_employee_by_id(db, employee_id=employee_id)

@@ -51,8 +51,12 @@ def get_active_employees(db: Session):
     """Return only active employees. Used by recruitment interview panel dropdowns."""
     from sqlalchemy.orm import joinedload
     from app.leave.models import EmployeeLeaveEntitlement
+    from app.leave.models import EmployeeLeaveEntitlement
+    from app.leave.models import EmployeeLeaveAccrualRule
     
-    overridden_ids = {r[0] for r in db.query(EmployeeLeaveEntitlement.employee_id).distinct().all()}
+    flat_ids = {r[0] for r in db.query(EmployeeLeaveEntitlement.employee_id).distinct().all()}
+    accrual_ids = {r[0] for r in db.query(EmployeeLeaveAccrualRule.employee_id).distinct().all()}
+    overridden_ids = flat_ids.union(accrual_ids)
     
     employees = db.query(Employee).options(
         joinedload(Employee.user).joinedload(User.roles),
@@ -155,7 +159,7 @@ def create_employee(db: Session, employee: EmployeeCreate, background_tasks: Bac
         db.add(db_user)
         db.flush()
 
-        employee_data = employee.model_dump(exclude={"role_id", "designation_id", "designation_start_date", "designation_end_date", "designation_leave_overrides"})
+        employee_data = employee.model_dump(exclude={"role_id", "designation_id", "designation_start_date", "designation_end_date", "designation_leave_overrides", "designation_accrual_rules"})
         db_employee = Employee(**employee_data, user_id=db_user.id)
         db.add(db_employee)
         db.flush()
@@ -187,10 +191,16 @@ def create_employee(db: Session, employee: EmployeeCreate, background_tasks: Bac
             db.flush()
 
         # If leave overrides were provided at creation time, write them to EmployeeLeaveEntitlement
-        # so the leave module immediately sees the custom allocation (not just in history JSON)
+        # so the leave module immediately sees the custom allocation (not just in history JSON).
+        # Skip leave types that are configured as monthly accrual — they are handled separately.
+        _accrual_type_ids: set[int] = {
+            r.leave_type_id for r in (employee.designation_accrual_rules or [])
+        }
         if employee.designation_leave_overrides:
             from app.leave.models import EmployeeLeaveEntitlement as _ELE, LeaveType as _LeaveType2
             for override in employee.designation_leave_overrides:
+                if override.leave_type_id in _accrual_type_ids:
+                    continue  # accrual mode takes precedence for this type
                 lt = db.query(_LeaveType2).filter(_LeaveType2.id == override.leave_type_id).first()
                 if not lt:
                     continue
@@ -205,6 +215,34 @@ def create_employee(db: Session, employee: EmployeeCreate, background_tasks: Bac
                         employee_id=db_employee.id,
                         leave_type_id=override.leave_type_id,
                         days=override.days,
+                    ))
+
+        # Persist monthly accrual rules (the new optional feature).
+        if employee.designation_accrual_rules:
+            from app.leave.accrual_models import EmployeeLeaveAccrualRule as _ELAR
+            from app.leave.models import LeaveType as _LeaveType3
+            from datetime import date as _date
+            _accrual_start = employee.designation_start_date or employee.joined_date or _date.today()
+            for rule in employee.designation_accrual_rules:
+                if not db.query(_LeaveType3).filter(_LeaveType3.id == rule.leave_type_id).first():
+                    continue
+                existing_rule = db.query(_ELAR).filter(
+                    _ELAR.employee_id == db_employee.id,
+                    _ELAR.leave_type_id == rule.leave_type_id,
+                ).first()
+                if existing_rule:
+                    existing_rule.days_per_month = rule.days_per_month
+                    existing_rule.period_start = _accrual_start
+                    existing_rule.period_end = employee.designation_end_date
+                    existing_rule.max_carry_forward = None
+                else:
+                    db.add(_ELAR(
+                        employee_id=db_employee.id,
+                        leave_type_id=rule.leave_type_id,
+                        days_per_month=rule.days_per_month,
+                        period_start=_accrual_start,
+                        period_end=employee.designation_end_date,
+                        max_carry_forward=None,
                     ))
 
         # Eager-load permissions so the relationship is fully populated after commit
@@ -277,6 +315,7 @@ def update_employee(db: Session, employee_id: int, employee_update: EmployeeUpda
         designation_start_date = update_data.pop("designation_start_date", None)
         designation_end_date = update_data.pop("designation_end_date", None)
         designation_leave_overrides_raw = update_data.pop("designation_leave_overrides", None)
+        designation_accrual_rules_raw = update_data.pop("designation_accrual_rules", None)
 
         # Determine current designation state
         resolved_designation_id = new_designation_id if new_designation_id is not None else db_employee.designation_id
@@ -347,6 +386,36 @@ def update_employee(db: Session, employee_id: int, employee_update: EmployeeUpda
                         employee_id=employee_id,
                         leave_type_id=lt_id,
                         days=lt_days,
+                    ))
+
+        # Upsert monthly accrual rules if provided
+        if designation_accrual_rules_raw is not None:
+            from app.leave.accrual_models import EmployeeLeaveAccrualRule as _ELAR
+            from app.leave.models import LeaveType as _LeaveType2
+            from datetime import date as _date2
+            _accrual_start = designation_start_date or _date2.today()
+            for rule in designation_accrual_rules_raw:
+                lt_id = rule["leave_type_id"] if isinstance(rule, dict) else rule.leave_type_id
+                days_pm = rule["days_per_month"] if isinstance(rule, dict) else rule.days_per_month
+                if not db.query(_LeaveType2).filter(_LeaveType2.id == lt_id).first():
+                    continue
+                existing = db.query(_ELAR).filter(
+                    _ELAR.employee_id == employee_id,
+                    _ELAR.leave_type_id == lt_id,
+                ).first()
+                if existing:
+                    existing.days_per_month = days_pm
+                    existing.period_start = _accrual_start
+                    existing.period_end = designation_end_date
+                    existing.max_carry_forward = None
+                else:
+                    db.add(_ELAR(
+                        employee_id=employee_id,
+                        leave_type_id=lt_id,
+                        days_per_month=days_pm,
+                        period_start=_accrual_start,
+                        period_end=designation_end_date,
+                        max_carry_forward=None,
                     ))
 
         if db_employee.user:

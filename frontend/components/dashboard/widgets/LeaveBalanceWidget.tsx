@@ -13,6 +13,12 @@ interface LeaveBalanceRow {
   used_days: number;
   pending_days: number;
   remaining: number | null;   // null = unlimited
+  // accrual-mode extras
+  mode?: "flat" | "accrual";
+  days_per_month?: number;
+  total_accrued?: number;
+  total_balance?: number;
+  this_month_balance?: number;
 }
 
 interface Props { permissions: string[] }
@@ -81,6 +87,39 @@ export default function LeaveBalanceWidget(_: Props) {
         ) : (
           rows!.map((row, idx) => {
             const color = PALETTE[idx % PALETTE.length];
+            const isAccrual = row.mode === "accrual";
+
+            if (isAccrual) {
+              // ── Monthly accrual display ──────────────────────────────
+              return (
+                <div key={row.leave_type_id}>
+                  <div className="flex justify-between text-sm mb-1">
+                    <span className="text-gray-700">{row.leave_type_name}</span>
+                    <span className="text-[10px] text-orange-500 font-bold uppercase tracking-wide">Monthly</span>
+                  </div>
+                  <div className="flex justify-between text-[12px] text-gray-500 mb-1">
+                    <span>This month</span>
+                    <span className={`font-semibold ${color.text}`}>{row.this_month_balance ?? 0} days</span>
+                  </div>
+                  <div className="flex justify-between text-[12px] text-gray-500">
+                    <span>Total accumulated</span>
+                    <span className={`font-semibold ${color.text}`}>{row.total_balance ?? 0} days</span>
+                  </div>
+                  <div className="bg-gray-100 h-1.5 rounded-full mt-2">
+                    <div
+                      className={`${color.bar} h-1.5 rounded-full transition-all duration-700`}
+                      style={{
+                        width: row.total_accrued && row.total_accrued > 0
+                          ? `${Math.min(100, ((row.total_balance ?? 0) / row.total_accrued) * 100)}%`
+                          : "0%",
+                      }}
+                    />
+                  </div>
+                </div>
+              );
+            }
+
+            // ── Flat / standard display (unchanged) ─────────────────
             const total = row.entitlement;
             const remaining = row.remaining;
             const unlimited = total == null;
