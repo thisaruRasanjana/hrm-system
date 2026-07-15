@@ -74,6 +74,7 @@ class RequestMedicalLeave(BaseModel):
 class LeaveTypeCreate(BaseModel):
     name: str
     description: Optional[str] = None
+    directly_requestable: bool = True
 
 class LeaveTypeOut(BaseModel):
     id: int
