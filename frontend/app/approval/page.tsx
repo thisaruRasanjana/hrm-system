@@ -29,8 +29,8 @@ type BackendLeaveRequest = {
   attachment_urls?: string[] | null;
   rejection_reason?: string | null;
   manager_comment?: string | null;
-  approved_by?: number | null;
   approved_date?: string | null;
+  created_at?: string | null;
   assigned_by?: number | null;
   assigned_by_name?: string | null;
   employee_name?: string | null;
@@ -79,7 +79,7 @@ function mapBackendToFrontend(item: BackendLeaveRequest): ApprovalRequest {
     durationText: item.half_day ? '0.5 Days' : `${item.total_days} Days`,
     hasAttachment: urls.length > 0,
     attachmentUrls: urls,
-    appliedOn: item.start_date,
+    appliedOn: item.created_at || item.start_date,
     reason: item.reason || 'No reason provided',
     balances: [],
     status: item.status,
@@ -225,6 +225,18 @@ export default function ApprovalPage() {
 
     if (sortBy === 'Name') {
       data.sort((a, b) => a.employeeName.localeCompare(b.employeeName));
+    }
+    if (sortBy === 'Newest First') {
+      data.sort((a, b) => new Date(b.appliedOn).getTime() - new Date(a.appliedOn).getTime());
+    }
+    if (sortBy === 'Oldest First') {
+      data.sort((a, b) => new Date(a.appliedOn).getTime() - new Date(b.appliedOn).getTime());
+    }
+    if (sortBy === 'Duration (longest)') {
+      data.sort((a, b) => parseFloat(b.durationText) - parseFloat(a.durationText));
+    }
+    if (sortBy === 'Duration (shortest)') {
+      data.sort((a, b) => parseFloat(a.durationText) - parseFloat(b.durationText));
     }
 
     return data;
@@ -508,6 +520,10 @@ export default function ApprovalPage() {
               >
                 <option>sort by</option>
                 <option>Name</option>
+                <option>Newest First</option>
+                <option>Oldest First</option>
+                <option>Duration (longest)</option>
+                <option>Duration (shortest)</option>
               </select>
               <ChevronDown
                 size={18}
