@@ -8,7 +8,9 @@ from datetime import datetime
 from typing import Optional
 from enum import Enum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from app.core.storage_service import storage
 
 
 class TemplateTypeEnum(str, Enum):
@@ -46,3 +48,14 @@ class TemplateResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+    @field_validator("file_path")
+    @classmethod
+    def _resolve_file_url(cls, v: Optional[str]) -> Optional[str]:
+        """Convert the stored storage key into a ready-to-use URL.
+
+        Local backend → "/uploads/...", S3 backend → presigned URL. The frontend
+        can then fetch/preview it directly (via the fileUrl() helper) without
+        knowing the storage layout.
+        """
+        return storage.get_url(v) if v else None
