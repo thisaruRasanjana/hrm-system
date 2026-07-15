@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import RichTextEditor from "./RichTextEditor";
 import { X, FileText, Upload } from "lucide-react";
 import { apiFetch } from "@/lib/api";
@@ -22,27 +22,40 @@ type Props = {
   onSuccess: () => void;
 };
 
-const CATEGORIES = [
-  "Service Letters",
-  "Salary Letters",
-  "Promotion Letter",
-  "Employment Confirmation",
-  "Bank Letters",
-  "HR Notices",
-  "Other",
-];
+// Internal (non employee-requestable) template categories — e.g. the promotion
+// flow, which matches its template by name/category containing "promotion".
+const INTERNAL_TEMPLATE_CATEGORIES = ["Promotion Letter"];
 
 export default function TemplateEditModal({ template, onClose, onSuccess }: Props) {
   const { closing, triggerClose } = useCloseAnimation(onClose);
   const [name, setName] = useState(template.name);
   const [category, setCategory] = useState(template.category);
+  // DOCX/PDF templates are file-backed → map them to the "FILE" tab so the
+  // upload field actually renders (only "HTML" and "FILE" are valid tab values).
   const [templateType, setTemplateType] = useState<"HTML" | "FILE">(
-    template.template_type as "HTML" | "FILE"
+    template.template_type === "HTML" ? "HTML" : "FILE"
   );
   const [content, setContent] = useState(template.content || "");
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [categories, setCategories] = useState<string[]>([]);
+
+  // Categories mirror the requestable document types so templates stay matchable
+  // to requests. Always include the template's current category so it stays
+  // selectable even if it isn't a request type (e.g. the promotion letter).
+  useEffect(() => {
+    apiFetch("/api/document-types/active/?category=REQUEST")
+      .then((res) => res.json())
+      .then((data) =>
+        setCategories(Array.isArray(data) ? data.map((t: { name: string }) => t.name) : [])
+      )
+      .catch((err) => console.error("Failed to load document types", err));
+  }, []);
+
+  const categoryOptions = Array.from(
+    new Set([template.category, ...categories, ...INTERNAL_TEMPLATE_CATEGORIES].filter(Boolean))
+  ) as string[];
 
   const handleSubmit = async () => {
     if (!name.trim() || !category) {
@@ -56,9 +69,15 @@ export default function TemplateEditModal({ template, onClose, onSuccess }: Prop
     const formData = new FormData();
     if (name) formData.append("name", name);
     if (category) formData.append("category", category);
-    if (templateType) formData.append("template_type", templateType);
-    if (templateType === "HTML" && content) formData.append("content", content);
-    if (templateType === "FILE" && file) formData.append("file", file);
+    if (templateType === "HTML") {
+      formData.append("template_type", "HTML");
+      if (content) formData.append("content", content);
+    } else if (file) {
+      // File-based template: only send a file when the user actually picks a new
+      // one. The backend auto-detects the real type (DOCX/PDF) from the file, so
+      // we must NOT send template_type="FILE" (that would corrupt the type).
+      formData.append("file", file);
+    }
 
     try {
       const res = await apiFetch(`/document-templates/${template.id}`, {
@@ -133,7 +152,7 @@ export default function TemplateEditModal({ template, onClose, onSuccess }: Prop
               className="w-full border border-gray-100 bg-gray-50/50 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#F2924E]/20 transition shadow-sm"
             >
               <option value="">Select a category</option>
-              {CATEGORIES.map((cat) => (
+              {categoryOptions.map((cat) => (
                 <option key={cat} value={cat}>
                   {cat}
                 </option>

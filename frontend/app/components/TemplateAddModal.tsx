@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import RichTextEditor from "./RichTextEditor";
 import { X, FileText, Upload } from "lucide-react";
 import { apiFetch } from "@/lib/api";
@@ -11,26 +11,38 @@ type Props = {
   onSuccess: () => void;
 };
 
-const CATEGORIES = [
-  "Service Letters",
-  "Salary Letters",
-  "Promotion Letter",
-  "Employment Confirmation",
-  "Bank Letters",
-  "HR Notices",
-  "Other",
-];
+// Categories used by internal (non employee-requestable) flows. The promotion
+// flow matches its template by name/category containing "promotion", so this
+// gives promotion templates a proper category without making "Promotion Letter"
+// a requestable document type.
+const INTERNAL_TEMPLATE_CATEGORIES = ["Promotion Letter"];
 
 export default function TemplateAddModal({ onClose, onSuccess }: Props) {
   const { closing, triggerClose } = useCloseAnimation(onClose);
   const [name, setName] = useState("");
   const [category, setCategory] = useState("");
+  const [categories, setCategories] = useState<string[]>([]);
   const [templateType, setTemplateType] = useState<"HTML" | "FILE">("HTML");
   const [content, setContent] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [detectedType, setDetectedType] = useState<"DOCX" | "PDF" | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // Categories mirror the requestable document types, so a request for e.g.
+  // "Salary Confirmation" reliably finds a template categorized the same way.
+  useEffect(() => {
+    apiFetch("/api/document-types/active/?category=REQUEST")
+      .then((res) => res.json())
+      .then((data) =>
+        setCategories(Array.isArray(data) ? data.map((t: { name: string }) => t.name) : [])
+      )
+      .catch((err) => console.error("Failed to load document types", err));
+  }, []);
+
+  const categoryOptions = Array.from(
+    new Set([...categories, ...INTERNAL_TEMPLATE_CATEGORIES])
+  );
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0] || null;
@@ -144,7 +156,7 @@ export default function TemplateAddModal({ onClose, onSuccess }: Props) {
               className="w-full border border-gray-100 bg-gray-50/50 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#F2924E]/30 transition shadow-sm"
             >
               <option value="">Select a category</option>
-              {CATEGORIES.map((cat) => (
+              {categoryOptions.map((cat) => (
                 <option key={cat} value={cat}>
                   {cat}
                 </option>

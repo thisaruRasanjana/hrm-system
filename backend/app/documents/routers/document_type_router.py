@@ -38,9 +38,16 @@ def list_all_document_types(
 def list_active_document_types(
     category: Optional[str] = None,
     db: Session = Depends(get_db),
-    # Upload dropdown needs upload_own; request dropdown needs request_own —
-    # either is enough to read the active catalogue.
-    current_user = Depends(require_any_permission("document:upload_own", "document:request_own"))
+    # Upload dropdown needs upload_own; request dropdown needs request_own.
+    # Template managers also read this catalogue to populate the template-category
+    # dropdown (categories mirror the requestable document types), so allow
+    # template_upload / type_manage too. All are read-only reads of the catalogue.
+    current_user = Depends(require_any_permission(
+        "document:upload_own",
+        "document:request_own",
+        "document:template_upload",
+        "document:type_manage",
+    ))
 ):
     return document_type_service.list_active_document_types(db, category)
 
