@@ -29,7 +29,7 @@ export default function AssignLeavePage() {
         <p className="text-gray-600 text-sm mt-1">Assign leave to an employee who cannot apply for it themselves.</p>
       </div>
 
-      <AssignLeaveForm balances={{}} />
+      <AssignLeaveForm />
     </div>
   );
 }

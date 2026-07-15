@@ -39,6 +39,12 @@ class EmployeeLeaveEntitlementCreate(BaseModel):
     days: float
 
 
+class AccrualRuleCreate(BaseModel):
+    """Monthly leave accrual rule set when adding/editing an employee."""
+    leave_type_id: int
+    days_per_month: float
+
+
 class EmployeeCreate(EmployeeBase):
     department_id: int
     role_id: int
@@ -46,6 +52,7 @@ class EmployeeCreate(EmployeeBase):
     designation_start_date: Optional[date] = None
     designation_end_date: Optional[date] = None
     designation_leave_overrides: Optional[List[EmployeeLeaveEntitlementCreate]] = None
+    designation_accrual_rules: Optional[List[AccrualRuleCreate]] = None
 
 
 class EmployeeUpdate(BaseModel):
@@ -61,6 +68,7 @@ class EmployeeUpdate(BaseModel):
     designation_start_date: Optional[date] = None
     designation_end_date: Optional[date] = None
     designation_leave_overrides: Optional[List[EmployeeLeaveEntitlementCreate]] = None
+    designation_accrual_rules: Optional[List[AccrualRuleCreate]] = None
     joined_date: Optional[date] = None
     status: Optional[EmployeeStatus] = None
     date_of_birth: Optional[date] = None

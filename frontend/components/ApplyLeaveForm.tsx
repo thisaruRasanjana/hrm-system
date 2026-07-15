@@ -5,7 +5,6 @@ import { apiFetch } from "@/lib/api";
 import LeaveDatePicker from "./LeaveDatePicker";
 
 interface Props {
-  balances: Record<string, number>;
   onSubmitted?: () => void;
 }
 
@@ -58,7 +57,7 @@ function calculateWorkingDays(startStr: string, endStr: string, halfDay: boolean
   return workingDays;
 }
 
-const ApplyLeaveForm: React.FC<Props> = ({ balances, onSubmitted }) => {
+const ApplyLeaveForm: React.FC<Props> = ({ onSubmitted }) => {
   const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
   const [leaveTypeId, setLeaveTypeId] = useState<string>("");
 

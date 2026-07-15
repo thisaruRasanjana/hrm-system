@@ -88,6 +88,10 @@ export default function EmployeeAddPage() {
   const [leaveTypes, setLeaveTypes] = useState<{ id: number; name: string; default_days: number | null }[]>([]);
   const [showDesignationOverrides, setShowDesignationOverrides] = useState(false);
   const [customLeaveEntitlements, setCustomLeaveEntitlements] = useState<Record<number, string>>({});
+  // Monthly accrual rules: { [leaveTypeId]: { daysPerMonth: string } }
+  const [accrualRules, setAccrualRules] = useState<Record<number, { daysPerMonth: string }>>({});
+  // Whether each leave type is in "accrual" or "flat" mode
+  const [leaveModes, setLeaveModes] = useState<Record<number, "flat" | "accrual">>({});
 
   useEffect(() => {
     const init = async () => {
@@ -120,12 +124,20 @@ export default function EmployeeAddPage() {
     setIsSubmitting(true);
     try {
       const leave_entitlements = Object.entries(customLeaveEntitlements)
-        .filter(([_, value]) => value !== "")
+        .filter(([typeId, value]) => value !== "" && leaveModes[Number(typeId)] !== "accrual")
         .map(([typeId, value]) => ({ leave_type_id: parseInt(typeId), days: parseFloat(value) }));
 
       if (leave_entitlements.some((e) => Number.isNaN(e.days) || e.days < 0 || e.days > 365)) {
         throw new Error("Pre-assigned leave days must be between 0 and 365.");
       }
+
+      const designation_accrual_rules = Object.entries(accrualRules)
+        .filter(([typeId]) => leaveModes[Number(typeId)] === "accrual")
+        .map(([typeId, rule]) => ({
+          leave_type_id: parseInt(typeId),
+          days_per_month: parseFloat(rule.daysPerMonth),
+        }))
+        .filter((r) => !Number.isNaN(r.days_per_month) && r.days_per_month > 0);
 
       const payload = {
         employee_id: formData.employeeId,
@@ -154,6 +166,7 @@ export default function EmployeeAddPage() {
         bank_account_no: formData.bankAccountNo || null,
         bank_branch: formData.bankBranch || null,
         designation_leave_overrides: leave_entitlements.length > 0 ? leave_entitlements : null,
+        designation_accrual_rules: designation_accrual_rules.length > 0 ? designation_accrual_rules : null,
       };
 
       const created = await api.post<{ id: number }>("/employees/", payload);
@@ -189,7 +202,7 @@ export default function EmployeeAddPage() {
         </Link>
         <div className="flex items-start gap-4">
           <div className="w-12 h-12 rounded-2xl bg-[#EE7F22]/100 flex items-center justify-center flex-shrink-0 shadow-md shadow-orange-200">
-            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><line x1="19" y1="8" x2="19" y2="14" /><line x1="22" y1="11" x2="16" y2="11" /></svg>
           </div>
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Add New Employee</h1>
@@ -213,7 +226,7 @@ export default function EmployeeAddPage() {
       <div className="space-y-5">
         {/* Basic Information */}
         <SectionCard
-          icon={<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>}
+          icon={<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>}
           title="Basic Information"
           description="Personal contact details for the employee"
         >
@@ -264,7 +277,7 @@ export default function EmployeeAddPage() {
 
         {/* Work Information */}
         <SectionCard
-          icon={<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>}
+          icon={<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2" /><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" /></svg>}
           title="Work Information"
           description="Department, role, and employment details"
         >
@@ -331,19 +344,19 @@ export default function EmployeeAddPage() {
           </div>
         </SectionCard>
 
-                {/* Designation Period & Leave Overrides */}
+        {/* Designation Period & Leave Overrides */}
         {!showDesignationOverrides ? (
           <button
             type="button"
             onClick={() => setShowDesignationOverrides(true)}
             className="w-full py-3 border-2 border-dashed border-gray-200 rounded-2xl text-[13px] font-medium text-gray-400 hover:border-[#EE7F22]/30 hover:text-[#EE7F22] hover:bg-[#EE7F22]/5 transition-all duration-200 flex items-center justify-center gap-2"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
             Set Designation Period & Leave Overrides
           </button>
         ) : (
           <SectionCard
-            icon={<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>}
+            icon={<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>}
             title="Designation Period & Leave Overrides"
             description="Optional. If no period is set, the system assumes an open-ended designation with default leave rules."
           >
@@ -357,37 +370,99 @@ export default function EmployeeAddPage() {
                   <p className="text-[11px] text-gray-400 mt-1">Leave blank if open-ended</p>
                 </FormField>
               </div>
+              {/* Leave Overrides Grid */}
               <div>
-                <h3 className="text-[12px] font-bold text-gray-700 uppercase tracking-wider mb-3">Leave Overrides for this period</h3>
+                <h3 className="text-[12px] font-bold text-gray-700 uppercase tracking-wider mb-1">Leave Overrides for this period</h3>
+                <p className="text-[11px] text-gray-400 mb-3">Set a fixed total for each leave type. Leave blank to use the system default.</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                   {leaveTypes.map((type) => {
-                    const hasCustom = !!customLeaveEntitlements[type.id];
+                    const mode = leaveModes[type.id] || "flat";
+                    const isActive = mode === "flat" && !!customLeaveEntitlements[type.id];
                     return (
-                      <div key={type.id} className={`border rounded-xl p-4 transition-all ${hasCustom ? "border-[#EE7F22]/30 bg-[#EE7F22]/10/50" : "border-gray-100 bg-gray-50/50"}`}>
-                        <span className="block text-[12px] font-bold text-gray-700 uppercase tracking-wider truncate">
-                          {type.name}
-                        </span>
-                        <div className="text-[11px] text-gray-400 mt-1">
+                      <div key={type.id} className={`border rounded-xl p-4 transition-all ${isActive ? "border-[#EE7F22]/40 bg-orange-50/40" : "border-gray-100 bg-gray-50/50"}`}>
+                        <span className="block text-[12px] font-bold text-gray-700 uppercase tracking-wider truncate">{type.name}</span>
+                        <div className="text-[11px] text-gray-400 mt-1 mb-3">
                           Default: <span className="font-semibold text-gray-600">{type.default_days != null ? `${type.default_days} days` : "Unlimited"}</span>
                         </div>
-                        <div className="mt-3 relative">
-                          <input
-                            type="number"
-                            step="0.5"
-                            min="0"
-                            placeholder="Custom limit..."
-                            value={customLeaveEntitlements[type.id] || ""}
-                            onChange={(e) => {
-                              setCustomLeaveEntitlements({ ...customLeaveEntitlements, [type.id]: e.target.value });
-                            }}
-                            className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-[13px] text-gray-900 outline-none focus:ring-2 focus:ring-[#EE7F22]/20 focus:border-[#EE7F22] transition-colors"
-                          />
-                        </div>
+                        <input
+                          type="number"
+                          step="0.5"
+                          min="0"
+                          placeholder="Custom limit..."
+                          value={mode === "accrual" ? "" : (customLeaveEntitlements[type.id] || "")}
+                          disabled={mode === "accrual"}
+                          onChange={(e) => setCustomLeaveEntitlements({ ...customLeaveEntitlements, [type.id]: e.target.value })}
+                          className={`w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-[13px] text-gray-900 outline-none focus:ring-2 focus:ring-[#EE7F22]/20 focus:border-[#EE7F22] transition-colors ${mode === "accrual" ? "opacity-40 cursor-not-allowed" : ""}`}
+                        />
+                        {mode === "accrual" && (
+                          <p className="text-[10px] text-orange-500 mt-1.5 font-medium">Managed by monthly accrual below ↓</p>
+                        )}
                       </div>
                     );
                   })}
                 </div>
               </div>
+
+              {/* Monthly Casual Leave Accrual — separate section */}
+              {(() => {
+                const casualType = leaveTypes.find(t => t.name.toLowerCase().includes("casual"));
+                if (!casualType) return null;
+                const isAccrual = leaveModes[casualType.id] === "accrual";
+                return (
+                  <div className={`rounded-2xl border-2 transition-all duration-300 ${isAccrual ? "border-[#EE7F22]/30 bg-gradient-to-br from-orange-50/60 to-amber-50/40" : "border-dashed border-gray-200 bg-gray-50/40"}`}>
+                    <div className="p-5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${isAccrual ? "bg-[#EE7F22] shadow-md shadow-orange-200" : "bg-gray-200"}`}>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={isAccrual ? "white" : "#9ca3af"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
+                            </svg>
+                          </div>
+                          <div>
+                            <p className="text-[13px] font-bold text-gray-700">Monthly Casual Leave</p>
+                            <p className="text-[11px] text-gray-400">Accrues each month. Unused days carry forward.</p>
+                          </div>
+                        </div>
+                        {/* Toggle switch */}
+                        <button
+                          type="button"
+                          onClick={() => setLeaveModes({ ...leaveModes, [casualType.id]: isAccrual ? "flat" : "accrual" })}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-300 focus:outline-none ${isAccrual ? "bg-[#EE7F22]" : "bg-gray-200"}`}
+                        >
+                          <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-md transition-transform duration-300 ${isAccrual ? "translate-x-6" : "translate-x-1"}`} />
+                        </button>
+                      </div>
+
+                      {isAccrual && (
+                        <div className="mt-4 pt-4 border-t border-orange-100">
+                          <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Casual Leave Days Per Month</label>
+                          <div className="flex items-center gap-3">
+                            <input
+                              type="number"
+                              step="0.5"
+                              min="0.5"
+                              placeholder="e.g. 1"
+                              value={accrualRules[casualType.id]?.daysPerMonth || ""}
+                              onChange={(e) => setAccrualRules({ ...accrualRules, [casualType.id]: { daysPerMonth: e.target.value } })}
+                              className="w-32 px-3 py-2 bg-white border border-orange-200 rounded-lg text-[13px] text-gray-900 outline-none focus:ring-2 focus:ring-[#EE7F22]/30 focus:border-[#EE7F22] transition-colors"
+                            />
+                            <span className="text-[12px] text-gray-500">days per month</span>
+                            {accrualRules[casualType.id]?.daysPerMonth && formData.work.designationEndDate && formData.work.designationStartDate && (() => {
+                              const start = new Date(formData.work.designationStartDate);
+                              const end = new Date(formData.work.designationEndDate);
+                              const months = Math.max(0, (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1);
+                              const total = (parseFloat(accrualRules[casualType.id].daysPerMonth) * months).toFixed(1);
+                              return <span className="text-[11px] text-orange-600 font-semibold bg-orange-100 px-2 py-0.5 rounded-full">≈ {total} days over {months} months</span>;
+                            })()}
+                          </div>
+                          <p className="text-[11px] text-gray-400 mt-2">If 2 days/month and employee uses only 1 in January → they carry 1 forward → February starts with 3 days.</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+
               <div className="flex justify-end">
                 <button type="button" onClick={() => setShowDesignationOverrides(false)} className="text-[13px] text-gray-500 hover:text-gray-700 transition-colors">Cancel</button>
               </div>
@@ -402,7 +477,7 @@ export default function EmployeeAddPage() {
             onClick={() => setShowAdditionalInfo(true)}
             className="w-full py-3.5 border-2 border-dashed border-gray-200 rounded-2xl text-sm font-medium text-gray-400 hover:border-orange-300 hover:text-[#EE7F22] transition-all duration-200 flex items-center justify-center gap-2"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
             Add Additional Information (Optional)
           </button>
         )}
@@ -411,7 +486,7 @@ export default function EmployeeAddPage() {
           <>
             {/* Personal Information */}
             <SectionCard
-              icon={<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>}
+              icon={<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /></svg>}
               title="Personal Information"
               description="Optional demographic and personal details"
             >
@@ -445,7 +520,7 @@ export default function EmployeeAddPage() {
 
             {/* Emergency Contact */}
             <SectionCard
-              icon={<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.36 13a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>}
+              icon={<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.36 13a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" /></svg>}
               title="Emergency Contact"
               description="Person to contact in case of emergency"
             >
@@ -466,7 +541,7 @@ export default function EmployeeAddPage() {
 
             {/* Skills & Qualifications */}
             <SectionCard
-              icon={<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>}
+              icon={<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></svg>}
               title="Skills & Qualifications"
               description="Technical skills and educational background"
             >
@@ -492,7 +567,7 @@ export default function EmployeeAddPage() {
 
             {/* Bank Details */}
             <SectionCard
-              icon={<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>}
+              icon={<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2" /><line x1="1" y1="10" x2="23" y2="10" /></svg>}
               title="Bank Details"
               description="For payroll and salary processing"
             >
@@ -516,7 +591,7 @@ export default function EmployeeAddPage() {
         {/* Error */}
         {error && (
           <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm flex items-start gap-3">
-            <svg className="mt-0.5 flex-shrink-0" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <svg className="mt-0.5 flex-shrink-0" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
             <span>{error}</span>
           </div>
         )}
@@ -544,7 +619,7 @@ export default function EmployeeAddPage() {
               disabled={isSubmitting}
               className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#EE7F22]/100 text-white font-semibold text-sm hover:bg-orange-600 shadow-sm hover:shadow-md shadow-orange-200 transition-all duration-200 disabled:opacity-50"
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
               {isSubmitting ? "Saving…" : "Save & Assign Role"}
             </button>
           </div>

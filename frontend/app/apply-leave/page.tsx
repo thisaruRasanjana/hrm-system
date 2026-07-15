@@ -9,21 +9,14 @@ import ApplyLeaveForm from '@/components/ApplyLeaveForm';
 import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/context/auth-context';
 
-type LeaveBalance = {
-  leave_type_id: number;
-  leave_type_name: string;
-  entitlement: number | null;
-  used_days: number;
-  pending_days: number;
-  remaining: number | null;
-};
+import { LeaveBalanceData } from '@/components/LeaveBalanceCards';
 
 export default function ApplyLeavePage() {
   const router = useRouter();
   const { loading: authLoading, hasPermission } = useAuth();
   const canRequest = hasPermission('leave:request');
 
-  const [balances, setBalances] = useState<Record<string, number>>({});
+  const [balances, setBalances] = useState<LeaveBalanceData[]>([]);
 
   // Reviewers without self-service leave (e.g. Super Admin) land on approvals
   useEffect(() => {
@@ -40,12 +33,8 @@ export default function ApplyLeavePage() {
     try {
       const res = await apiFetch('/leave/balance/me');
       if (!res.ok) return;
-      const data: LeaveBalance[] = await res.json();
-      const map: Record<string, number> = {};
-      for (const b of data) {
-        if (b.remaining !== null) map[b.leave_type_name] = b.remaining;
-      }
-      setBalances(map);
+      const data: LeaveBalanceData[] = await res.json();
+      setBalances(data);
     } catch (err) {
       console.error('Failed to load leave balances:', err);
     }
@@ -62,7 +51,7 @@ export default function ApplyLeavePage() {
       <LeaveTabs />
       <LeaveBalanceCards balances={balances} />
 
-      <ApplyLeaveForm balances={balances} onSubmitted={loadBalances} />
+      <ApplyLeaveForm onSubmitted={loadBalances} />
     </div>
   );
 }

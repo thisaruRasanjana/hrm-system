@@ -5,7 +5,6 @@ import { apiFetch } from "@/lib/api";
 import LeaveDatePicker from "./LeaveDatePicker";
 
 interface Props {
-  balances: Record<string, number>;
   onSubmitted?: () => void;
 }
 
@@ -248,7 +247,7 @@ function EmployeePicker({ employees, value, onChange, hasError }: EmployeePicker
 }
 
 // ─── Main Form ────────────────────────────────────────────────────────────────
-const AssignLeaveForm: React.FC<Props> = ({ balances, onSubmitted }) => {
+const AssignLeaveForm: React.FC<Props> = ({ onSubmitted }) => {
   const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
   const [leaveTypeId, setLeaveTypeId] = useState<string>("");
   const [employees, setEmployees] = useState<EmployeeOption[]>([]);

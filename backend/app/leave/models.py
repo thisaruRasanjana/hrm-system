@@ -3,6 +3,10 @@ from sqlalchemy.sql import func
 from app.database.base import Base
 from sqlalchemy import JSON
 
+# Import accrual model so it is registered with SQLAlchemy metadata
+from app.leave.accrual_models import EmployeeLeaveAccrualRule  # noqa: F401
+
+
 class LeaveType(Base):
     __tablename__ = "leave_types"
     id = Column(Integer, primary_key=True, index=True)

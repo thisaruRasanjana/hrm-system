@@ -92,6 +92,8 @@ function EmployeeEditContent() {
   const [leaveTypes, setLeaveTypes] = useState<{ id: number; name: string; default_days: number | null }[]>([]);
   const [showDesignationOverrides, setShowDesignationOverrides] = useState(false);
   const [customLeaveEntitlements, setCustomLeaveEntitlements] = useState<Record<number, string>>({});
+  const [accrualRules, setAccrualRules] = useState<Record<number, { daysPerMonth: string }>>({});
+  const [leaveModes, setLeaveModes] = useState<Record<number, "flat" | "accrual">>({});
 
   // Promotion letter state
   const [initialDesignationId, setInitialDesignationId] = useState<number | null>(null);
@@ -108,6 +110,21 @@ function EmployeeEditContent() {
 
         const types = await api.get<any>("/leave/types");
         setLeaveTypes(types);
+
+        // Load existing accrual rules for this employee
+        try {
+          const accrualData = await api.get<any[]>(`/employees/${id}/accrual-rules`);
+          if (Array.isArray(accrualData) && accrualData.length > 0) {
+            const modes: Record<number, "flat" | "accrual"> = {};
+            const rules: Record<number, { daysPerMonth: string }> = {};
+            accrualData.forEach((r: any) => {
+              modes[r.leave_type_id] = "accrual";
+              rules[r.leave_type_id] = { daysPerMonth: String(r.days_per_month) };
+            });
+            setLeaveModes(modes);
+            setAccrualRules(rules);
+          }
+        } catch { /* no accrual rules yet — ok */ }
 
         // Fetch designations list so we can look up names by ID
         const designationList = await api.get<{ id: number; name: string }[]>("/designations/");
@@ -181,12 +198,20 @@ function EmployeeEditContent() {
     setIsSubmitting(true);
     try {
       const leave_entitlements = Object.entries(customLeaveEntitlements)
-        .filter(([_, value]) => value !== "")
+        .filter(([typeId, value]) => value !== "" && leaveModes[Number(typeId)] !== "accrual")
         .map(([typeId, value]) => ({ leave_type_id: parseInt(typeId), days: parseFloat(value) }));
 
       if (leave_entitlements.some((e) => Number.isNaN(e.days) || e.days < 0 || e.days > 365)) {
         throw new Error("Pre-assigned leave days must be between 0 and 365.");
       }
+
+      const designation_accrual_rules = Object.entries(accrualRules)
+        .filter(([typeId]) => leaveModes[Number(typeId)] === "accrual")
+        .map(([typeId, rule]) => ({
+          leave_type_id: parseInt(typeId),
+          days_per_month: parseFloat(rule.daysPerMonth),
+        }))
+        .filter((r) => !Number.isNaN(r.days_per_month) && r.days_per_month > 0);
 
       const payload = {
         employee_id: formData.employeeId,
@@ -215,6 +240,7 @@ function EmployeeEditContent() {
         bank_account_no: formData.bankAccountNo || null,
         bank_branch: formData.bankBranch || null,
         designation_leave_overrides: leave_entitlements.length > 0 ? leave_entitlements : null,
+        designation_accrual_rules: designation_accrual_rules.length > 0 ? designation_accrual_rules : null,
       };
 
       await api.put(`/employees/${id}`, payload);
@@ -458,36 +484,87 @@ function EmployeeEditContent() {
                 </FormField>
               </div>
               <div>
-                <h3 className="text-[12px] font-bold text-gray-700 uppercase tracking-wider mb-3">Leave Overrides for this period</h3>
+                <h3 className="text-[12px] font-bold text-gray-700 uppercase tracking-wider mb-1">Leave Overrides for this period</h3>
+                <p className="text-[11px] text-gray-400 mb-3">Set a fixed total for each leave type. Leave blank to use the system default.</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                   {leaveTypes.map((type) => {
-                    const hasCustom = !!customLeaveEntitlements[type.id];
+                    const mode = leaveModes[type.id] || "flat";
+                    const isActive = mode === "flat" && !!customLeaveEntitlements[type.id];
                     return (
-                      <div key={type.id} className={`border rounded-xl p-4 transition-all ${hasCustom ? "border-[#EE7F22]/30 bg-[#EE7F22]/10/50" : "border-gray-100 bg-gray-50/50"}`}>
-                        <span className="block text-[12px] font-bold text-gray-700 uppercase tracking-wider truncate">
-                          {type.name}
-                        </span>
-                        <div className="text-[11px] text-gray-400 mt-1">
+                      <div key={type.id} className={`border rounded-xl p-4 transition-all ${isActive ? "border-[#EE7F22]/40 bg-orange-50/40" : "border-gray-100 bg-gray-50/50"}`}>
+                        <span className="block text-[12px] font-bold text-gray-700 uppercase tracking-wider truncate">{type.name}</span>
+                        <div className="text-[11px] text-gray-400 mt-1 mb-3">
                           Default: <span className="font-semibold text-gray-600">{type.default_days != null ? `${type.default_days} days` : "Unlimited"}</span>
                         </div>
-                        <div className="mt-3 relative">
-                          <input
-                            type="number"
-                            step="0.5"
-                            min="0"
-                            placeholder="Custom limit..."
-                            value={customLeaveEntitlements[type.id] || ""}
-                            onChange={(e) => {
-                              setCustomLeaveEntitlements({ ...customLeaveEntitlements, [type.id]: e.target.value });
-                            }}
-                            className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-[13px] text-gray-900 outline-none focus:ring-2 focus:ring-[#EE7F22]/20 focus:border-[#EE7F22] transition-colors"
-                          />
-                        </div>
+                        <input
+                          type="number"
+                          step="0.5"
+                          min="0"
+                          placeholder="Custom limit..."
+                          value={mode === "accrual" ? "" : (customLeaveEntitlements[type.id] || "")}
+                          disabled={mode === "accrual"}
+                          onChange={(e) => setCustomLeaveEntitlements({ ...customLeaveEntitlements, [type.id]: e.target.value })}
+                          className={`w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-[13px] text-gray-900 outline-none focus:ring-2 focus:ring-[#EE7F22]/20 focus:border-[#EE7F22] transition-colors ${mode === "accrual" ? "opacity-40 cursor-not-allowed" : ""}`}
+                        />
+                        {mode === "accrual" && (
+                          <p className="text-[10px] text-orange-500 mt-1.5 font-medium">Managed by monthly accrual below ↓</p>
+                        )}
                       </div>
                     );
                   })}
                 </div>
               </div>
+
+              {/* Monthly Casual Leave Accrual */}
+              {(() => {
+                const casualType = leaveTypes.find(t => t.name.toLowerCase().includes("casual"));
+                if (!casualType) return null;
+                const isAccrual = leaveModes[casualType.id] === "accrual";
+                return (
+                  <div className={`rounded-2xl border-2 transition-all duration-300 ${isAccrual ? "border-[#EE7F22]/30 bg-gradient-to-br from-orange-50/60 to-amber-50/40" : "border-dashed border-gray-200 bg-gray-50/40"}`}>
+                    <div className="p-5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${isAccrual ? "bg-[#EE7F22] shadow-md shadow-orange-200" : "bg-gray-200"}`}>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={isAccrual ? "white" : "#9ca3af"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+                            </svg>
+                          </div>
+                          <div>
+                            <p className="text-[13px] font-bold text-gray-700">Monthly Casual Leave</p>
+                            <p className="text-[11px] text-gray-400">Accrues each month. Unused days carry forward.</p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setLeaveModes({ ...leaveModes, [casualType.id]: isAccrual ? "flat" : "accrual" })}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-300 focus:outline-none ${isAccrual ? "bg-[#EE7F22]" : "bg-gray-200"}`}
+                        >
+                          <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-md transition-transform duration-300 ${isAccrual ? "translate-x-6" : "translate-x-1"}`} />
+                        </button>
+                      </div>
+                      {isAccrual && (
+                        <div className="mt-4 pt-4 border-t border-orange-100">
+                          <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Casual Leave Days Per Month</label>
+                          <div className="flex items-center gap-3">
+                            <input
+                              type="number"
+                              step="0.5"
+                              min="0.5"
+                              placeholder="e.g. 1"
+                              value={accrualRules[casualType.id]?.daysPerMonth || ""}
+                              onChange={(e) => setAccrualRules({ ...accrualRules, [casualType.id]: { daysPerMonth: e.target.value } })}
+                              className="w-32 px-3 py-2 bg-white border border-orange-200 rounded-lg text-[13px] text-gray-900 outline-none focus:ring-2 focus:ring-[#EE7F22]/30 focus:border-[#EE7F22] transition-colors"
+                            />
+                            <span className="text-[12px] text-gray-500">days per month</span>
+                          </div>
+                          <p className="text-[11px] text-gray-400 mt-2">If 2 days/month and employee uses only 1 → they carry 1 forward → next month starts with 3 days.</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
               <div className="flex justify-end">
                 <button type="button" onClick={() => setShowDesignationOverrides(false)} className="text-[13px] text-gray-500 hover:text-gray-700 transition-colors">Cancel</button>
               </div>

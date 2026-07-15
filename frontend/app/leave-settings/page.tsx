@@ -33,6 +33,8 @@ type EmployeeEntitlementEntry = {
   leave_type_name: string;
   days: number | null;
   is_override: boolean;
+  mode?: string;
+  days_per_month?: number | null;
 };
 
 type EmployeeEntitlementsResponse = {
@@ -128,7 +130,11 @@ export default function LeaveSettingsPage() {
       setEmpData(data);
       const d: Record<string, string> = {};
       for (const e of data.entries) {
-        d[empCellKey(e.leave_type_id)] = e.days === null ? '' : String(e.days);
+        if (e.mode === 'accrual') {
+          d[empCellKey(e.leave_type_id)] = e.days_per_month === null ? '' : String(e.days_per_month);
+        } else {
+          d[empCellKey(e.leave_type_id)] = e.days === null ? '' : String(e.days);
+        }
       }
       setEmpDraft(d);
     } catch (err) {
@@ -210,14 +216,28 @@ export default function LeaveSettingsPage() {
     setSaving(true);
     try {
       const items = empData.leave_types.map((t) => {
+        const entry = empData.entries.find((e) => e.leave_type_id === t.id);
         const raw = (empDraft[empCellKey(t.id)] ?? '').trim();
-        return {
-          leave_type_id: t.id,
-          days: raw === '' ? null : Number(raw),
-        };
+        const value = raw === '' ? null : Number(raw);
+        if (entry?.mode === 'accrual') {
+          return {
+            leave_type_id: t.id,
+            days_per_month: value,
+          };
+        } else {
+          return {
+            leave_type_id: t.id,
+            days: value,
+          };
+        }
       });
 
-      const invalid = items.find((i) => i.days !== null && (Number.isNaN(i.days) || i.days < 0));
+      const invalid = items.find((i) => {
+        if ('days_per_month' in i) {
+          return i.days_per_month !== null && (Number.isNaN(i.days_per_month) || i.days_per_month < 0);
+        }
+        return i.days !== null && (Number.isNaN(i.days) || i.days < 0);
+      });
       if (invalid) {
         setMessage('Entitlements must be empty or a number of days (0 or more).');
         setMessageType('error');
@@ -237,7 +257,11 @@ export default function LeaveSettingsPage() {
       setEmpData(data);
       const d: Record<string, string> = {};
       for (const e of data.entries) {
-        d[empCellKey(e.leave_type_id)] = e.days === null ? '' : String(e.days);
+        if (e.mode === 'accrual') {
+          d[empCellKey(e.leave_type_id)] = e.days_per_month === null ? '' : String(e.days_per_month);
+        } else {
+          d[empCellKey(e.leave_type_id)] = e.days === null ? '' : String(e.days);
+        }
       }
       setEmpDraft(d);
 
@@ -649,19 +673,39 @@ export default function LeaveSettingsPage() {
                             {t.default_days ?? '∞'} days
                           </td>
                           <td className="px-6 py-4 text-right">
-                            <input
-                              type="number"
-                              min={0}
-                              step={0.5}
-                              value={empDraft[key] ?? ''}
-                              onChange={(e) => setEmpDraft((prev) => ({ ...prev, [key]: e.target.value }))}
-                              placeholder="No override"
-                              className={`w-32 rounded-xl border px-3 py-2 text-center text-sm focus:outline-none focus:ring-2 focus:ring-[#EE7F22]/20 focus:border-[#EE7F22] transition-colors ${
-                                entry?.is_override
-                                  ? 'border-[#EE7F22]/40 bg-orange-50 text-gray-900 font-semibold'
-                                  : 'border-gray-200 text-gray-600 bg-white'
-                              }`}
-                            />
+                            {entry?.mode === 'accrual' ? (
+                              <div className="inline-flex flex-col items-end gap-1.5">
+                                <span className="inline-flex items-center rounded-lg bg-orange-50 px-2.5 py-1 text-[10px] font-bold text-[#EE7F22] border border-[#EE7F22]/20 uppercase tracking-wide">
+                                  Monthly Accrual
+                                </span>
+                                <div className="flex items-center gap-1.5">
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    step={0.5}
+                                    value={empDraft[key] ?? ''}
+                                    onChange={(e) => setEmpDraft((prev) => ({ ...prev, [key]: e.target.value }))}
+                                    placeholder="No override"
+                                    className="w-24 rounded-xl border border-[#EE7F22]/40 bg-orange-50 px-3 py-2 text-center text-sm font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#EE7F22]/20 focus:border-[#EE7F22] transition-colors"
+                                  />
+                                  <span className="text-xs text-gray-500 font-medium">days / mo</span>
+                                </div>
+                              </div>
+                            ) : (
+                              <input
+                                type="number"
+                                min={0}
+                                step={0.5}
+                                value={empDraft[key] ?? ''}
+                                onChange={(e) => setEmpDraft((prev) => ({ ...prev, [key]: e.target.value }))}
+                                placeholder="No override"
+                                className={`w-32 rounded-xl border px-3 py-2 text-center text-sm focus:outline-none focus:ring-2 focus:ring-[#EE7F22]/20 focus:border-[#EE7F22] transition-colors ${
+                                  entry?.is_override
+                                    ? 'border-[#EE7F22]/40 bg-orange-50 text-gray-900 font-semibold'
+                                    : 'border-gray-200 text-gray-600 bg-white'
+                                }`}
+                              />
+                            )}
                           </td>
                         </tr>
                       );

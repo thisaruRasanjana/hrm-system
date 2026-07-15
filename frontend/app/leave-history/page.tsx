@@ -309,7 +309,7 @@ export default function LeaveHistoryPage() {
                               {request.leave_type_name ? <LeaveTypeBadge name={request.leave_type_name} /> : '-'}
                               {request.parent_request_id && (
                                 <span className="inline-flex items-center gap-1 rounded-full border border-orange-100 bg-orange-50 px-2 py-0.5 text-[11px] font-medium text-orange-600">
-                                  <Stethoscope size={11} /> Reclassified
+                                  <Stethoscope size={11} /> To Medical
                                 </span>
                               )}
                             </div>
@@ -348,16 +348,6 @@ export default function LeaveHistoryPage() {
                                     </button>
                                   </div>
                                 )}
-                                {request.status === 'APPROVED' &&
-                                  (request.leave_type_name || '').toLowerCase().includes('casual') && (
-                                    <button
-                                      onClick={() => setSelectedRequestForConversion(request)}
-                                      title="Request medical reclassification"
-                                      className="inline-flex items-center gap-1 rounded-md border border-orange-200 bg-orange-50 px-2 py-1 text-[11px] font-medium text-orange-600 hover:bg-orange-100 transition-colors"
-                                    >
-                                      <Stethoscope size={12} /> To Medical
-                                    </button>
-                                  )}
                                 {request.status === 'APPROVED' &&
                                   new Date(request.start_date).setHours(0,0,0,0) > new Date().setHours(0,0,0,0) && (
                                     <button
