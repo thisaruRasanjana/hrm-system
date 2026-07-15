@@ -227,6 +227,24 @@ Return ONLY a valid JSON object — no markdown fences, no commentary:
 """
 
 
+def _normalize_ai_strings(data: dict) -> dict:
+    """
+    Gemini (and other models) sometimes return the literal string "null" or "N/A"
+    for Optional fields instead of JSON null. Normalize these to Python None so
+    the ScreenResult model receives correct types.
+    """
+    _null_strings = {"null", "none", "n/a", "na", "not found", "not provided", "unknown", ""}
+    for field in ("email", "phone"):
+        val = data.get(field)
+        if isinstance(val, str) and val.strip().lower() in _null_strings:
+            data[field] = None
+    # full_name: keep as empty string rather than None (type is str, not Optional[str])
+    fn = data.get("full_name", "")
+    if isinstance(fn, str) and fn.strip().lower() in _null_strings:
+        data["full_name"] = ""
+    return data
+
+
 def _parse_json_response(text: str) -> ScreenResult:
     """Parse a JSON string into a ScreenResult, stripping any markdown fences."""
     text = text.strip()
@@ -236,6 +254,7 @@ def _parse_json_response(text: str) -> ScreenResult:
             if not line.strip().startswith("```")
         ).strip()
     data = json.loads(text)
+    data = _normalize_ai_strings(data)
     return ScreenResult(**data)
 
 
@@ -287,6 +306,7 @@ def _call_gemini(prompt: str, cv_text: str, cv_file_path: str) -> ScreenResult:
                     break
 
                 data = json.loads(response.text)
+                data = _normalize_ai_strings(data)
                 result = ScreenResult(**data)
                 logger.info("[ai_service] Gemini scored with %s: %.1f", model_name, result.ai_score)
                 return result

@@ -166,8 +166,10 @@ def process_cv_background(candidate_id: int, vacancy_id: int, file_path: str):
             # Only fill in email if the candidate did NOT already provide one.
             # Public portal candidates may have typed their email — preserve it.
             if not _has_valid_email(candidate.email):
-                candidate.email = result.email
-            candidate.phone = result.phone
+                candidate.email = result.email  # may be None — frontend shows "Not provided"
+            # Replace the "Processing..." placeholder with the AI result.
+            # Fall back to "Not provided" if AI could not extract a phone number.
+            candidate.phone = result.phone if result.phone else "Not provided"
             candidate.ai_score = result.ai_score
             candidate.ai_reasoning = result.ai_reasoning
             db.commit()
@@ -1116,7 +1118,11 @@ def get_evaluated_candidates(db: Session, vacancy_id: int):
 # ── Re-run AI Screening ───────────────────────────────────────────────────────
 
 def run_ai_screening(db: Session, vacancy_id: int):
-    """Re-score all candidates for a vacancy via the AI screening service."""
+    """Re-score all candidates for a vacancy via the AI screening service.
+
+    Also updates name, email, and phone — so this can fix candidates whose
+    contact info was never extracted (e.g. uploaded while AI was offline).
+    """
     vacancy = db.query(models.Vacancy).filter(models.Vacancy.id == vacancy_id).first()
     if not vacancy:
         raise HTTPException(status_code=404, detail="Vacancy not found")
@@ -1154,7 +1160,13 @@ def run_ai_screening(db: Session, vacancy_id: int):
                 from app.core.config import STORAGE_BACKEND
                 if STORAGE_BACKEND == "s3" and tmp_path and os.path.exists(tmp_path):
                     os.remove(tmp_path)
-                    
+
+            # Update all extractable fields, not just the AI score
+            if result.full_name and result.full_name.strip():
+                candidate.full_name = result.full_name
+            if not _has_valid_email(candidate.email):
+                candidate.email = result.email
+            candidate.phone = result.phone if result.phone else "Not provided"
             candidate.ai_score = result.ai_score
             candidate.ai_reasoning = result.ai_reasoning
             scored += 1
