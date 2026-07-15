@@ -189,11 +189,21 @@ def _render_template(template: DocumentTemplate, context: dict) -> str:
             raise ValueError(f"Failed to render HTML template: {exc}")
 
     elif template_type == "DOCX":
-        if not template.file_path or not os.path.exists(template.file_path):
-            raise ValueError("DOCX template file not found on disk.")
+        from app.core.storage_service import storage as _storage
+        if not template.file_path or not _storage.file_exists(template.file_path):
+            raise ValueError("DOCX template file not found.")
         # Build a temporary DOCX with filled placeholders, then convert to HTML for preview
         import mammoth
+        import tempfile
         from docx import Document as DocxDocument
+
+        # Download the template from storage (works for both local and S3 backends)
+        # to a temp file, since python-docx needs a real filesystem path.
+        _tmpl_bytes = _storage.download(template.file_path)
+        _tmpl_suffix = os.path.splitext(template.file_path)[1] or ".docx"
+        with tempfile.NamedTemporaryFile(delete=False, suffix=_tmpl_suffix) as _tf_in:
+            _tf_in.write(_tmpl_bytes)
+            _tmpl_local = _tf_in.name
 
         def _replace_in_paragraph(paragraph, ctx):
             full_text = "".join(run.text for run in paragraph.runs)
@@ -205,7 +215,7 @@ def _render_template(template: DocumentTemplate, context: dict) -> str:
             for i, run in enumerate(paragraph.runs):
                 run.text = full_text if i == 0 else ""
 
-        doc = DocxDocument(template.file_path)
+        doc = DocxDocument(_tmpl_local)
         for para in doc.paragraphs:
             _replace_in_paragraph(para, context)
         for table in doc.tables:
@@ -214,7 +224,6 @@ def _render_template(template: DocumentTemplate, context: dict) -> str:
                     for para in cell.paragraphs:
                         _replace_in_paragraph(para, context)
 
-        import tempfile
         with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as tf:
             tmp_path = tf.name
         doc.save(tmp_path)
@@ -223,8 +232,9 @@ def _render_template(template: DocumentTemplate, context: dict) -> str:
                 result = mammoth.convert_to_html(f)
                 html = result.value
         finally:
-            if os.path.exists(tmp_path):
-                os.remove(tmp_path)
+            for _t in (_tmpl_local, tmp_path):
+                if _t and os.path.exists(_t):
+                    os.remove(_t)
 
         return f'<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; padding: 8px;">{html}</div>'
 

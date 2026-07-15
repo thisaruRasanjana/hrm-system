@@ -52,6 +52,28 @@ from app.core.config import (
 
 
 # ---------------------------------------------------------------------------
+# Key normalization
+# ---------------------------------------------------------------------------
+
+def _normalize_key(key: str) -> str:
+    """Normalize a storage key to a canonical, forward-slash path relative to the
+    upload root (e.g. "documents/x.pdf", "generated_documents/y.pdf").
+
+    Tolerates legacy/pre-refactor values that stored the full path with the
+    "uploads/" root prefix and/or Windows backslashes
+    (e.g. "uploads/documents\\28_x.pdf"). Without this, get_url() would emit a
+    doubled "/uploads/uploads/..." path and every legacy file would 404.
+    """
+    if not key:
+        return key
+    k = key.replace("\\", "/").lstrip("/")
+    # Drop a single redundant leading "uploads/" segment (the local root).
+    if k.lower().startswith("uploads/"):
+        k = k[len("uploads/"):]
+    return k
+
+
+# ---------------------------------------------------------------------------
 # Local Filesystem Backend
 # ---------------------------------------------------------------------------
 
@@ -68,8 +90,8 @@ class _LocalStorageBackend:
 
     def _abs(self, key: str) -> str:
         """Convert a storage key to an absolute local path."""
-        # Prevent path traversal
-        safe = os.path.normpath(key).lstrip("/").lstrip("\\")
+        # Normalize legacy "uploads/"-prefixed / backslash keys, then prevent traversal.
+        safe = os.path.normpath(_normalize_key(key)).lstrip("/").lstrip("\\")
         return os.path.join(self._root, safe)
 
     def upload(self, file_data: bytes, key: str) -> str:
@@ -82,9 +104,8 @@ class _LocalStorageBackend:
 
     def get_url(self, key: str) -> str:
         """Return the public URL for a stored file (via the /uploads static mount)."""
-        # Normalise key to use forward slashes for the URL
-        clean = key.replace("\\", "/").lstrip("/")
-        return f"/uploads/{clean}"
+        # Normalize (handles legacy "uploads/"-prefixed and backslash keys).
+        return f"/uploads/{_normalize_key(key)}"
 
     def download(self, key: str) -> bytes:
         """Read and return file bytes from disk."""
@@ -164,6 +185,7 @@ class _S3StorageBackend:
     def upload(self, file_data: bytes, key: str) -> str:
         """Upload bytes to S3. Returns the key."""
         import mimetypes
+        key = _normalize_key(key)
         content_type, _ = mimetypes.guess_type(key)
         extra = {}
         if content_type:
@@ -178,6 +200,7 @@ class _S3StorageBackend:
 
     def get_url(self, key: str) -> str:
         """Generate a pre-signed URL valid for 1 hour."""
+        key = _normalize_key(key)
         url = self._s3.generate_presigned_url(
             "get_object",
             Params={"Bucket": self._bucket, "Key": key},
@@ -187,6 +210,7 @@ class _S3StorageBackend:
 
     def download(self, key: str) -> bytes:
         """Download and return file bytes from S3."""
+        key = _normalize_key(key)
         try:
             obj = self._s3.get_object(Bucket=self._bucket, Key=key)
             return obj["Body"].read()
@@ -197,7 +221,7 @@ class _S3StorageBackend:
 
     def file_exists(self, key: str) -> bool:
         try:
-            self._s3.head_object(Bucket=self._bucket, Key=key)
+            self._s3.head_object(Bucket=self._bucket, Key=_normalize_key(key))
             return True
         except Exception:
             return False
@@ -205,7 +229,7 @@ class _S3StorageBackend:
     def delete(self, key: str) -> None:
         """Delete an S3 object. Silently ignores if the key doesn't exist."""
         try:
-            self._s3.delete_object(Bucket=self._bucket, Key=key)
+            self._s3.delete_object(Bucket=self._bucket, Key=_normalize_key(key))
         except Exception:
             pass
 
@@ -218,6 +242,7 @@ class _S3StorageBackend:
         """Return a RedirectResponse to a pre-signed inline URL."""
         # Generate a pre-signed URL with ResponseContentDisposition=inline
         import mimetypes
+        key = _normalize_key(key)
         content_type, _ = mimetypes.guess_type(key)
         url = self._s3.generate_presigned_url(
             "get_object",
@@ -238,6 +263,7 @@ class _S3StorageBackend:
         NOTE: Callers that use this method must delete the temp file themselves.
         This method is only used for the email attachment flow.
         """
+        key = _normalize_key(key)
         data = self.download(key)
         ext = os.path.splitext(key)[1]
         tmp = tempfile.NamedTemporaryFile(delete=False, suffix=ext)

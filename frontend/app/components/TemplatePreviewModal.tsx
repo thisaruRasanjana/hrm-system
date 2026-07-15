@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { X, FileText, RefreshCw } from "lucide-react";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, fileUrl } from "@/lib/api";
 import { useCloseAnimation } from "@/app/hooks/useCloseAnimation";
 
 type Template = {
@@ -22,8 +22,9 @@ type Props = {
 
 export default function TemplatePreviewModal({ template, onClose }: Props) {
   const { closing, triggerClose } = useCloseAnimation(onClose);
-  const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-  const fileUrl = template.file_path ? `${API_BASE}/${template.file_path}` : null;
+  // Backend returns file_path as a ready URL (local: /uploads/..., S3: presigned).
+  // fileUrl() resolves it to an absolute, fetchable URL for both backends.
+  const previewUrl = template.file_path ? fileUrl(template.file_path) : null;
 
   const [docxPreview, setDocxPreview] = useState<string | null>(null);
   const [loadingDocx, setLoadingDocx] = useState(false);
@@ -94,11 +95,11 @@ export default function TemplatePreviewModal({ template, onClose }: Props) {
                 sandbox="allow-same-origin"
                 title="Template Preview"
               />
-            ) : fileUrl ? (
+            ) : previewUrl ? (
               // File Preview
               template.template_type === "PDF" || template.file_path?.endsWith(".pdf") ? (
                 <iframe
-                  src={fileUrl}
+                  src={previewUrl}
                   className="w-full h-full border-0 absolute inset-0"
                   title="Template File Preview"
                 />
@@ -113,7 +114,7 @@ export default function TemplatePreviewModal({ template, onClose }: Props) {
                     <FileText size={48} className="text-gray-300" />
                     <p className="text-red-500 text-sm">Preview could not be generated.</p>
                     <a
-                      href={fileUrl}
+                      href={previewUrl}
                       download
                       className="px-5 py-2 bg-[#F2924E] text-white text-sm rounded-lg hover:bg-[#e07d3a] transition mt-2"
                     >
@@ -139,7 +140,7 @@ export default function TemplatePreviewModal({ template, onClose }: Props) {
                   <FileText size={48} className="text-gray-300" />
                   <p className="text-gray-500 text-sm">File cannot be previewed.</p>
                   <a
-                    href={fileUrl}
+                    href={previewUrl}
                     download
                     className="px-5 py-2 bg-[#F2924E] text-white text-sm rounded-lg hover:bg-[#e07d3a] transition"
                   >
