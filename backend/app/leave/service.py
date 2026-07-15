@@ -183,11 +183,15 @@ def _get_accrual_balance(db: Session, employee_id: int, leave_type_id: int, toda
     Logic:
       • elapsed_months = full calendar months from period_start up to
         min(today, period_end) — inclusive of the start month.
-      • total_accrued  = elapsed_months × days_per_month, optionally capped
-        so the running balance never exceeds max_carry_forward.
-      • total_used     = APPROVED leaves taken since period_start.
-      • total_balance  = max(0, total_accrued - total_used).
-      • this_month_balance = days earned this month minus days used this month.
+      • raw_accrued = elapsed_months × days_per_month, optionally capped by total_leaves_cap
+      • total_used = APPROVED leaves taken since period_start.
+      • If carry_forward_allowed:
+          total_balance = max(0, raw_accrued - total_used)
+          this_month_balance = total_balance
+      • If not carry_forward_allowed:
+          this_month_balance = max(0, days_per_month - used_this_month)
+          optionally capped by (total_leaves_cap - total_used)
+          total_balance = this_month_balance
     """
     if today is None:
         today = date.today()
@@ -226,10 +230,10 @@ def _get_accrual_balance(db: Session, employee_id: int, leave_type_id: int, toda
         or 0.0
     )
 
-    # Carry forward is now unlimited
-    total_accrued = raw_accrued
+    if rule.total_leaves_cap is not None:
+        raw_accrued = min(raw_accrued, rule.total_leaves_cap)
 
-    total_balance = max(0.0, total_accrued - total_used)
+    total_accrued = raw_accrued
 
     # Sub-ledger for the current calendar month
     month_start = today.replace(day=1)
@@ -245,7 +249,19 @@ def _get_accrual_balance(db: Session, employee_id: int, leave_type_id: int, toda
         .scalar()
         or 0.0
     )
-    this_month_balance = max(0.0, rule.days_per_month - used_this_month)
+
+    if rule.carry_forward_allowed:
+        total_balance = max(0.0, total_accrued - total_used)
+        this_month_balance = total_balance
+    else:
+        this_month_earned = rule.days_per_month
+        this_month_balance = max(0.0, this_month_earned - used_this_month)
+        
+        if rule.total_leaves_cap is not None:
+            overall_remaining = max(0.0, rule.total_leaves_cap - total_used)
+            this_month_balance = min(this_month_balance, overall_remaining)
+            
+        total_balance = this_month_balance
 
     return {
         "mode": "accrual",
@@ -457,6 +473,10 @@ def get_employee_leave_entitlements(db: Session, employee_id: int) -> dict:
             "is_override": override is not None or accrual is not None,
             "mode": mode,
             "days_per_month": accrual.days_per_month if accrual else None,
+            "total_leaves_cap": accrual.total_leaves_cap if accrual else None,
+            "carry_forward_allowed": accrual.carry_forward_allowed if accrual else False,
+            "period_start": accrual.period_start.isoformat() if accrual and accrual.period_start else None,
+            "period_end": accrual.period_end.isoformat() if accrual and accrual.period_end else None,
         })
         
     return {
@@ -493,6 +513,9 @@ def set_employee_leave_entitlements(db: Session, employee_id: int, items: list) 
                     db.delete(accrual_rule)
                 else:
                     accrual_rule.days_per_month = item.days_per_month
+                    if item.total_leaves_cap is not None:
+                        accrual_rule.total_leaves_cap = item.total_leaves_cap
+                    accrual_rule.carry_forward_allowed = item.carry_forward_allowed
 
         row = (
             db.query(EmployeeLeaveEntitlement)

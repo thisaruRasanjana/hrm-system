@@ -43,6 +43,8 @@ class AccrualRuleCreate(BaseModel):
     """Monthly leave accrual rule set when adding/editing an employee."""
     leave_type_id: int
     days_per_month: float
+    total_leaves_cap: Optional[float] = None
+    carry_forward_allowed: bool = False
 
 
 class EmployeeCreate(EmployeeBase):

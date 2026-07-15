@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, Float, Date, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, Integer, Float, Date, ForeignKey, UniqueConstraint, Boolean
 from sqlalchemy.sql import func
 from sqlalchemy import DateTime
 from app.database.base import Base
@@ -36,5 +36,11 @@ class EmployeeLeaveAccrualRule(Base):
     # Optional cap: maximum days that can accumulate at any point in time.
     # NULL = unlimited carry-forward.
     max_carry_forward = Column(Float, nullable=True)
+
+    # Optional cap: total number of leaves the employee can accrue in this period.
+    total_leaves_cap = Column(Float, nullable=True)
+
+    # Carry forward toggle: If false, unused leaves from past months are lost.
+    carry_forward_allowed = Column(Boolean, nullable=False, server_default="false", default=False)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())

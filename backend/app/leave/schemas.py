@@ -138,6 +138,8 @@ class EmployeeEntitlementItem(BaseModel):
     leave_type_id: int
     days: Optional[float] = None
     days_per_month: Optional[float] = None
+    total_leaves_cap: Optional[float] = None
+    carry_forward_allowed: bool = False
 
 
 class EmployeeEntitlementEntry(BaseModel):
@@ -147,6 +149,10 @@ class EmployeeEntitlementEntry(BaseModel):
     is_override: bool
     mode: str = "flat"
     days_per_month: Optional[float] = None
+    total_leaves_cap: Optional[float] = None
+    carry_forward_allowed: bool = False
+    period_start: Optional[str] = None
+    period_end: Optional[str] = None
 
 
 class EmployeeEntitlementOut(BaseModel):

@@ -235,6 +235,8 @@ def create_employee(db: Session, employee: EmployeeCreate, background_tasks: Bac
                     existing_rule.period_start = _accrual_start
                     existing_rule.period_end = employee.designation_end_date
                     existing_rule.max_carry_forward = None
+                    existing_rule.total_leaves_cap = rule.total_leaves_cap
+                    existing_rule.carry_forward_allowed = rule.carry_forward_allowed
                 else:
                     db.add(_ELAR(
                         employee_id=db_employee.id,
@@ -243,6 +245,8 @@ def create_employee(db: Session, employee: EmployeeCreate, background_tasks: Bac
                         period_start=_accrual_start,
                         period_end=employee.designation_end_date,
                         max_carry_forward=None,
+                        total_leaves_cap=rule.total_leaves_cap,
+                        carry_forward_allowed=rule.carry_forward_allowed,
                     ))
 
         # Eager-load permissions so the relationship is fully populated after commit
@@ -314,8 +318,16 @@ def update_employee(db: Session, employee_id: int, employee_update: EmployeeUpda
         new_designation_id = update_data.pop("designation_id", None)
         designation_start_date = update_data.pop("designation_start_date", None)
         designation_end_date = update_data.pop("designation_end_date", None)
+        
+        has_leave_overrides = "designation_leave_overrides" in update_data
         designation_leave_overrides_raw = update_data.pop("designation_leave_overrides", None)
+        if designation_leave_overrides_raw is None:
+            designation_leave_overrides_raw = []
+            
+        has_accrual_rules = "designation_accrual_rules" in update_data
         designation_accrual_rules_raw = update_data.pop("designation_accrual_rules", None)
+        if designation_accrual_rules_raw is None:
+            designation_accrual_rules_raw = []
 
         # Determine current designation state
         resolved_designation_id = new_designation_id if new_designation_id is not None else db_employee.designation_id
@@ -366,12 +378,12 @@ def update_employee(db: Session, employee_id: int, employee_update: EmployeeUpda
             db.flush()
 
         # Apply leave overrides to EmployeeLeaveEntitlement regardless of whether designation changed
-        # (user might update overrides without changing the designation itself)
-        if designation_leave_overrides_raw is not None:
+        if has_leave_overrides:
+            provided_override_lt_ids = set()
             for override in designation_leave_overrides_raw:
-                # Support both dict items (from model_dump) and Pydantic objects
                 lt_id = override["leave_type_id"] if isinstance(override, dict) else override.leave_type_id
                 lt_days = override["days"] if isinstance(override, dict) else override.days
+                provided_override_lt_ids.add(lt_id)
                 lt = db.query(_LeaveType).filter(_LeaveType.id == lt_id).first()
                 if not lt:
                     continue
@@ -387,16 +399,26 @@ def update_employee(db: Session, employee_id: int, employee_update: EmployeeUpda
                         leave_type_id=lt_id,
                         days=lt_days,
                     ))
+            
+            # Delete overrides that are no longer provided
+            db.query(EmployeeLeaveEntitlement).filter(
+                EmployeeLeaveEntitlement.employee_id == employee_id,
+                EmployeeLeaveEntitlement.leave_type_id.notin_(provided_override_lt_ids) if provided_override_lt_ids else True
+            ).delete(synchronize_session=False)
 
         # Upsert monthly accrual rules if provided
-        if designation_accrual_rules_raw is not None:
+        if has_accrual_rules:
             from app.leave.accrual_models import EmployeeLeaveAccrualRule as _ELAR
             from app.leave.models import LeaveType as _LeaveType2
             from datetime import date as _date2
             _accrual_start = designation_start_date or _date2.today()
+            
+            provided_accrual_lt_ids = set()
             for rule in designation_accrual_rules_raw:
                 lt_id = rule["leave_type_id"] if isinstance(rule, dict) else rule.leave_type_id
                 days_pm = rule["days_per_month"] if isinstance(rule, dict) else rule.days_per_month
+                provided_accrual_lt_ids.add(lt_id)
+                
                 if not db.query(_LeaveType2).filter(_LeaveType2.id == lt_id).first():
                     continue
                 existing = db.query(_ELAR).filter(
@@ -408,6 +430,8 @@ def update_employee(db: Session, employee_id: int, employee_update: EmployeeUpda
                     existing.period_start = _accrual_start
                     existing.period_end = designation_end_date
                     existing.max_carry_forward = None
+                    existing.total_leaves_cap = rule.get("total_leaves_cap") if isinstance(rule, dict) else getattr(rule, "total_leaves_cap", None)
+                    existing.carry_forward_allowed = rule.get("carry_forward_allowed", False) if isinstance(rule, dict) else getattr(rule, "carry_forward_allowed", False)
                 else:
                     db.add(_ELAR(
                         employee_id=employee_id,
@@ -416,7 +440,15 @@ def update_employee(db: Session, employee_id: int, employee_update: EmployeeUpda
                         period_start=_accrual_start,
                         period_end=designation_end_date,
                         max_carry_forward=None,
+                        total_leaves_cap=rule.get("total_leaves_cap") if isinstance(rule, dict) else getattr(rule, "total_leaves_cap", None),
+                        carry_forward_allowed=rule.get("carry_forward_allowed", False) if isinstance(rule, dict) else getattr(rule, "carry_forward_allowed", False),
                     ))
+            
+            # Delete accrual rules that are no longer provided
+            db.query(_ELAR).filter(
+                _ELAR.employee_id == employee_id,
+                _ELAR.leave_type_id.notin_(provided_accrual_lt_ids) if provided_accrual_lt_ids else True
+            ).delete(synchronize_session=False)
 
         if db_employee.user:
             user = db_employee.user
