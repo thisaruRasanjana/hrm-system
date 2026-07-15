@@ -102,7 +102,7 @@ function EmployeeEditContent() {
   const [showPromotionModal, setShowPromotionModal] = useState(false);
 
   useEffect(() => {
-    if (!id) return;
+    if (!id || authLoading || !user) return;
     const init = async () => {
       try {
         const roleData = await api.get<{ id: number; role_name: string }[]>("/roles/");
@@ -191,7 +191,7 @@ function EmployeeEditContent() {
       }
     };
     init();
-  }, [id]);
+  }, [id, authLoading, user]);
 
   const handleSave = async (redirectToRole: boolean = false) => {
     if (!formData.employeeId || !formData.firstName || !formData.lastName || !formData.email || !formData.phone || !formData.work.designationId || !formData.work.departmentId || !formData.work.roleId) {

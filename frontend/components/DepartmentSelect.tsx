@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Trash2 } from "lucide-react";
 import { api } from "@/lib/api";
+import { useAuth } from "@/context/auth-context";
 
 interface Department {
   id: number;
@@ -37,13 +38,17 @@ export default function DepartmentSelect({ value, onChange, selectClass }: Props
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [manageError, setManageError] = useState<string | null>(null);
 
+  const { user, loading: authLoading } = useAuth();
+
   useEffect(() => {
+    if (authLoading || !user) return;
+    
     api
       .get<Department[]>("/departments/")
       .then((data) => setDepartments(data))
       .catch((err) => console.error("Failed to load departments", err))
       .finally(() => setLoading(false));
-  }, []);
+  }, [authLoading, user]);
 
   const startAdding = () => {
     setAdding(true);
