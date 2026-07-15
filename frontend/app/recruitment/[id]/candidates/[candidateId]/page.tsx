@@ -458,7 +458,7 @@ export default function CandidateProfilePage() {
                   </p>
                   {candidate.ai_reasoning && (
                     <p className="text-xs text-gray-500 mt-1 italic leading-relaxed">
-                      "{candidate.ai_reasoning}"
+                      &ldquo;{candidate.ai_reasoning}&rdquo;
                     </p>
                   )}
                 </div>
