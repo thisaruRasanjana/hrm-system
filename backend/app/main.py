@@ -335,6 +335,12 @@ async def lifespan(app: FastAPI):
                 END $$;
             """))
 
+            # ── Patch employee_leave_accrual_rules ───────────────────────────────────
+            conn.execute(text("ALTER TABLE employee_leave_accrual_rules ADD COLUMN IF NOT EXISTS max_carry_forward FLOAT"))
+            conn.execute(text("ALTER TABLE employee_leave_accrual_rules ADD COLUMN IF NOT EXISTS total_leaves_cap FLOAT"))
+            conn.execute(text("ALTER TABLE employee_leave_accrual_rules ADD COLUMN IF NOT EXISTS carry_forward_allowed BOOLEAN NOT NULL DEFAULT FALSE"))
+            conn.execute(text("ALTER TABLE employee_leave_accrual_rules ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT now()"))
+
             # ── Add missing messages column ───────────────────────────────────
             conn.execute(text("ALTER TABLE messages ADD COLUMN IF NOT EXISTS sender_permanent_deleted BOOLEAN DEFAULT FALSE"))
 

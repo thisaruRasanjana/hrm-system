@@ -106,7 +106,7 @@ export default function Topbar() {
           if (typeof data.count === "number") setUnreadNotifs(data.count);
         }
       } catch (err) {
-        console.error("Failed to fetch unread notifications count", err);
+        console.warn("Failed to fetch unread notifications count", err);
       }
     };
 
