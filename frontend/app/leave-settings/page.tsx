@@ -35,6 +35,10 @@ type EmployeeEntitlementEntry = {
   is_override: boolean;
   mode?: string;
   days_per_month?: number | null;
+  total_leaves_cap?: number | null;
+  carry_forward_allowed?: boolean;
+  period_start?: string | null;
+  period_end?: string | null;
 };
 
 type EmployeeEntitlementsResponse = {
@@ -81,7 +85,7 @@ export default function LeaveSettingsPage() {
   const [deptFilter, setDeptFilter] = useState<string>('all');
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<number | null>(null);
   const [empData, setEmpData] = useState<EmployeeEntitlementsResponse | null>(null);
-  const [empDraft, setEmpDraft] = useState<Record<string, string>>({});
+  const [empDraft, setEmpDraft] = useState<Record<string, { days?: string; daysPerMonth?: string; carryForwardAllowed?: boolean }>>({});
   
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -128,12 +132,15 @@ export default function LeaveSettingsPage() {
       if (!res.ok) throw new Error('Failed to load employee entitlements');
       const data: EmployeeEntitlementsResponse = await res.json();
       setEmpData(data);
-      const d: Record<string, string> = {};
+      const d: Record<string, any> = {};
       for (const e of data.entries) {
         if (e.mode === 'accrual') {
-          d[empCellKey(e.leave_type_id)] = e.days_per_month === null ? '' : String(e.days_per_month);
+          d[empCellKey(e.leave_type_id)] = {
+            daysPerMonth: e.days_per_month === null ? '' : String(e.days_per_month),
+            carryForwardAllowed: !!e.carry_forward_allowed
+          };
         } else {
-          d[empCellKey(e.leave_type_id)] = e.days === null ? '' : String(e.days);
+          d[empCellKey(e.leave_type_id)] = { days: e.days === null ? '' : String(e.days) };
         }
       }
       setEmpDraft(d);
@@ -217,24 +224,36 @@ export default function LeaveSettingsPage() {
     try {
       const items = empData.leave_types.map((t) => {
         const entry = empData.entries.find((e) => e.leave_type_id === t.id);
-        const raw = (empDraft[empCellKey(t.id)] ?? '').trim();
-        const value = raw === '' ? null : Number(raw);
+        const draftObj = empDraft[empCellKey(t.id)] || {};
+        
         if (entry?.mode === 'accrual') {
+          const rawVal = draftObj.daysPerMonth?.trim() || '';
+          // Auto-compute total cap from period dates × days_per_month
+          let computedCap: number | null = null;
+          if (rawVal !== '' && entry?.period_start && entry?.period_end) {
+            const start = new Date(entry.period_start);
+            const end = new Date(entry.period_end);
+            const months = Math.max(0, (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1);
+            computedCap = Number(rawVal) * months;
+          }
           return {
             leave_type_id: t.id,
-            days_per_month: value,
+            days_per_month: rawVal === '' ? null : Number(rawVal),
+            total_leaves_cap: computedCap,
+            carry_forward_allowed: !!draftObj.carryForwardAllowed
           };
         } else {
+          const rawVal = draftObj.days?.trim() || '';
           return {
             leave_type_id: t.id,
-            days: value,
+            days: rawVal === '' ? null : Number(rawVal),
           };
         }
       });
 
       const invalid = items.find((i) => {
         if ('days_per_month' in i) {
-          return i.days_per_month !== null && (Number.isNaN(i.days_per_month) || i.days_per_month < 0);
+          return i.days_per_month != null && (Number.isNaN(i.days_per_month) || i.days_per_month < 0);
         }
         return i.days !== null && (Number.isNaN(i.days) || i.days < 0);
       });
@@ -255,12 +274,15 @@ export default function LeaveSettingsPage() {
       }
       const data: EmployeeEntitlementsResponse = await res.json();
       setEmpData(data);
-      const d: Record<string, string> = {};
+      const d: Record<string, any> = {};
       for (const e of data.entries) {
         if (e.mode === 'accrual') {
-          d[empCellKey(e.leave_type_id)] = e.days_per_month === null ? '' : String(e.days_per_month);
+          d[empCellKey(e.leave_type_id)] = {
+            daysPerMonth: e.days_per_month === null ? '' : String(e.days_per_month),
+            carryForwardAllowed: !!e.carry_forward_allowed
+          };
         } else {
-          d[empCellKey(e.leave_type_id)] = e.days === null ? '' : String(e.days);
+          d[empCellKey(e.leave_type_id)] = { days: e.days === null ? '' : String(e.days) };
         }
       }
       setEmpDraft(d);
@@ -293,9 +315,17 @@ export default function LeaveSettingsPage() {
 
   const handleResetEmployee = () => {
     if (!empData) return;
-    const d: Record<string, string> = {};
+    const d: Record<string, any> = {};
     for (const e of empData.entries) {
-      d[empCellKey(e.leave_type_id)] = e.days === null ? '' : String(e.days);
+      if (e.mode === 'accrual') {
+        d[empCellKey(e.leave_type_id)] = {
+          daysPerMonth: e.days_per_month === null ? '' : String(e.days_per_month),
+          totalLeavesCap: e.total_leaves_cap != null ? String(e.total_leaves_cap) : '',
+          carryForwardAllowed: !!e.carry_forward_allowed
+        };
+      } else {
+        d[empCellKey(e.leave_type_id)] = { days: e.days === null ? '' : String(e.days) };
+      }
     }
     setEmpDraft(d);
   };
@@ -303,9 +333,16 @@ export default function LeaveSettingsPage() {
   const hasUnsavedChanges = (empId: number) => {
     if (empId !== selectedEmployeeId || !empData) return false;
     for (const e of empData.entries) {
-      const draftVal = (empDraft[empCellKey(e.leave_type_id)] ?? '').trim();
-      const savedVal = e.days === null ? '' : String(e.days);
-      if (draftVal !== savedVal) return true;
+      const draftObj = empDraft[empCellKey(e.leave_type_id)] || {};
+      if (e.mode === 'accrual') {
+         const draftVal = (draftObj.daysPerMonth ?? '').trim();
+         const savedVal = e.days_per_month == null ? '' : String(e.days_per_month);
+         if (draftVal !== savedVal || !!draftObj.carryForwardAllowed !== !!e.carry_forward_allowed) return true;
+      } else {
+         const draftVal = (draftObj.days ?? '').trim();
+         const savedVal = e.days === null ? '' : String(e.days);
+         if (draftVal !== savedVal) return true;
+      }
     }
     return false;
   };
@@ -674,36 +711,72 @@ export default function LeaveSettingsPage() {
                           </td>
                           <td className="px-6 py-4 text-right">
                             {entry?.mode === 'accrual' ? (
-                              <div className="inline-flex flex-col items-end gap-1.5">
-                                <span className="inline-flex items-center rounded-lg bg-orange-50 px-2.5 py-1 text-[10px] font-bold text-[#EE7F22] border border-[#EE7F22]/20 uppercase tracking-wide">
-                                  Monthly Accrual
-                                </span>
-                                <div className="flex items-center gap-1.5">
-                                  <input
-                                    type="number"
-                                    min={0}
-                                    step={0.5}
-                                    value={empDraft[key] ?? ''}
-                                    onChange={(e) => setEmpDraft((prev) => ({ ...prev, [key]: e.target.value }))}
-                                    placeholder="No override"
-                                    className="w-24 rounded-xl border border-[#EE7F22]/40 bg-orange-50 px-3 py-2 text-center text-sm font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#EE7F22]/20 focus:border-[#EE7F22] transition-colors"
-                                  />
-                                  <span className="text-xs text-gray-500 font-medium">days / mo</span>
+                              <div className="flex flex-col items-end w-full max-w-[280px] ml-auto border border-orange-200 rounded-xl bg-white overflow-hidden shadow-sm">
+                                <div className="bg-orange-50 px-3 py-2 w-full border-b border-orange-100 flex justify-between items-center">
+                                  <span className="text-[10px] font-bold text-orange-600 uppercase tracking-wide">Monthly Accrual</span>
+                                  <label className="flex items-center gap-1.5 text-[11px] text-gray-700 font-medium cursor-pointer select-none">
+                                    <input
+                                      type="checkbox"
+                                      checked={empDraft[key]?.carryForwardAllowed || false}
+                                      onChange={(e) => setEmpDraft((prev) => ({ ...prev, [key]: { ...prev[key], carryForwardAllowed: e.target.checked } }))}
+                                      className="w-3.5 h-3.5 text-[#EE7F22] rounded border-gray-300 focus:ring-[#EE7F22]"
+                                    />
+                                    Carry Forward
+                                  </label>
+                                </div>
+                                
+                                <div className="p-3 w-full flex flex-col gap-3">
+                                  {/* Days per month editable */}
+                                  <div className="flex justify-between items-center">
+                                    <span className="text-[12px] text-gray-500 font-medium">Earning Rate:</span>
+                                    <div className="flex items-center gap-1.5">
+                                      <input
+                                        type="number"
+                                        min={0}
+                                        step={0.5}
+                                        value={empDraft[key]?.daysPerMonth ?? ''}
+                                        onChange={(e) => setEmpDraft((prev) => ({ ...prev, [key]: { ...prev[key], daysPerMonth: e.target.value } }))}
+                                        placeholder="0.0"
+                                        title="Days per month"
+                                        className="w-16 rounded-lg border border-[#EE7F22]/40 bg-orange-50/50 px-2 py-1.5 text-center text-sm font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#EE7F22]/20 focus:border-[#EE7F22] transition-colors"
+                                      />
+                                      <span className="text-[11px] text-gray-400 font-medium">days/mo</span>
+                                    </div>
+                                  </div>
+
+                                  {/* Auto-computed total (read-only) */}
+                                  {(() => {
+                                    const dpm = empDraft[key]?.daysPerMonth;
+                                    if (!dpm || !entry?.period_start || !entry?.period_end) return null;
+                                    const start = new Date(entry.period_start!);
+                                    const end = new Date(entry.period_end!);
+                                    const months = Math.max(0, (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1);
+                                    const total = (Number(dpm) * months).toFixed(1);
+                                    return (
+                                      <div className="flex justify-between items-center bg-gray-50 rounded-lg px-2.5 py-2 border border-gray-100">
+                                        <span className="text-[11px] text-gray-500 font-medium">Est. Total:</span>
+                                        <div className="text-right">
+                                          <span className="text-sm font-bold text-gray-800">{total} <span className="text-xs font-medium text-gray-400">days</span></span>
+                                          <span className="text-[10px] text-gray-400 block mt-0.5">for {months} months</span>
+                                        </div>
+                                      </div>
+                                    );
+                                  })()}
                                 </div>
                               </div>
                             ) : (
-                              <input
-                                type="number"
-                                min={0}
-                                step={0.5}
-                                value={empDraft[key] ?? ''}
-                                onChange={(e) => setEmpDraft((prev) => ({ ...prev, [key]: e.target.value }))}
-                                placeholder="No override"
+                                <input
+                                  type="number"
+                                  min={0}
+                                  step={0.5}
+                                  value={empDraft[key]?.days ?? ''}
+                                  onChange={(e) => setEmpDraft((prev) => ({ ...prev, [key]: { days: e.target.value } }))}
+                                  placeholder="No override"
                                 className={`w-32 rounded-xl border px-3 py-2 text-center text-sm focus:outline-none focus:ring-2 focus:ring-[#EE7F22]/20 focus:border-[#EE7F22] transition-colors ${
                                   entry?.is_override
                                     ? 'border-[#EE7F22]/40 bg-orange-50 text-gray-900 font-semibold'
                                     : 'border-gray-200 text-gray-600 bg-white'
-                                }`}
+                              }`}
                               />
                             )}
                           </td>
