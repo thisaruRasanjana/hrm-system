@@ -214,7 +214,9 @@ def _render_template(template: DocumentTemplate, context: dict) -> str:
                     for para in cell.paragraphs:
                         _replace_in_paragraph(para, context)
 
-        tmp_path = os.path.join("uploads/generated_documents", f"promo_preview_{uuid.uuid4().hex[:6]}.docx")
+        import tempfile
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as tf:
+            tmp_path = tf.name
         doc.save(tmp_path)
         try:
             with open(tmp_path, "rb") as f:
@@ -321,7 +323,7 @@ def send_promotion_letter(
     # Generate a unique request ID for file naming
     doc_id = uuid.uuid4().hex[:10]
     try:
-        final_path, _ = document_generator.generate_from_custom_text(
+        final_key, _ = document_generator.generate_from_custom_text(
             request_id=f"promotion_{employee_id}_{doc_id}",
             content=data.html_content,
             preserve_whitespace=False,   # HTML already has its own line breaks
@@ -334,11 +336,13 @@ def send_promotion_letter(
 
     # Send the PDF to the employee's email in the background so the UI responds immediately
     def _email_task():
+        tmp_path = None
         try:
-            abs_path = os.path.join(os.getcwd(), final_path.replace("/", os.sep))
+            from app.core.storage_service import storage as _storage
+            tmp_path = _storage.abs_path(final_key)
             send_document_to_requester(
                 to_email=employee.email,
-                document_path=abs_path,
+                document_path=tmp_path,
                 document_type="Promotion Letter",
             )
         except Exception as exc:
@@ -346,6 +350,11 @@ def send_promotion_letter(
             logging.getLogger(__name__).error(
                 f"[Promotion Letter] Failed to email letter to {employee.email}: {exc}"
             )
+        finally:
+            import os
+            from app.core.config import STORAGE_BACKEND
+            if STORAGE_BACKEND == "s3" and tmp_path and os.path.exists(tmp_path):
+                os.remove(tmp_path)
 
     # Determine the target designation for the description
     target_designation = employee.designation
@@ -363,7 +372,7 @@ def send_promotion_letter(
         document_type="Promotion Letter",
         reason=f"Promotion letter for the designation of {target_designation}.",
         status=RequestStatus.COMPLETED,
-        generated_document_path=final_path
+        generated_document_path=final_key
     )
     db.add(doc_request)
 
@@ -446,6 +455,6 @@ def send_promotion_letter(
 
     return {
         "message":       "Promotion letter sent successfully.",
-        "document_path": final_path,
+        "document_path": final_key,
         "sent_to":       employee.email,
     }

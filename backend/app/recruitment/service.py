@@ -141,13 +141,23 @@ def process_cv_background(candidate_id: int, vacancy_id: int, file_path: str):
         if not vacancy:
             return
 
-        result = ai_screen(
-            cv_file_path=file_path,
-            title=vacancy.title,
-            experience_level=vacancy.experience_level,
-            description=vacancy.description,
-            requirements=vacancy.requirements,
-        )
+        from app.core.storage_service import storage as _storage
+        import os
+        tmp_path = None
+        try:
+            # Resolve to a local path the AI screener can read
+            tmp_path = _storage.abs_path(file_path)
+            result = ai_screen(
+                cv_file_path=tmp_path,
+                title=vacancy.title,
+                experience_level=vacancy.experience_level,
+                description=vacancy.description,
+                requirements=vacancy.requirements,
+            )
+        finally:
+            from app.core.config import STORAGE_BACKEND
+            if STORAGE_BACKEND == "s3" and tmp_path and os.path.exists(tmp_path):
+                os.remove(tmp_path)
 
         candidate = db.query(models.Candidate).filter(models.Candidate.id == candidate_id).first()
         if candidate:
@@ -1128,13 +1138,23 @@ def run_ai_screening(db: Session, vacancy_id: int):
             continue
 
         try:
-            result = ai_screen(
-                cv_file_path=candidate.cv_file_path,
-                title=vacancy.title,
-                experience_level=vacancy.experience_level,
-                description=vacancy.description,
-                requirements=vacancy.requirements,
-            )
+            from app.core.storage_service import storage as _storage
+            import os
+            tmp_path = None
+            try:
+                tmp_path = _storage.abs_path(candidate.cv_file_path)
+                result = ai_screen(
+                    cv_file_path=tmp_path,
+                    title=vacancy.title,
+                    experience_level=vacancy.experience_level,
+                    description=vacancy.description,
+                    requirements=vacancy.requirements,
+                )
+            finally:
+                from app.core.config import STORAGE_BACKEND
+                if STORAGE_BACKEND == "s3" and tmp_path and os.path.exists(tmp_path):
+                    os.remove(tmp_path)
+                    
             candidate.ai_score = result.ai_score
             candidate.ai_reasoning = result.ai_reasoning
             scored += 1

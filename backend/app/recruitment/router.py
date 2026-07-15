@@ -119,37 +119,18 @@ def serve_file(filename: str):
     directly in <iframe>/<a download>, which cannot send an Authorization
     header. The unguessable UUID filename acts as the access token.
     """
-    import mimetypes
-    from app.core.config import UPLOAD_DIR
+    from app.core.storage_service import storage as _storage
 
     safe_name = os.path.basename(filename)
-
     if not safe_name or "/" in safe_name or ".." in safe_name:
         raise HTTPException(status_code=400, detail="Invalid filename.")
 
-    # Resolve UPLOAD_DIR to an absolute path anchored to this file's package root
-    # so it works regardless of the working directory uvicorn was launched from.
-    _this_dir = os.path.dirname(os.path.abspath(__file__))          # .../backend/app/recruitment
-    _backend_root = os.path.dirname(os.path.dirname(_this_dir))     # .../backend
-    upload_abs = os.path.abspath(
-        UPLOAD_DIR if os.path.isabs(UPLOAD_DIR)
-        else os.path.join(_backend_root, UPLOAD_DIR)
-    )
+    key = f"cvs/{safe_name}"
 
-    file_path = os.path.join(upload_abs, safe_name)
-
-    if not file_path.startswith(upload_abs + os.sep):
-        raise HTTPException(status_code=400, detail="Access denied.")
-
-    if not os.path.exists(file_path):
+    if not _storage.file_exists(key):
         raise HTTPException(status_code=404, detail="File not found.")
 
-    mime, _ = mimetypes.guess_type(file_path)
-    return FileResponse(
-        file_path,
-        media_type=mime or "application/octet-stream",
-        headers={"Content-Disposition": "inline"},
-    )
+    return _storage.serve_inline(key)
 
 
 # ── Application Endpoints ─────────────────────────────────────────────────────

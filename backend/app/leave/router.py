@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 import os
-import shutil
 from uuid import uuid4
 from sqlalchemy.orm import Session
 
@@ -65,8 +64,8 @@ from app.leave.service import (
 
 router = APIRouter(prefix="/leave", tags=["Leave"])
 
-UPLOAD_DIR = "uploads/medical_docs"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
+# UPLOAD_DIR = "uploads/medical_docs"
+# os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
 def leave_actor(*permissions: str):
@@ -518,12 +517,34 @@ def upload_leave_attachment(
         raise HTTPException(status_code=400, detail="Invalid file type")
 
     filename = f"{uuid4()}_{file.filename}"
-    file_path = os.path.join(UPLOAD_DIR, filename)
+    key = f"medical_docs/{filename}"
 
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+    from app.core.storage_service import storage as _storage
+    _storage.upload(file.file.read(), key)
 
-    return {"file_url": f"/uploads/medical_docs/{filename}"}
+    # Return a stable local URL that the frontend stores.
+    # This URL hits our /files/ endpoint which handles S3 redirects vs local serving.
+    return {"file_url": f"/leave/files/{filename}"}
+
+
+@router.get("/files/{filename}")
+def serve_medical_doc(filename: str, current_user: dict = Depends(leave_actor("leave:request", "leave:approve", "leave:view_history"))):
+    """
+    Serve a medical document. Authenticated via JWT.
+    """
+    import os
+    from app.core.storage_service import storage as _storage
+    
+    safe_name = os.path.basename(filename)
+    if not safe_name or "/" in safe_name or ".." in safe_name:
+        raise HTTPException(status_code=400, detail="Invalid filename.")
+        
+    key = f"medical_docs/{safe_name}"
+    
+    if not _storage.file_exists(key):
+        raise HTTPException(status_code=404, detail="File not found.")
+        
+    return _storage.serve_inline(key)
 
 
 # -----------------------------

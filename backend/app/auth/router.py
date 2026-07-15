@@ -396,22 +396,16 @@ def upload_profile_image(
 ):
     """
     Upload a new profile image for the current user.
-    Saves the file to uploads/profiles/<user_id>.<ext> and stores
-    the public URL on the user record.
     """
-    import shutil
-    from pathlib import Path
-
-    upload_dir = Path("uploads/profiles")
-    upload_dir.mkdir(parents=True, exist_ok=True)
+    from app.core.storage_service import storage as _storage
 
     ext = file.filename.split(".")[-1] if "." in file.filename else "jpg"
-    file_path = upload_dir / f"{current_user.id}.{ext}"
+    key = f"profiles/{current_user.id}.{ext}"
 
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+    content = file.file.read()
+    _storage.upload(content, key)
 
-    current_user.profile_image_url = f"http://127.0.0.1:8000/uploads/profiles/{current_user.id}.{ext}"
+    current_user.profile_image_url = _storage.get_url(key)
     db.commit()
     db.refresh(current_user)
     return {"profile_image_url": current_user.profile_image_url}
