@@ -42,7 +42,7 @@ const selectCls = `${inputCls} appearance-none cursor-pointer`;
 
 export default function EmployeeAddPage() {
   const router = useRouter();
-  const { hasPermission, loading: authLoading } = useAuth();
+  const { hasPermission, loading: authLoading, user } = useAuth();
 
   useEffect(() => {
     if (!authLoading && !hasPermission("employee:create")) {
@@ -94,6 +94,7 @@ export default function EmployeeAddPage() {
   const [leaveModes, setLeaveModes] = useState<Record<number, "flat" | "accrual">>({});
 
   useEffect(() => {
+    if (authLoading || !user) return;
     const init = async () => {
       setFormData(prev => ({
         ...prev,
@@ -113,7 +114,7 @@ export default function EmployeeAddPage() {
       }
     };
     init();
-  }, []);
+  }, [authLoading, user]);
 
   const handleSave = async (redirectToRole: boolean = false) => {
     if (!formData.employeeId || !formData.firstName || !formData.lastName || !formData.email || !formData.phone || !formData.work.designationId || !formData.work.departmentId || !formData.work.roleId) {

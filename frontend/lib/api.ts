@@ -200,7 +200,14 @@ export async function apiFetch(url: string, options: RequestInit = {}): Promise<
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
 
-  let response = await fetch(`${API_BASE_URL}${url}`, { ...options, headers, credentials: "include" });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${url}`, { ...options, headers, credentials: "include" });
+  } catch (err: any) {
+    throw new Error(
+      `Network Error: Could not connect to API at ${API_BASE_URL}${url}. Please ensure the backend is running. (${err.message})`
+    );
+  }
 
   // 401 Interceptor and Retry
   if (response.status === 401) {

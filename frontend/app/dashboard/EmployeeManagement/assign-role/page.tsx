@@ -69,7 +69,7 @@ function AssignRoleContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const id = searchParams.get("id");
-  const { hasPermission, hasAnyPermission, loading: authLoading } = useAuth();
+  const { hasPermission, hasAnyPermission, loading: authLoading, user } = useAuth();
 
   const [roles, setRoles] = useState<Role[]>([]);
   const [allPermissions, setAllPermissions] = useState<Permission[]>([]);
@@ -103,6 +103,7 @@ function AssignRoleContent() {
   const [selectedPermissionIds, setSelectedPermissionIds] = useState<number[]>([]);
 
   useEffect(() => {
+    if (authLoading || !user) return;
     const fetchData = async () => {
       try {
         const [rolesData, permsData] = await Promise.all([
@@ -131,7 +132,7 @@ function AssignRoleContent() {
       }
     };
     fetchData();
-  }, [id]);
+  }, [id, authLoading, user]);
 
   const selectedRole = roles.find(r => r.id === selectedRoleId);
   const selectedIsSystem = !!selectedRole && SYSTEM_ROLE_NAMES.includes(selectedRole.role_name);
