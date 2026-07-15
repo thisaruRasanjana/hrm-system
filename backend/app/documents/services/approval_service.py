@@ -20,6 +20,7 @@ from app.documents.models.model import EmployeeDocument, DocumentStatus
 from app.documents.models.audit_log_model import DocumentAuditLog
 from app.employees.models import Employee
 from app.core.config import get_settings
+from app.core.storage_service import storage
 
 
 def _write_audit_log(
@@ -99,7 +100,9 @@ def get_pending_documents(db: Session, current_user_id: int) -> list[dict]:
             "employee_name": f"{emp.first_name} {emp.last_name}",
             "document_type": doc.document_type,
             "file_name": doc.file_name,
-            "file_path": doc.file_path,
+            # Return a ready-to-use URL (local: /uploads/..., S3: presigned URL)
+            # rather than the raw storage key, so the HR preview iframe can load it.
+            "file_path": storage.get_url(doc.file_path) if doc.file_path else None,
             "status": doc.status,
             "uploaded_at": doc.uploaded_at
         })

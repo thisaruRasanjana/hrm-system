@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import DocumentTabsHR from "@/app/components/DocumentTabsHR";
 import { useAuth } from "@/context/auth-context";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, fileUrl } from "@/lib/api";
 
 type Request = {
   id: string;
@@ -57,13 +57,13 @@ export default function HRRequestDocumentPage() {
 
   const handleDownload = async (path: string) => {
     try {
-      const res = await apiFetch(`/${path}`);
+      const res = await fetch(fileUrl(path));
       if (!res.ok) throw new Error("File not found");
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = path.split("/").pop() || "document.pdf";
+      a.download = (path.split("/").pop() || "document.pdf").split("?")[0];
       a.click();
       window.URL.revokeObjectURL(url);
     } catch (err) {
