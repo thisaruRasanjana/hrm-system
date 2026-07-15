@@ -62,6 +62,25 @@ CORS_ORIGINS: list[str] = os.getenv(
 # ── File Storage ──────────────────────────────────────────────────────────────
 UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", "uploads/cvs")
 
+# ── Storage Backend ───────────────────────────────────────────────────────────
+# Set STORAGE_BACKEND=local  to use local filesystem (default, no AWS needed).
+# Set STORAGE_BACKEND=s3     to use AWS S3 (or MinIO for local S3 testing).
+#
+# S3 / MinIO configuration (only required when STORAGE_BACKEND=s3):
+#   AWS_S3_BUCKET         — name of the S3 bucket (e.g. "hrm-uploads")
+#   AWS_ACCESS_KEY_ID     — AWS access key (or MinIO access key)
+#   AWS_SECRET_ACCESS_KEY — AWS secret key (or MinIO secret key)
+#   AWS_REGION            — AWS region (e.g. "us-east-1"). For MinIO, any value.
+#   AWS_S3_ENDPOINT_URL   — Override endpoint. Leave empty for real AWS.
+#                           For MinIO: "http://localhost:9000"
+#
+STORAGE_BACKEND: str = os.getenv("STORAGE_BACKEND", "local")
+AWS_S3_BUCKET: str = os.getenv("AWS_S3_BUCKET", "")
+AWS_ACCESS_KEY_ID: str = os.getenv("AWS_ACCESS_KEY_ID", "")
+AWS_SECRET_ACCESS_KEY: str = os.getenv("AWS_SECRET_ACCESS_KEY", "")
+AWS_REGION: str = os.getenv("AWS_REGION", "us-east-1")
+AWS_S3_ENDPOINT_URL: str = os.getenv("AWS_S3_ENDPOINT_URL", "")  # blank = real AWS
+
 # ── IMAP (Document email poller) ──────────────────────────────────────────────
 IMAP_SERVER: str = os.getenv("IMAP_SERVER", "imap.gmail.com")
 IMAP_USER: str = os.getenv("IMAP_USER", os.getenv("MAIL_USERNAME", ""))

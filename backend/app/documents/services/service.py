@@ -17,43 +17,27 @@ from uuid import UUID, uuid4
 from fastapi import HTTPException, status, UploadFile
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
-from starlette.responses import FileResponse
+from starlette.responses import Response
 
 from app.documents.models.model import EmployeeDocument, DocumentStatus
 from app.documents.models.document_type_model import DocumentType
-from app.documents.constants import ALLOWED_MIME_TYPES, MAX_FILE_SIZE_BYTES, UPLOAD_DIR_DOCUMENTS
+from app.documents.constants import ALLOWED_MIME_TYPES, MAX_FILE_SIZE_BYTES
+from app.core.storage_service import storage
 
 
 def save_file(file: UploadFile, employee_id: int) -> str:
-    """Save an uploaded file to disk under a safe, unique name.
-
-    The stored name is server-generated (employee id + UUID + extension), never
-    the user-supplied filename — this prevents path traversal (e.g. ``../``) and
-    filename collisions that would otherwise overwrite another document. The
-    original filename is preserved separately on ``EmployeeDocument.file_name``.
-
-    NOTE: This is the single place that writes the file to disk. To migrate to
-    S3, replace the local write with a boto3 upload and return the object key —
-    the rest of the document flow only depends on the returned path string.
-
-    Args:
-        file: The FastAPI UploadFile object.
-        employee_id: The ID of the employee uploading the file (server-trusted).
+    """Save an uploaded document using the active storage backend.
 
     Returns:
-        The relative path to the saved file.
+        The storage key for the saved file (e.g. "documents/42_abc123.pdf").
+        Store this key in EmployeeDocument.file_path.
     """
-    os.makedirs(UPLOAD_DIR_DOCUMENTS, exist_ok=True)
-
-    # Only keep the extension from the user's filename; the rest is server-generated.
     ext = os.path.splitext(file.filename or "")[1].lower()
     stored_name = f"{employee_id}_{uuid4().hex}{ext}"
-    file_path = os.path.join(UPLOAD_DIR_DOCUMENTS, stored_name)
-
-    with open(file_path, "wb") as buffer:
-        buffer.write(file.file.read())
-
-    return file_path
+    key = f"documents/{stored_name}"
+    content = file.file.read()
+    storage.upload(content, key)
+    return key
 
 
 def _handle_duplicate_document(db: Session, employee_id: int, document_type_name: str) -> None:
@@ -74,8 +58,8 @@ def _handle_duplicate_document(db: Session, employee_id: int, document_type_name
     )
 
     if existing_document:
-        if os.path.exists(existing_document.file_path):
-            os.remove(existing_document.file_path)
+        if existing_document.file_path:
+            storage.delete(existing_document.file_path)
 
         db.delete(existing_document)
         db.flush()  # Flush so the deletion is applied before the new insert
@@ -199,7 +183,7 @@ def download_employee_document(
     db: Session,
     document_id: UUID,
     employee_id: int
-) -> FileResponse:
+) -> Response:
     """Download an employee document, verifying access rights.
 
     Args:
@@ -208,7 +192,7 @@ def download_employee_document(
         employee_id: ID of the requesting employee (for access control).
 
     Returns:
-        FileResponse serving the document from disk.
+        Response serving the document.
 
     Raises:
         HTTPException 404: If the document doesn't exist or isn't accessible.
@@ -228,14 +212,10 @@ def download_employee_document(
             detail="Document not found or access denied"
         )
 
-    if not os.path.exists(document.file_path):
+    if not storage.file_exists(document.file_path):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="File not found on server"
         )
 
-    return FileResponse(
-        path=document.file_path,
-        filename=document.file_name,
-        media_type="application/octet-stream"
-    )
+    return storage.serve(document.file_path, document.file_name)

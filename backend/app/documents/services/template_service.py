@@ -11,6 +11,7 @@ Responsibilities:
 
 import os
 import shutil
+import tempfile
 from datetime import datetime
 from uuid import uuid4
 
@@ -19,7 +20,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.documents.models.template_model import DocumentTemplate
-from app.documents.constants import UPLOAD_DIR_TEMPLATES
+from app.core.storage_service import storage
 
 
 def _detect_type_from_file(filename: str, fallback: str) -> str:
@@ -71,18 +72,13 @@ def create_template(
     file_path = None
 
     if file and file.filename:
-        os.makedirs(UPLOAD_DIR_TEMPLATES, exist_ok=True)
-        # Auto-detect correct type from the actual uploaded file extension
         template_type = _detect_type_from_file(file.filename, template_type)
-        # Store under a server-generated unique name (never the user filename) to
-        # avoid path traversal and overwriting another template with the same name.
         ext = os.path.splitext(file.filename or "")[1].lower()
-        file_location = os.path.join(UPLOAD_DIR_TEMPLATES, f"{uuid4().hex}{ext}")
-
-        with open(file_location, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-
-        file_path = file_location
+        key = f"templates/{uuid4().hex}{ext}"
+        file_bytes = file.file.read()
+        storage.upload(file_bytes, key)
+        file_path = key
+        content = None  # file-backed templates have no inline content
 
     template = DocumentTemplate(
         name=name,
@@ -179,16 +175,13 @@ def update_template(
         template.content = content
 
     if file and file.filename:
-        os.makedirs(UPLOAD_DIR_TEMPLATES, exist_ok=True)
         template.template_type = _detect_type_from_file(file.filename, template.template_type)
-        # Server-generated unique name (see create_template) — no traversal/collision.
         ext = os.path.splitext(file.filename or "")[1].lower()
-        file_location = os.path.join(UPLOAD_DIR_TEMPLATES, f"{uuid4().hex}{ext}")
-
-        with open(file_location, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-
-        template.file_path = file_location
+        key = f"templates/{uuid4().hex}{ext}"
+        file_bytes = file.file.read()
+        storage.upload(file_bytes, key)
+        template.file_path = key
+        template.content = None  # file-backed template; clear any old HTML content
 
     template.updated_at = datetime.utcnow()
 
@@ -251,13 +244,24 @@ def generate_docx_preview(template: DocumentTemplate) -> str:
     if template.template_type != "DOCX" or not template.file_path:
         raise ValueError("Only DOCX templates can be previewed this way.")
 
-    if not os.path.exists(template.file_path):
-        raise ValueError("Template file not found on disk.")
+    if not storage.file_exists(template.file_path):
+        raise ValueError("Template file not found.")
 
+    tmp_path = None
     try:
         import mammoth
-        with open(template.file_path, "rb") as docx_file:
+        file_bytes = storage.download(template.file_path)
+        # mammoth requires a seekable file-like object or a local path.
+        # Write to a named temp file to support both local and S3 backends.
+        suffix = os.path.splitext(template.file_path)[1] or ".docx"
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+            tmp.write(file_bytes)
+            tmp_path = tmp.name
+        with open(tmp_path, "rb") as docx_file:
             result = mammoth.convert_to_html(docx_file)
             return result.value
     except Exception as exc:
         raise ValueError(f"Failed to generate DOCX preview: {exc}")
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            os.remove(tmp_path)

@@ -10,8 +10,10 @@ Responsibilities:
 - Saving generated files and notifying external requesters.
 """
 
+import io
 import os
 import re
+import tempfile
 import uuid
 from datetime import datetime
 
@@ -24,12 +26,13 @@ from sqlalchemy.orm import Session
 from app.documents.models.request_model import DocumentRequest, RequestStatus
 from app.documents.models.template_model import DocumentTemplate
 from app.employees.models import Employee
-from app.documents.constants import UPLOAD_DIR_GENERATED, FILENAME_SUFFIX_LENGTH
+from app.documents.constants import FILENAME_SUFFIX_LENGTH
 from app.documents.services.email_service import send_document_to_requester
+from app.core.storage_service import storage
 
 
 # Ensure generated directory exists at startup
-os.makedirs(UPLOAD_DIR_GENERATED, exist_ok=True)
+
 
 
 # ── Context Builders ─────────────────────────────────────────────────────────
@@ -94,16 +97,25 @@ def _replace_placeholders(text: str, context: dict) -> str:
 # ── Generation Engines ───────────────────────────────────────────────────────
 
 def _generate_from_html(template: DocumentTemplate, context: dict, preview: bool) -> tuple[str, str]:
-    """Render an HTML template and convert it to PDF using xhtml2pdf."""
+    """Render an HTML template and convert it to PDF using xhtml2pdf.
+
+    Returns:
+        (storage_key_or_None, rendered_html_string)
+    """
     try:
         jinja_template = Jinja2Template(template.content)
         rendered_html = jinja_template.render(**context)
     except Exception as e:
         raise ValueError(f"Failed to render HTML template: {e}")
 
-    filename = f"{context['employee_name'].replace(' ', '_')}_{template.name.replace(' ', '_')}_{uuid.uuid4().hex[:FILENAME_SUFFIX_LENGTH]}"
-    html_path = os.path.join(UPLOAD_DIR_GENERATED, f"{filename}.html")
+    if preview:
+        return None, rendered_html
 
+    filename_base = (
+        f"{context['employee_name'].replace(' ', '_')}"
+        f"_{template.name.replace(' ', '_')}"
+        f"_{uuid.uuid4().hex[:FILENAME_SUFFIX_LENGTH]}"
+    )
     wrapper = f"""<!DOCTYPE html>
 <html>
   <head>
@@ -118,27 +130,23 @@ def _generate_from_html(template: DocumentTemplate, context: dict, preview: bool
   <body><div class="letter-content">{rendered_html}</div></body>
 </html>"""
 
-    with open(html_path, "w", encoding="utf-8") as f:
-        f.write(wrapper)
-
-    if preview:
-        return None, rendered_html
-
-    final_path = html_path
+    # Try to generate a PDF from the HTML
+    pdf_buf = io.BytesIO()
     try:
-        pdf_path = os.path.join(UPLOAD_DIR_GENERATED, f"{filename}.pdf")
-        with open(pdf_path, "wb") as pdf_file:
-            pisa_status = pisa.CreatePDF(wrapper, dest=pdf_file)
+        pisa_status = pisa.CreatePDF(wrapper, dest=pdf_buf)
         if not pisa_status.err:
-            if os.path.exists(html_path):
-                os.remove(html_path)
-            final_path = pdf_path
+            key = f"generated_documents/{filename_base}.pdf"
+            storage.upload(pdf_buf.getvalue(), key)
+            return key, rendered_html
         else:
-            print(f"Warning: xhtml2pdf encountered errors.")
+            print("Warning: xhtml2pdf encountered errors, falling back to HTML.")
     except Exception as e:
-        print(f"Warning: PDF generation failed ({e}). Returning HTML instead.")
+        print(f"Warning: PDF generation failed ({e}). Storing HTML instead.")
 
-    return final_path, rendered_html
+    # Fallback: store the HTML
+    key = f"generated_documents/{filename_base}.html"
+    storage.upload(wrapper.encode("utf-8"), key)
+    return key, rendered_html
 
 
 def _replace_in_paragraph(paragraph, context: dict):
@@ -153,58 +161,68 @@ def _replace_in_paragraph(paragraph, context: dict):
 
 
 def _generate_from_docx(template: DocumentTemplate, context: dict, preview: bool) -> tuple[str, str]:
-    """Parse a DOCX file, replace placeholders, and export as PDF."""
-    if not template.file_path or not os.path.exists(template.file_path):
-        raise ValueError("DOCX template file not found on disk.")
+    """Parse a DOCX file, replace placeholders, and export as PDF.
 
-    doc = Document(template.file_path)
+    Returns:
+        (storage_key_or_None, html_preview_or_None)
+    """
+    if not template.file_path or not storage.file_exists(template.file_path):
+        raise ValueError("DOCX template file not found.")
 
-    for para in doc.paragraphs:
-        _replace_in_paragraph(para, context)
-    for table in doc.tables:
-        for row in table.rows:
-            for cell in row.cells:
-                for para in cell.paragraphs:
-                    _replace_in_paragraph(para, context)
-    for section in doc.sections:
-        for para in section.header.paragraphs:
-            _replace_in_paragraph(para, context)
-        for para in section.footer.paragraphs:
-            _replace_in_paragraph(para, context)
-
-    filename = f"{context['employee_name'].replace(' ', '_')}_{template.name.replace(' ', '_')}_{uuid.uuid4().hex[:FILENAME_SUFFIX_LENGTH]}.docx"
-    output_path = os.path.join(UPLOAD_DIR_GENERATED, filename)
-    doc.save(output_path)
-
-    if preview:
-        try:
-            with open(output_path, "rb") as docx_file:
-                result = mammoth.convert_to_html(docx_file)
-                html_preview = result.value
-                
-            html_preview = f"""
-            <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; padding: 20px;">
-                {html_preview}
-            </div>
-            """
-        except Exception as e:
-            html_preview = f"<p>Error generating DOCX preview: {e}</p>"
-
-        if os.path.exists(output_path):
-            os.remove(output_path)
-            
-        return None, html_preview
-
-    final_output_path = output_path
+    # Download the DOCX template to a temp file so python-docx can open it
+    template_bytes = storage.download(template.file_path)
+    tmp_template = None
+    tmp_docx_out = None
     try:
-        pdf_filename = f"{filename.replace('.docx', '')}.pdf"
-        pdf_path = os.path.join(UPLOAD_DIR_GENERATED, pdf_filename)
-        
-        with open(output_path, "rb") as docx_file:
-            result = mammoth.convert_to_html(docx_file)
-            raw_html = result.value
-            
-        pdf_wrapper = f"""<!DOCTYPE html>
+        suffix = os.path.splitext(template.file_path)[1] or ".docx"
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tf:
+            tf.write(template_bytes)
+            tmp_template = tf.name
+
+        doc = Document(tmp_template)
+
+        for para in doc.paragraphs:
+            _replace_in_paragraph(para, context)
+        for table in doc.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    for para in cell.paragraphs:
+                        _replace_in_paragraph(para, context)
+        for section in doc.sections:
+            for para in section.header.paragraphs:
+                _replace_in_paragraph(para, context)
+            for para in section.footer.paragraphs:
+                _replace_in_paragraph(para, context)
+
+        # Save the filled DOCX to a second temp file
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as tf2:
+            tmp_docx_out = tf2.name
+        doc.save(tmp_docx_out)
+
+        if preview:
+            try:
+                with open(tmp_docx_out, "rb") as docx_file:
+                    result = mammoth.convert_to_html(docx_file)
+                    html_preview = result.value
+                html_preview = f"""<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; padding: 20px;">
+    {html_preview}
+</div>"""
+            except Exception as e:
+                html_preview = f"<p>Error generating DOCX preview: {e}</p>"
+            return None, html_preview
+
+        # Convert filled DOCX to PDF
+        filename_base = (
+            f"{context['employee_name'].replace(' ', '_')}"
+            f"_{template.name.replace(' ', '_')}"
+            f"_{uuid.uuid4().hex[:FILENAME_SUFFIX_LENGTH]}"
+        )
+        try:
+            with open(tmp_docx_out, "rb") as docx_file:
+                result = mammoth.convert_to_html(docx_file)
+                raw_html = result.value
+
+            pdf_wrapper = f"""<!DOCTYPE html>
 <html>
   <head>
     <style>
@@ -219,17 +237,26 @@ def _generate_from_docx(template: DocumentTemplate, context: dict, preview: bool
   <body><div class="letter-content">{raw_html}</div></body>
 </html>"""
 
-        with open(pdf_path, "wb") as pdf_file:
-            pisa_status = pisa.CreatePDF(pdf_wrapper, dest=pdf_file)
-            
-        if not pisa_status.err:
-            if os.path.exists(output_path):
-                os.remove(output_path)
-            final_output_path = pdf_path
-    except Exception as e:
-        print(f"Warning: DOCX to PDF generation failed ({e}). Returning DOCX instead.")
+            pdf_buf = io.BytesIO()
+            pisa_status = pisa.CreatePDF(pdf_wrapper, dest=pdf_buf)
+            if not pisa_status.err:
+                key = f"generated_documents/{filename_base}.pdf"
+                storage.upload(pdf_buf.getvalue(), key)
+                return key, None
+        except Exception as e:
+            print(f"Warning: DOCX to PDF generation failed ({e}). Returning DOCX instead.")
 
-    return final_output_path, None
+        # Fallback: upload the filled DOCX itself
+        with open(tmp_docx_out, "rb") as f:
+            docx_bytes = f.read()
+        key = f"generated_documents/{filename_base}.docx"
+        storage.upload(docx_bytes, key)
+        return key, None
+
+    finally:
+        for tmp in [tmp_template, tmp_docx_out]:
+            if tmp and os.path.exists(tmp):
+                os.remove(tmp)
 
 
 def generate_from_custom_text(
@@ -238,15 +265,12 @@ def generate_from_custom_text(
     """Generate a PDF document from a raw HTML string.
 
     Args:
-        request_id: The ID of the document request.
+        request_id: The ID of the document request (used in filename).
         content: The raw text/HTML to place in the document body.
-        preserve_whitespace: True for plain typed text (keeps literal line breaks
-            via ``white-space: pre-wrap``). False for rich HTML — e.g. an edited
-            template preview — where the markup already carries its own line breaks
-            and pre-wrap would inject spurious blank lines.
+        preserve_whitespace: True for plain typed text; False for rich HTML.
 
     Returns:
-        Tuple of (saved_file_path, raw_html_content)
+        Tuple of (storage_key, raw_html_content)
     """
     white_space = "pre-wrap" if preserve_whitespace else "normal"
     html_content = f"""<!DOCTYPE html>
@@ -265,25 +289,24 @@ def generate_from_custom_text(
 </body>
 </html>
 """
-    filename = f"custom_letter_{request_id}_{uuid.uuid4().hex[:FILENAME_SUFFIX_LENGTH]}"
-    html_path = os.path.join(UPLOAD_DIR_GENERATED, f"{filename}.html")
-    pdf_path = os.path.join(UPLOAD_DIR_GENERATED, f"{filename}.pdf")
+    filename_base = f"custom_letter_{request_id}_{uuid.uuid4().hex[:FILENAME_SUFFIX_LENGTH]}"
 
-    with open(html_path, "w", encoding="utf-8") as f:
-        f.write(html_content)
-
-    final_path = html_path
+    pdf_buf = io.BytesIO()
     try:
-        with open(pdf_path, "wb") as pdf_file:
-            pisa_status = pisa.CreatePDF(html_content, dest=pdf_file)
+        pisa_status = pisa.CreatePDF(html_content, dest=pdf_buf)
         if not pisa_status.err:
-            if os.path.exists(html_path):
-                os.remove(html_path)
-            final_path = pdf_path
+            key = f"generated_documents/{filename_base}.pdf"
+            storage.upload(pdf_buf.getvalue(), key)
+            return key, html_content
+        else:
+            print("Warning: xhtml2pdf encountered errors.")
     except Exception as e:
         print(f"Warning: PDF generation failed ({e})")
 
-    return final_path, html_content
+    # Fallback: store HTML
+    key = f"generated_documents/{filename_base}.html"
+    storage.upload(html_content.encode("utf-8"), key)
+    return key, html_content
 
 
 # ── Main Orchestrator ────────────────────────────────────────────────────────
@@ -312,26 +335,34 @@ def _save_generated_document(db: Session, doc_request: DocumentRequest, saved_pa
             logging.getLogger(__name__).error(f"[Document Generator] Notification failed: {e}")
 
 
-def notify_external_requester(doc_request: DocumentRequest, final_path: str) -> None:
+def notify_external_requester(doc_request: DocumentRequest, final_key: str) -> None:
     """Email the generated document back to an external requester.
 
-    No-op for internal requests or when there is no recipient/path. Failures are
-    swallowed (and logged) so a flaky mailbox never breaks the generation flow —
-    HR can always re-send from the request page.
+    Downloads the document from storage (works for both local and S3) and
+    attaches it to an outbound email.
     """
     if getattr(doc_request, "source", "INTERNAL") != "EXTERNAL":
         return
-    if not doc_request.requester_email or not final_path:
+    if not doc_request.requester_email or not final_key:
         return
+    tmp_path = None
     try:
-        abs_path = os.path.join(os.getcwd(), final_path.replace("/", os.sep))
+        # abs_path() returns a local path for local backend,
+        # or a temp file path for S3 backend (caller must clean up).
+        tmp_path = storage.abs_path(final_key)
         send_document_to_requester(
             to_email=doc_request.requester_email,
-            document_path=abs_path,
-            document_type=doc_request.document_type
+            document_path=tmp_path,
+            document_type=doc_request.document_type,
         )
     except Exception as e:
         print(f"[Document Generator] Warning: Could not email document to requester: {e}")
+    finally:
+        # Clean up temp file created by S3 backend.abs_path()
+        # Local backend returns a real path — do NOT delete it.
+        from app.core.config import STORAGE_BACKEND
+        if STORAGE_BACKEND == "s3" and tmp_path and os.path.exists(tmp_path):
+            os.remove(tmp_path)
 
 
 def generate_document_from_request(

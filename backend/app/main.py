@@ -474,12 +474,14 @@ app.include_router(template_router,         tags=["Document Templates"])
 app.include_router(document_type_router,    tags=["Document Types"])
 app.include_router(promotion_letter_router, tags=["Promotion Letters"])
 
-# ── Static file uploads ────────────────────────────────────────────────────────
-os.makedirs("uploads/profiles", exist_ok=True)
-os.makedirs("uploads/documents", exist_ok=True)
-os.makedirs("uploads/templates", exist_ok=True)
-os.makedirs("uploads/generated_documents", exist_ok=True)
-app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+# ── Static file uploads (Local Only) ───────────────────────────────────────────
+from app.core.config import STORAGE_BACKEND
+if STORAGE_BACKEND != "s3":
+    os.makedirs("uploads/profiles", exist_ok=True)
+    os.makedirs("uploads/documents", exist_ok=True)
+    os.makedirs("uploads/templates", exist_ok=True)
+    os.makedirs("uploads/generated_documents", exist_ok=True)
+    app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 # ── Root ───────────────────────────────────────────────────────────────────────
 @app.get("/")
