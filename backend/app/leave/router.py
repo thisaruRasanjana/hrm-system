@@ -425,7 +425,7 @@ def change_status(
     if req.employee_id == current_user["id"]:
         raise HTTPException(status_code=403, detail="Cannot change own request")
 
-    _guard_assigned_request(req, current_user)
+    _guard_self_approve(req, current_user)
 
     return update_status(
         db,
@@ -501,7 +501,7 @@ def add_leave_type(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("leave:type_manage")),
 ):
-    return create_leave_type(db, payload.name, payload.description)
+    return create_leave_type(db, payload.name, payload.description, payload.directly_requestable)
 
 
 # -----------------------------

@@ -43,10 +43,10 @@ interface Props {
 export default function ApprovalRequestCard({ request, onReview }: Props) {
   const isPendingMedical = request.status === 'PENDING_MEDICAL';
   const isAssigned = !!request.assignedByName;
-  const isReportUploaded = 
-    request.status === 'PENDING' && 
-    request.leaveType.toLowerCase().includes('medical') && 
-    request.hasAttachment;
+  // Note: 'isReportUploaded' removed — the existing isPendingMedical badge 
+  // covers this flow. A plain attachment on a medical leave could be the 
+  // original submission, not a post-PENDING_MEDICAL resubmit.
+  const isReportUploaded = false;
 
   return (
     <div className={`rounded-[18px] border p-4 shadow-sm transition-all ${

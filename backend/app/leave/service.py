@@ -516,6 +516,17 @@ def set_employee_leave_entitlements(db: Session, employee_id: int, items: list) 
                     if item.total_leaves_cap is not None:
                         accrual_rule.total_leaves_cap = item.total_leaves_cap
                     accrual_rule.carry_forward_allowed = item.carry_forward_allowed
+            elif item.days_per_month is not None:
+                # Create a new accrual rule — this is the first time it's being set
+                from datetime import date
+                db.add(EmployeeLeaveAccrualRule(
+                    employee_id=employee_id,
+                    leave_type_id=item.leave_type_id,
+                    days_per_month=item.days_per_month,
+                    period_start=date.today(),
+                    total_leaves_cap=item.total_leaves_cap,
+                    carry_forward_allowed=item.carry_forward_allowed,
+                ))
 
         row = (
             db.query(EmployeeLeaveEntitlement)
@@ -642,14 +653,17 @@ def get_leave_history(
         query = query.filter(LeaveRequest.employee_id == user["id"])
     elif user["role"] == "hr":
         pass  # HR sees all employees' leave history
-    elif user["role"] == "manager":
-        team = get_team_members(db, user["id"])
-        query = query.filter(
-            or_(
-                LeaveRequest.employee_id == user["id"],
-                LeaveRequest.employee_id.in_(team),
-            )
-        )
+    # NOTE: The "manager" role branch is not reachable in the current implementation.
+    # leave_actor() in router.py only sets role to "hr" or "employee".
+    # If a dedicated manager scope is added in future, implement team filtering here.
+    # elif user["role"] == "manager":
+    #     team = get_team_members(db, user["id"])
+    #     query = query.filter(
+    #         or_(
+    #             LeaveRequest.employee_id == user["id"],
+    #             LeaveRequest.employee_id.in_(team),
+    #         )
+    #     )
 
     if search:
         search = search.strip()
@@ -1205,6 +1219,8 @@ def delete_leave_request(db: Session, request_id: int, employee_id: int):
         raise ValueError("Leave request not found or not authorized")
     if req.status != "PENDING":
         raise ValueError("Only PENDING leave requests can be deleted")
+    _audit_leave(db, req.leave_request_id, req.status, "DELETED", employee_id,
+                 "Leave request deleted by employee")
     db.delete(req)
     db.commit()
     return True
@@ -1299,12 +1315,12 @@ def get_leave_types(db: Session, requestable_only: bool = False):
     return query.order_by(LeaveType.id.asc()).all()
 
 
-def create_leave_type(db: Session, name: str, description: str | None = None):
+def create_leave_type(db: Session, name: str, description: str | None = None, directly_requestable: bool = True):
     existing = db.query(LeaveType).filter(LeaveType.name == name).first()
     if existing:
         raise ValueError("Leave type already exists")
 
-    leave_type = LeaveType(name=name, description=description)
+    leave_type = LeaveType(name=name, description=description, directly_requestable=directly_requestable)
     db.add(leave_type)
     db.commit()
     db.refresh(leave_type)
@@ -1347,8 +1363,6 @@ def get_my_leave_history(
         query = query.order_by(LeaveRequest.start_date.asc())
     else:
         query = query.order_by(LeaveRequest.start_date.desc())
-
-    results = query.all()
 
     results = query.all()
 
