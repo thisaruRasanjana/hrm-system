@@ -181,6 +181,23 @@ export const api = {
   delete: (endpoint: string) => request(endpoint, { method: "DELETE" }),
 };
 
+/**
+ * Resolve a backend-provided file reference into a fetchable URL.
+ *
+ * The backend returns storage URLs via storage.get_url():
+ *   - Local backend → a root-relative path like "/uploads/documents/x.pdf"
+ *   - S3 backend    → an absolute presigned URL like "https://bucket.../x.pdf?..."
+ *
+ * Absolute URLs are used as-is; relative paths are prefixed with the API base.
+ * This keeps downloads working whether STORAGE_BACKEND is local or s3, with no
+ * frontend change needed to switch.
+ */
+export function fileUrl(pathOrUrl: string | null | undefined): string {
+  if (!pathOrUrl) return "";
+  if (/^https?:\/\//i.test(pathOrUrl)) return pathOrUrl;
+  return `${API_BASE_URL}/${pathOrUrl.replace(/^\/+/, "")}`;
+}
+
 export async function apiFetch(url: string, options: RequestInit = {}): Promise<Response> {
   let token = getToken();
 

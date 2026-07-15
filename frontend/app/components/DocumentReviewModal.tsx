@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { X, CheckCircle, XCircle, Clock, AlertCircle } from "lucide-react";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, fileUrl } from "@/lib/api";
 import { useCloseAnimation } from "@/app/hooks/useCloseAnimation";
 
 type Props = {
@@ -100,7 +100,7 @@ export default function DocumentReviewModal({
               <div className="absolute -inset-0.5 bg-gradient-to-r from-gray-200 to-gray-100 rounded-[2rem] blur opacity-30 group-hover:opacity-50 transition duration-1000"></div>
               <div className="relative bg-white border border-gray-200 rounded-[1.8rem] overflow-hidden shadow-sm h-[600px]">
                 <iframe
-                  src={`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/${document.file_path}`}
+                  src={fileUrl(document.file_path)}
                   className="w-full h-full border-none"
                   title="Document Preview"
                 />

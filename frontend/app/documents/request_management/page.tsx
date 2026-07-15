@@ -5,7 +5,7 @@ import DocumentTabsHR from "../../components/DocumentTabsHR";
 import { Search, Clock, FileText, CheckCircle, XCircle, ArrowLeft, AlertCircle, User, Mail, Calendar, Download } from "lucide-react";
 import GenerateDocumentModal from "../../components/GenerateDocumentModal";
 import RejectRequestModal from "../../components/RejectRequestModal";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, fileUrl } from "@/lib/api";
 import { useAuth } from "@/context/auth-context";
 
 type RequestType = {
@@ -112,13 +112,13 @@ export default function HRRequestManagementPage() {
 
   const handleForceDownload = async (path: string) => {
     try {
-      const response = await apiFetch(`/${path}`);
+      const response = await fetch(fileUrl(path));
       if (!response.ok) throw new Error("File not found");
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = path.split("/").pop() || "document.pdf";
+      a.download = (path.split("/").pop() || "document.pdf").split("?")[0];
       document.body.appendChild(a);
       a.click();
       a.remove();

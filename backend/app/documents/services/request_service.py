@@ -16,6 +16,7 @@ import logging
 from app.documents.models.request_model import DocumentRequest, RequestStatus
 from app.documents.schemas.request_schema import CreateRequest
 from app.employees.models import Employee
+from app.core.storage_service import storage
 
 _notif_logger = logging.getLogger(__name__)
 
@@ -124,7 +125,9 @@ def get_employee_requests(db: Session, employee_id: int) -> list[dict]:
             "source": getattr(req, "source", "INTERNAL"),
             "requester_email": getattr(req, "requester_email", None),
             "rejection_reason": req.rejection_reason,
-            "generated_document_path": req.generated_document_path,
+            # Return a ready-to-use URL (local: /uploads/..., S3: presigned URL)
+            # rather than the raw storage key, so the frontend can fetch it directly.
+            "generated_document_path": storage.get_url(req.generated_document_path) if req.generated_document_path else None,
             "created_at": req.created_at
         })
 
