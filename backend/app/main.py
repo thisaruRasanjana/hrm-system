@@ -133,6 +133,163 @@ async def holiday_reminder_loop():
             print(f"[Holiday Reminder] Loop Error: {e}")
         await asyncio.sleep(3600)  # Check every hour
 
+async def daily_digest_loop():
+    """
+    Once-a-day background pass for time-based notifications.
+
+    Covers what nobody triggers by hand: tomorrow's events, today's birthdays
+    and work anniversaries, and the retention purge. Runs hourly but guards
+    each job with a per-day key so a restart can't double-send.
+    """
+    await asyncio.sleep(45)  # let the DB settle, and stagger off the holiday loop
+    sent_days: set = set()
+    while True:
+        try:
+            from datetime import date, timedelta
+
+            today = date.today()
+            today_key = today.isoformat()
+
+            if today_key not in sent_days:
+                db = SessionLocal()
+                try:
+                    _notify_tomorrows_events(db, today)
+                    _notify_celebrations(db, today)
+
+                    from app.notifications.service import purge_expired_notifications
+                    purged = purge_expired_notifications(db)
+                    if purged:
+                        print(f"[Notifications] Retention purge removed {purged} old notification(s).")
+
+                    sent_days.add(today_key)
+                finally:
+                    db.close()
+
+            # Keep the guard set from growing without bound.
+            sent_days.discard((today - timedelta(days=2)).isoformat())
+        except Exception as e:
+            print(f"[Daily Digest] Loop Error: {e}")
+        await asyncio.sleep(3600)
+
+
+def _active_user_ids(db) -> list:
+    from app.auth.models import User
+    return [uid for (uid,) in db.query(User.id).filter(User.is_active == True).all()]
+
+
+def _notify_tomorrows_events(db, today) -> None:
+    """Remind everyone about events happening tomorrow."""
+    try:
+        from datetime import datetime, timedelta, time as dt_time
+        from app.events.models import Event
+        from app.notifications.service import notify_users
+
+        tomorrow = today + timedelta(days=1)
+        events = (
+            db.query(Event)
+            .filter(
+                Event.event_date >= datetime.combine(tomorrow, dt_time.min),
+                Event.event_date <= datetime.combine(tomorrow, dt_time.max),
+            )
+            .all()
+        )
+        if not events:
+            return
+
+        user_ids = _active_user_ids(db)
+        if not user_ids:
+            return
+
+        for ev in events:
+            when = ev.event_date.strftime("%I:%M %p").lstrip("0")
+            location = f" at {ev.location}" if ev.location else ""
+            notify_users(
+                db,
+                user_ids,
+                f"Reminder: {ev.title} is tomorrow at {when}{location}",
+                category="events",
+                type="info",
+                link="/dashboard#widget-upcoming_events",
+                entity_type="event",
+                entity_id=str(ev.id),
+            )
+        db.commit()
+        print(f"[Event Reminder] Sent {len(events)} event reminder(s) to {len(user_ids)} users.")
+    except Exception as e:
+        print(f"[Event Reminder] Error: {e}")
+        db.rollback()
+
+
+def _notify_celebrations(db, today) -> None:
+    """Announce today's birthdays and work anniversaries to the team."""
+    try:
+        from sqlalchemy import extract
+        from app.employees.models import Employee
+        from app.notifications.service import notify_users
+
+        user_ids = _active_user_ids(db)
+        if not user_ids:
+            return
+
+        active_employees = db.query(Employee).filter(
+            (Employee.is_deleted == False) | (Employee.is_deleted.is_(None))
+        )
+
+        # ── Birthdays ────────────────────────────────────────────────
+        birthdays = active_employees.filter(
+            Employee.date_of_birth.isnot(None),
+            extract("month", Employee.date_of_birth) == today.month,
+            extract("day", Employee.date_of_birth) == today.day,
+        ).all()
+
+        for emp in birthdays:
+            name = f"{emp.first_name} {emp.last_name}"
+            notify_users(
+                db,
+                user_ids,
+                f"\U0001f389 Today is {name}'s birthday",
+                category="celebration",
+                type="info",
+                link="/dashboard/employees",
+                entity_type="employee",
+                entity_id=str(emp.id),
+                # Don't tell someone it's their own birthday.
+                exclude_user_id=emp.user_id,
+            )
+
+        # ── Work anniversaries ───────────────────────────────────────
+        anniversaries = active_employees.filter(
+            Employee.joined_date.isnot(None),
+            extract("month", Employee.joined_date) == today.month,
+            extract("day", Employee.joined_date) == today.day,
+        ).all()
+
+        for emp in anniversaries:
+            years = today.year - emp.joined_date.year
+            if years < 1:
+                continue  # their start date, not an anniversary
+            name = f"{emp.first_name} {emp.last_name}"
+            label = "1 year" if years == 1 else f"{years} years"
+            notify_users(
+                db,
+                user_ids,
+                f"\U0001f38a {name} completes {label} at the company today",
+                category="celebration",
+                type="info",
+                link="/dashboard/employees",
+                entity_type="employee",
+                entity_id=str(emp.id),
+                exclude_user_id=emp.user_id,
+            )
+
+        if birthdays or anniversaries:
+            db.commit()
+            print(f"[Celebrations] Sent {len(birthdays)} birthday(s), {len(anniversaries)} anniversary(ies).")
+    except Exception as e:
+        print(f"[Celebrations] Error: {e}")
+        db.rollback()
+
+
 # ── Seed helpers ───────────────────────────────────────────────────────────────
 from app.roles.seed       import seed_roles
 from app.departments.seed import seed_departments
@@ -191,9 +348,12 @@ async def lifespan(app: FastAPI):
     print(f"[Email Poller] Background email polling started (every {EMAIL_POLL_INTERVAL_SECONDS} seconds).")
     holiday_task = asyncio.create_task(holiday_reminder_loop())
     print("[Holiday Reminder] Background holiday reminder loop started (checks every hour).")
+    digest_task = asyncio.create_task(daily_digest_loop())
+    print("[Daily Digest] Event reminders, celebrations and retention purge started (checks every hour).")
     yield
     email_task.cancel()
     holiday_task.cancel()
+    digest_task.cancel()
     try:
         await email_task
     except asyncio.CancelledError:
@@ -202,8 +362,13 @@ async def lifespan(app: FastAPI):
         await holiday_task
     except asyncio.CancelledError:
         pass
+    try:
+        await digest_task
+    except asyncio.CancelledError:
+        pass
     print("[Email Poller] Background email polling stopped.")
     print("[Holiday Reminder] Background holiday reminder loop stopped.")
+    print("[Daily Digest] Background daily digest loop stopped.")
 
 
 app = FastAPI(

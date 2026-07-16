@@ -29,6 +29,8 @@ export interface User {
   notification_preferences?: Record<string, { email: boolean; inApp: boolean }>;
   quiet_hours_start?: string;
   quiet_hours_end?: string;
+  // Days to keep notifications; null/undefined = never auto-delete.
+  notification_retention_days?: number | null;
 }
 
 interface AuthContextType {

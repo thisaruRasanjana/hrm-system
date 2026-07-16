@@ -574,6 +574,8 @@ def update_notifications(
     current_user.notification_preferences = data.notification_preferences
     current_user.quiet_hours_start = data.quiet_hours_start
     current_user.quiet_hours_end = data.quiet_hours_end
+    # None is a real choice here ("never auto-delete"), not a missing value.
+    current_user.notification_retention_days = data.notification_retention_days
 
     db.commit()
     db.refresh(current_user)

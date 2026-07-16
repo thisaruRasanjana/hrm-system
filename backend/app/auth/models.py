@@ -45,6 +45,9 @@ class User(Base):
     notification_preferences = Column(JSONB, nullable=True)
     quiet_hours_start = Column(String, default="22:00")
     quiet_hours_end = Column(String, default="08:00")
+    # How long to keep notifications before permanent deletion, in days.
+    # NULL = keep forever (never auto-delete). Purged items are unrecoverable.
+    notification_retention_days = Column(Integer, nullable=True)
 
     # Relationships (RBAC via join table — from dev)
     roles = relationship("Role", secondary=user_roles, back_populates="users")

@@ -482,6 +482,19 @@ def upsert_interview_panel(db: Session, vacancy_id: int, data: schemas.Interview
         .filter(models.InterviewPanel.vacancy_id == vacancy_id)
         .first()
     )
+    # Remember who was already on the panel so we only notify people whose
+    # assignment is actually new — this endpoint replaces the whole panel and
+    # is re-saved on every edit, so notifying everyone each time would spam.
+    previously_assigned: set[int] = set()
+    if panel:
+        if panel.panel_head_id:
+            previously_assigned.add(panel.panel_head_id)
+        previously_assigned.update(
+            uid for (uid,) in db.query(models.InterviewPanelMember.user_id)
+            .filter(models.InterviewPanelMember.panel_id == panel.id)
+            .all()
+        )
+
     if panel:
         panel.panel_head_id = data.panel_head_id
         panel.interview_link = data.interview_link
@@ -505,7 +518,55 @@ def upsert_interview_panel(db: Session, vacancy_id: int, data: schemas.Interview
 
     db.commit()
     db.refresh(panel)
+
+    _notify_new_panel_members(
+        db,
+        vacancy=vacancy,
+        panel=panel,
+        newly_assigned=[
+            uid for uid in ([data.panel_head_id] + unique_member_ids)
+            if uid not in previously_assigned
+        ],
+    )
+
     return _enrich_panel(db, panel)
+
+
+def _notify_new_panel_members(db: Session, *, vacancy, panel, newly_assigned: list[int]) -> None:
+    """
+    Tell people they've been put on an interview panel.
+
+    Sent only to newly-assigned users. Never raises — a notification failure
+    must not undo a saved panel.
+    """
+    if not newly_assigned:
+        return
+    try:
+        from app.notifications.service import notify_users
+
+        head_id = panel.panel_head_id
+        for user_id in newly_assigned:
+            role = "Panel Head" if user_id == head_id else "Panel Member"
+            message = (
+                f"You've been added as {role} for the {vacancy.title} interview panel"
+            )
+            notify_users(
+                db,
+                [user_id],
+                message,
+                category="recruitment",
+                type="info",
+                link=f"/recruitment/{vacancy.id}",
+                entity_type="vacancy",
+                entity_id=str(vacancy.id),
+            )
+        db.commit()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(
+            f"[Recruitment] Panel assignment notification failed: {e}"
+        )
+        db.rollback()
 
 
 def get_interview_panel(db: Session, vacancy_id: int):

@@ -228,7 +228,7 @@ export default function Topbar() {
         <div className="relative cursor-pointer group" onClick={() => router.push("/dashboard/notifications")}>
           <Bell size={22} className="group-hover:text-[#f08a4b] transition" />
           {unreadNotifs > 0 && (
-            <span className="absolute -top-1 -right-1 bg-[#f08a4b] text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full border-2 border-white animate-pulse">
+            <span className="absolute -top-1 -right-1 bg-[#f08a4b] text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full border-2 border-white">
               {unreadNotifs > 9 ? "9+" : unreadNotifs}
             </span>
           )}
@@ -240,7 +240,7 @@ export default function Topbar() {
             className="hover:text-[#f08a4b] transition"
           />
           {unreadMessages > 0 && (
-            <span className="absolute -top-1 -right-1 w-3 h-3 bg-[#f08a4b] rounded-full border-2 border-white animate-pulse" />
+            <span className="absolute -top-1 -right-1 w-3 h-3 bg-[#f08a4b] rounded-full border-2 border-white" />
           )}
         </div>
 

@@ -7,6 +7,11 @@
 __pycache__/
 venv/
 
+# Database dumps — contain real employee data, never commit
+db_backups/
+*.dump
+*.sql.gz
+
 # Node
 node_modules/
 .next/

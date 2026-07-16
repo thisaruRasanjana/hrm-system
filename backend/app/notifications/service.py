@@ -382,6 +382,61 @@ def notify_permission(
         return 0
 
 
+# ── Retention / Auto-Cleanup ───────────────────────────────────────────────
+
+# Retention windows offered in Settings → Notifications, in days.
+# None (never) is represented by a NULL notification_retention_days column.
+RETENTION_CHOICES = {30, 90, 180, 365}
+
+
+def purge_expired_notifications(db: Session) -> int:
+    """
+    Permanently delete notifications older than each user's retention window.
+
+    Users with a NULL ``notification_retention_days`` keep everything forever.
+    Purged rows are gone for good — this is the "cannot be restored" path the
+    settings copy warns about, so it only ever acts on the window the user
+    themselves chose.
+
+    Returns the number of rows deleted. Never raises.
+    """
+    from datetime import timedelta
+
+    try:
+        from app.auth.models import User
+
+        total = 0
+        rows = (
+            db.query(User.id, User.notification_retention_days)
+            .filter(User.notification_retention_days.isnot(None))
+            .all()
+        )
+        for user_id, days in rows:
+            if not days or days not in RETENTION_CHOICES:
+                continue
+            cutoff = datetime.now() - timedelta(days=days)
+            deleted = (
+                db.query(Notification)
+                .filter(
+                    Notification.user_id == user_id,
+                    Notification.created_at < cutoff,
+                )
+                .delete(synchronize_session=False)
+            )
+            total += deleted or 0
+
+        if total:
+            db.commit()
+        return total
+    except Exception as e:
+        logger.error(f"[Notifications] Retention purge failed: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return 0
+
+
 def get_employee_name(db: Session, employee_id: int) -> str:
     """Helper to get '{first_name} {last_name}' for an employee. Returns 'Unknown' on failure."""
     try:
