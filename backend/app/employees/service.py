@@ -308,6 +308,7 @@ def update_employee(db: Session, employee_id: int, employee_update: EmployeeUpda
     db_employee = db.query(Employee).filter(Employee.id == employee_id).first()
     if db_employee:
         update_data = employee_update.model_dump(exclude_unset=True)
+        update_data_keys = set(update_data.keys())
         
         from app.designations.models import Designation as _Designation
         from app.employees.models import EmployeeDesignationHistory
@@ -376,6 +377,21 @@ def update_employee(db: Session, employee_id: int, employee_update: EmployeeUpda
             )
             db.add(new_hist)
             db.flush()
+        else:
+            # If the designation didn't change, we should still update the active history entry's dates/overrides
+            current_hist = db.query(EmployeeDesignationHistory).filter(
+                EmployeeDesignationHistory.employee_id == employee_id,
+                EmployeeDesignationHistory.designation_id == resolved_designation_id
+            ).order_by(EmployeeDesignationHistory.created_at.desc()).first()
+            
+            if current_hist:
+                if "designation_start_date" in update_data_keys:
+                    current_hist.start_date = designation_start_date
+                if "designation_end_date" in update_data_keys:
+                    current_hist.end_date = designation_end_date
+                if has_leave_overrides:
+                    current_hist.leave_overrides = [e if isinstance(e, dict) else e.model_dump() for e in designation_leave_overrides_raw] if designation_leave_overrides_raw else None
+            db.flush()
 
         # Apply leave overrides to EmployeeLeaveEntitlement regardless of whether designation changed
         if has_leave_overrides:
@@ -401,10 +417,10 @@ def update_employee(db: Session, employee_id: int, employee_update: EmployeeUpda
                     ))
             
             # Delete overrides that are no longer provided
-            db.query(EmployeeLeaveEntitlement).filter(
-                EmployeeLeaveEntitlement.employee_id == employee_id,
-                EmployeeLeaveEntitlement.leave_type_id.notin_(provided_override_lt_ids) if provided_override_lt_ids else True
-            ).delete(synchronize_session=False)
+            del_q = db.query(EmployeeLeaveEntitlement).filter(EmployeeLeaveEntitlement.employee_id == employee_id)
+            if provided_override_lt_ids:
+                del_q = del_q.filter(EmployeeLeaveEntitlement.leave_type_id.notin_(provided_override_lt_ids))
+            del_q.delete(synchronize_session=False)
 
         # Upsert monthly accrual rules if provided
         if has_accrual_rules:
@@ -445,10 +461,10 @@ def update_employee(db: Session, employee_id: int, employee_update: EmployeeUpda
                     ))
             
             # Delete accrual rules that are no longer provided
-            db.query(_ELAR).filter(
-                _ELAR.employee_id == employee_id,
-                _ELAR.leave_type_id.notin_(provided_accrual_lt_ids) if provided_accrual_lt_ids else True
-            ).delete(synchronize_session=False)
+            del_accrual_q = db.query(_ELAR).filter(_ELAR.employee_id == employee_id)
+            if provided_accrual_lt_ids:
+                del_accrual_q = del_accrual_q.filter(_ELAR.leave_type_id.notin_(provided_accrual_lt_ids))
+            del_accrual_q.delete(synchronize_session=False)
 
         if db_employee.user:
             user = db_employee.user
