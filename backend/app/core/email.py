@@ -51,6 +51,65 @@ def send_otp_email(to_email: str, otp: str):
     _send(to_email, "HRM Password Reset OTP", f"Your OTP for password reset is: {otp}")
 
 
+# ── Notification emails ────────────────────────────────────────────────────────
+
+# Shown as the email subject prefix so notification mail is filterable.
+_CATEGORY_SUBJECTS = {
+    "leave": "Leave Update",
+    "attendance": "Attendance Reminder",
+    "recruitment": "Recruitment Update",
+    "announcement": "Company Announcement",
+    "events": "Event Update",
+    "holiday": "Holiday Reminder",
+    "celebration": "Celebration",
+    "document": "Document Update",
+    "system": "System Update",
+    "security": "Security Alert",
+}
+
+
+def send_notification_email(
+    to_email: str,
+    message: str,
+    category: str | None = None,
+    link: str | None = None,
+    dashboard_url: str | None = None,
+) -> None:
+    """
+    Email the text of an in-app notification.
+
+    Delivery is decided by the caller (app.notifications.service), which applies
+    the user's per-category email preference and quiet hours. This function only
+    renders and sends. Raises on SMTP failure — the caller runs it off-request
+    and swallows errors so a mail outage can never fail the triggering action.
+    """
+    label = _CATEGORY_SUBJECTS.get(category or "", "Notification")
+
+    base = (dashboard_url or os.getenv("DASHBOARD_URL") or "http://localhost:3000").rstrip("/")
+    button = ""
+    if link:
+        url = link if link.startswith("http") else f"{base}{link}"
+        button = f"""
+      <p style="margin: 24px 0;">
+        <a href="{url}" style="background: #f08a4b; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold;">
+          View in HRMS
+        </a>
+      </p>"""
+
+    html_body = f"""
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 24px;">
+      <h2 style="color: #f08a4b; margin-bottom: 4px;">{label}</h2>
+      <p style="font-size: 15px; color: #111827;">{message}</p>{button}
+      <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;" />
+      <p style="color: #9ca3af; font-size: 12px;">
+        You are receiving this because email is enabled for {label.lower()} notifications.
+        Change this in HRMS under Settings → Notifications.
+      </p>
+    </div>
+    """
+    _send(to_email, f"[HRMS] {label}", html_body, html=True)
+
+
 # ── Recruitment email functions ────────────────────────────────────────────────
 
 async def send_scheduling_email(to: str, candidate_name: str, job_title: str, interview_link: str) -> None:

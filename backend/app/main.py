@@ -89,48 +89,53 @@ async def email_polling_loop():
 
 
 async def holiday_reminder_loop():
-    """Background loop that checks once per hour for tomorrow's holidays and notifies all active users."""
+    """
+    Background loop that checks once per hour for tomorrow's holidays and
+    notifies all active users.
+
+    Dedupes against the notifications table, not process memory: an in-memory
+    guard is reset by every restart, which would re-send the reminder each time.
+    """
     await asyncio.sleep(30)  # Delay startup to let DB initialize
-    notified_dates: set = set()  # Track which dates we've already notified about today
     while True:
         try:
             from datetime import date, timedelta
             from app.calendar_holidays.models import Holiday
             from app.auth.models import User
-            from app.notifications.service import notify_users
+            from app.notifications.service import notify_users, already_notified_today
 
             tomorrow = (date.today() + timedelta(days=1)).isoformat()
-            today_key = date.today().isoformat()
 
-            # Only send once per calendar day
-            if today_key not in notified_dates:
-                db = SessionLocal()
-                try:
-                    holidays = db.query(Holiday).filter(Holiday.date == tomorrow).all()
-                    if holidays:
-                        # Get all active user IDs
-                        active_user_ids = [
-                            uid for (uid,) in
-                            db.query(User.id).filter(User.is_active == True).all()
-                        ]
-                        if active_user_ids:
-                            for holiday in holidays:
-                                notify_users(
-                                    db,
-                                    active_user_ids,
-                                    f"\U0001f4c5 Tomorrow is {holiday.name}",
-                                    category="holiday",
-                                    type="info",
-                                    link="/dashboard#widget-calendar",
-                                )
+            db = SessionLocal()
+            try:
+                holidays = db.query(Holiday).filter(Holiday.date == tomorrow).all()
+                if holidays:
+                    # Get all active user IDs
+                    active_user_ids = [
+                        uid for (uid,) in
+                        db.query(User.id).filter(User.is_active == True).all()
+                    ]
+                    if active_user_ids:
+                        sent = 0
+                        for holiday in holidays:
+                            if already_notified_today(db, "holiday_reminder", holiday.id):
+                                continue
+                            notify_users(
+                                db,
+                                active_user_ids,
+                                f"\U0001f4c5 Tomorrow is {holiday.name}",
+                                category="holiday",
+                                type="info",
+                                link="/dashboard#widget-calendar",
+                                entity_type="holiday_reminder",
+                                entity_id=str(holiday.id),
+                            )
+                            sent += 1
+                        if sent:
                             db.commit()
-                            notified_dates.add(today_key)
-                            print(f"[Holiday Reminder] Sent {len(holidays)} holiday reminder(s) to {len(active_user_ids)} users.")
-                finally:
-                    db.close()
-
-            # Clean up old date keys
-            notified_dates.discard((date.today() - timedelta(days=2)).isoformat())
+                            print(f"[Holiday Reminder] Sent {sent} holiday reminder(s) to {len(active_user_ids)} users.")
+            finally:
+                db.close()
         except Exception as e:
             print(f"[Holiday Reminder] Loop Error: {e}")
         await asyncio.sleep(3600)  # Check every hour
@@ -140,35 +145,29 @@ async def daily_digest_loop():
     Once-a-day background pass for time-based notifications.
 
     Covers what nobody triggers by hand: tomorrow's events, today's birthdays
-    and work anniversaries, and the retention purge. Runs hourly but guards
-    each job with a per-day key so a restart can't double-send.
+    and work anniversaries, and the retention purge.
+
+    Runs hourly. Each job dedupes against the notifications table rather than
+    process memory, so restarts (uvicorn --reload fires one on every code save)
+    cannot re-send the same reminder.
     """
     await asyncio.sleep(45)  # let the DB settle, and stagger off the holiday loop
-    sent_days: set = set()
     while True:
         try:
-            from datetime import date, timedelta
+            from datetime import date
 
             today = date.today()
-            today_key = today.isoformat()
+            db = SessionLocal()
+            try:
+                _notify_tomorrows_events(db, today)
+                _notify_celebrations(db, today)
 
-            if today_key not in sent_days:
-                db = SessionLocal()
-                try:
-                    _notify_tomorrows_events(db, today)
-                    _notify_celebrations(db, today)
-
-                    from app.notifications.service import purge_expired_notifications
-                    purged = purge_expired_notifications(db)
-                    if purged:
-                        print(f"[Notifications] Retention purge removed {purged} old notification(s).")
-
-                    sent_days.add(today_key)
-                finally:
-                    db.close()
-
-            # Keep the guard set from growing without bound.
-            sent_days.discard((today - timedelta(days=2)).isoformat())
+                from app.notifications.service import purge_expired_notifications
+                purged = purge_expired_notifications(db)
+                if purged:
+                    print(f"[Notifications] Retention purge removed {purged} old notification(s).")
+            finally:
+                db.close()
         except Exception as e:
             print(f"[Daily Digest] Loop Error: {e}")
         await asyncio.sleep(3600)
@@ -180,11 +179,11 @@ def _active_user_ids(db) -> list:
 
 
 def _notify_tomorrows_events(db, today) -> None:
-    """Remind everyone about events happening tomorrow."""
+    """Remind everyone about events happening tomorrow, at most once per event per day."""
     try:
         from datetime import datetime, timedelta, time as dt_time
         from app.events.models import Event
-        from app.notifications.service import notify_users
+        from app.notifications.service import notify_users, already_notified_today
 
         tomorrow = today + timedelta(days=1)
         events = (
@@ -202,7 +201,12 @@ def _notify_tomorrows_events(db, today) -> None:
         if not user_ids:
             return
 
+        sent = 0
         for ev in events:
+            # The table is the guard, not process memory — this loop re-runs on
+            # every restart and must not re-send the same reminder.
+            if already_notified_today(db, "event_reminder", ev.id):
+                continue
             when = ev.event_date.strftime("%I:%M %p").lstrip("0")
             location = f" at {ev.location}" if ev.location else ""
             notify_users(
@@ -212,11 +216,13 @@ def _notify_tomorrows_events(db, today) -> None:
                 category="events",
                 type="info",
                 link="/dashboard#widget-upcoming_events",
-                entity_type="event",
+                entity_type="event_reminder",
                 entity_id=str(ev.id),
             )
-        db.commit()
-        print(f"[Event Reminder] Sent {len(events)} event reminder(s) to {len(user_ids)} users.")
+            sent += 1
+        if sent:
+            db.commit()
+            print(f"[Event Reminder] Sent {sent} event reminder(s) to {len(user_ids)} users.")
     except Exception as e:
         print(f"[Event Reminder] Error: {e}")
         db.rollback()
@@ -227,7 +233,7 @@ def _notify_celebrations(db, today) -> None:
     try:
         from sqlalchemy import extract
         from app.employees.models import Employee
-        from app.notifications.service import notify_users
+        from app.notifications.service import notify_users, already_notified_today
 
         user_ids = _active_user_ids(db)
         if not user_ids:
@@ -245,6 +251,8 @@ def _notify_celebrations(db, today) -> None:
         ).all()
 
         for emp in birthdays:
+            if already_notified_today(db, "birthday", emp.id):
+                continue
             name = f"{emp.first_name} {emp.last_name}"
             notify_users(
                 db,
@@ -253,7 +261,7 @@ def _notify_celebrations(db, today) -> None:
                 category="celebration",
                 type="info",
                 link="/dashboard/employees",
-                entity_type="employee",
+                entity_type="birthday",
                 entity_id=str(emp.id),
                 # Don't tell someone it's their own birthday.
                 exclude_user_id=emp.user_id,
@@ -270,6 +278,8 @@ def _notify_celebrations(db, today) -> None:
             years = today.year - emp.joined_date.year
             if years < 1:
                 continue  # their start date, not an anniversary
+            if already_notified_today(db, "work_anniversary", emp.id):
+                continue
             name = f"{emp.first_name} {emp.last_name}"
             label = "1 year" if years == 1 else f"{years} years"
             notify_users(
@@ -279,7 +289,7 @@ def _notify_celebrations(db, today) -> None:
                 category="celebration",
                 type="info",
                 link="/dashboard/employees",
-                entity_type="employee",
+                entity_type="work_anniversary",
                 entity_id=str(emp.id),
                 exclude_user_id=emp.user_id,
             )

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Bell, Clock, Loader2, Trash2 } from "lucide-react";
+import { Bell, Loader2, Trash2 } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
 import { apiFetch } from "@/lib/api";
 
@@ -69,10 +69,6 @@ export default function NotificationSettingsPage() {
   const { user, refreshUser } = useAuth();
   
   const [notifications, setNotifications] = useState<NotificationType[]>([]);
-  const [quietHours, setQuietHours] = useState({
-    start: "22:00",
-    end: "08:00"
-  });
   const [retentionDays, setRetentionDays] = useState<number | null>(null);
 
   const [isSaving, setIsSaving] = useState(false);
@@ -88,9 +84,6 @@ export default function NotificationSettingsPage() {
         inApp: prefs[cat.id] ? prefs[cat.id].inApp : true,
       }));
       setNotifications(mapped);
-
-      if (user.quiet_hours_start) setQuietHours(prev => ({ ...prev, start: user.quiet_hours_start as string }));
-      if (user.quiet_hours_end) setQuietHours(prev => ({ ...prev, end: user.quiet_hours_end as string }));
       setRetentionDays(user.notification_retention_days ?? null);
     }
   }, [user]);
@@ -117,8 +110,6 @@ export default function NotificationSettingsPage() {
         method: "PUT",
         body: JSON.stringify({
           notification_preferences: preferencesPayload,
-          quiet_hours_start: quietHours.start,
-          quiet_hours_end: quietHours.end,
           notification_retention_days: retentionDays
         })
       });
@@ -185,38 +176,6 @@ export default function NotificationSettingsPage() {
                 </div>
               </div>
             ))}
-          </div>
-        </div>
-
-        {/* Quiet Hours */}
-        <div className="mb-8 border-t border-gray-100 pt-10">
-          <div className="flex items-center gap-3 mb-1">
-            <Clock size={20} className="text-gray-800" />
-            <h2 className="text-xl font-bold text-gray-900">Quiet Hours</h2>
-          </div>
-          <p className="text-gray-400 text-sm font-medium mb-8 tracking-wide">
-            Mute non-urgent notifications during specific hours. Security alerts will bypass quiet hours.
-          </p>
-
-          <div className="grid grid-cols-2 gap-8 max-w-lg">
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 tracking-wider uppercase mb-2">Start Time</label>
-              <input
-                type="time"
-                value={quietHours.start}
-                onChange={(e) => setQuietHours({ ...quietHours, start: e.target.value })}
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#f08a4b]/20 focus:border-[#f08a4b] transition-all"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 tracking-wider uppercase mb-2">End Time</label>
-              <input
-                type="time"
-                value={quietHours.end}
-                onChange={(e) => setQuietHours({ ...quietHours, end: e.target.value })}
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#f08a4b]/20 focus:border-[#f08a4b] transition-all"
-              />
-            </div>
           </div>
         </div>
 

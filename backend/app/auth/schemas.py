@@ -60,8 +60,6 @@ class UserResponse(BaseModel):
     profile_image_url: Optional[str] = None
     two_factor_enabled: Optional[bool] = False
     notification_preferences: Optional[dict] = None
-    quiet_hours_start: Optional[str] = "22:00"
-    quiet_hours_end: Optional[str] = "08:00"
     notification_retention_days: Optional[int] = None
 
     # Fields sourced from Employee model
@@ -119,8 +117,6 @@ class UserPasswordUpdate(BaseModel):
 
 class UserNotificationUpdate(BaseModel):
     notification_preferences: dict
-    quiet_hours_start: str
-    quiet_hours_end: str
     # Days to keep notifications before permanent deletion.
     # None = never auto-delete. Restricted to the windows offered in the UI.
     notification_retention_days: Optional[Literal[30, 90, 180, 365]] = None
