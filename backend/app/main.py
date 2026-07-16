@@ -65,6 +65,8 @@ try:
     _recruitment_available = True
 except ImportError:
     _recruitment_available = False
+    recruitment_router = None
+    public_router = None
     logger.warning("Recruitment module not found — skipping.")
 
 from app.core.config import EMAIL_POLL_INTERVAL_SECONDS
@@ -350,10 +352,25 @@ async def lifespan(app: FastAPI):
     print("[Holiday Reminder] Background holiday reminder loop started (checks every hour).")
     digest_task = asyncio.create_task(daily_digest_loop())
     print("[Daily Digest] Event reminders, celebrations and retention purge started (checks every hour).")
+
+    # APScheduler runs the nightly designation-expiry check; it is independent of
+    # the asyncio loops above, so a failure to start must not take them down.
+    from app.core.scheduler import start_scheduler, shutdown_scheduler
+    try:
+        start_scheduler()
+    except Exception as e:
+        print(f"[Scheduler] Failed to start APScheduler: {e}")
+
     yield
+
     email_task.cancel()
     holiday_task.cancel()
     digest_task.cancel()
+
+    try:
+        shutdown_scheduler()
+    except Exception as e:
+        print(f"[Scheduler] Failed to shutdown APScheduler: {e}")
     try:
         await email_task
     except asyncio.CancelledError:
@@ -406,7 +423,7 @@ app.include_router(holidays_router,      prefix="/holidays",      tags=["Holiday
 app.include_router(notifications_router, prefix="/notifications", tags=["Notifications"])
 app.include_router(time_tracking_router, prefix="/time-tracking", tags=["Time Tracking"])
 
-if _recruitment_available:
+if recruitment_router is not None and public_router is not None:
     app.include_router(recruitment_router)
     app.include_router(public_router)
 
