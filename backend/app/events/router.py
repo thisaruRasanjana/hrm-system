@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from app.database.database import get_db
 from app.core.deps import get_current_user, require_permission
@@ -10,6 +10,78 @@ from app.events.models import Event, UserCalendarEvent
 from app.events.schemas import EventCreate, EventUpdate, EventResponse, EventWithStatus
 
 router = APIRouter()
+
+EVENT_LINK = "/dashboard#widget-upcoming_events"
+
+
+def _format_event_date(event_date: datetime) -> str:
+    """
+    Render an event date relative to today so reminders read naturally.
+
+    Includes its own preposition ("today at …" vs "on Jul 28, 2026") so callers
+    can drop it straight into a sentence without producing "on today at …".
+    """
+    today = datetime.utcnow().date()
+    d = event_date.date()
+    if d == today:
+        return f"today at {event_date.strftime('%I:%M %p').lstrip('0')}"
+    if d == today + timedelta(days=1):
+        return f"tomorrow at {event_date.strftime('%I:%M %p').lstrip('0')}"
+    return f"on {event_date.strftime('%b %d, %Y')}"
+
+
+def _format_cancellation(title: str, event_date: datetime) -> str:
+    """
+    Word a cancellation around the event's own name and day.
+
+    An event cancelled on the day it falls reads "is not held today"; anything
+    further out reads as a plain cancellation with its date.
+    """
+    today = datetime.utcnow().date()
+    d = event_date.date()
+    if d == today:
+        return f"{title} is not held today"
+    if d == today + timedelta(days=1):
+        return f"{title} scheduled for tomorrow has been cancelled"
+    return f"{title} scheduled for {event_date.strftime('%b %d, %Y')} has been cancelled"
+
+
+def _notify_all_users(
+    db: Session,
+    message: str,
+    *,
+    actor_id: int,
+    event_id: int,
+    type: str = "info",
+) -> None:
+    """
+    Fan an event message out to every active user except the actor.
+
+    Never raises — an event change must not fail because notifying failed.
+    """
+    try:
+        from app.notifications.service import notify_users
+
+        user_ids = [
+            uid for (uid,) in db.query(User.id).filter(User.is_active == True).all()
+        ]
+        if user_ids:
+            notify_users(
+                db,
+                user_ids,
+                message,
+                category="events",
+                type=type,
+                link=EVENT_LINK,
+                entity_type="event",
+                entity_id=str(event_id),
+                exclude_user_id=actor_id,
+            )
+            db.commit()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"[Events] Notification failed: {e}")
+        db.rollback()
 
 
 # ── GET upcoming events only (future dates) ─────────────────────────────────────
@@ -128,28 +200,12 @@ def create_event(
     db.commit()
     db.refresh(event)
 
-    try:
-        from app.auth.models import User
-        from app.notifications.service import notify_users
-        
-        # Notify all active users about the new event
-        all_users = db.query(User.id).filter(User.is_active == True).all()
-        user_ids = [u[0] for u in all_users if u[0] != current_user.id]
-        
-        if user_ids:
-            notify_users(
-                db, 
-                user_ids, 
-                f"New upcoming event: {event.title}", 
-                category="events",
-                link="/dashboard#widget-upcoming_events",
-                entity_type="event",
-                entity_id=str(event.id)
-            )
-            db.commit()
-    except Exception as e:
-        import logging
-        logging.error(f"Failed to notify users of new event: {e}")
+    _notify_all_users(
+        db,
+        f"New upcoming event: {event.title} {_format_event_date(event.event_date)}",
+        actor_id=current_user.id,
+        event_id=event.id,
+    )
 
     return event
 
@@ -165,10 +221,25 @@ def update_event(
     ev = db.query(Event).filter(Event.id == event_id).first()
     if not ev:
         raise HTTPException(status_code=404, detail="Event not found")
+
+    was_upcoming = ev.event_date >= datetime.utcnow()
+
     for field, value in data.model_dump(exclude_unset=True).items():
         setattr(ev, field, value)
     db.commit()
     db.refresh(ev)
+
+    # Only announce edits to events that people can still attend — editing a
+    # past event is a records fix, not news.
+    if was_upcoming or ev.event_date >= datetime.utcnow():
+        _notify_all_users(
+            db,
+            f"Event updated: {ev.title} is now {_format_event_date(ev.event_date)}",
+            actor_id=current_user.id,
+            event_id=ev.id,
+            type="warning",
+        )
+
     return ev
 
 
@@ -182,5 +253,22 @@ def delete_event(
     ev = db.query(Event).filter(Event.id == event_id).first()
     if not ev:
         raise HTTPException(status_code=404, detail="Event not found")
+
+    # Capture what we need for the message before the row goes away.
+    title = ev.title
+    event_date = ev.event_date
+    was_upcoming = event_date >= datetime.utcnow()
+
     db.delete(ev)
     db.commit()
+
+    # Cancellations are named after the event itself — people recognise
+    # "Annual General Meeting is cancelled", not "an upcoming event".
+    if was_upcoming:
+        _notify_all_users(
+            db,
+            _format_cancellation(title, event_date),
+            actor_id=current_user.id,
+            event_id=event_id,
+            type="warning",
+        )

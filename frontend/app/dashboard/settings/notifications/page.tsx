@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Bell, Clock, Loader2 } from "lucide-react";
+import { Bell, Clock, Loader2, Trash2 } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
 import { apiFetch } from "@/lib/api";
 
@@ -45,12 +45,24 @@ const Toggle = ({
 const NOTIFICATION_CATEGORIES = [
   { id: "leave", title: "Leave Request Updates", desc: "Notifications about your leave request status" },
   { id: "attendance", title: "Attendance Reminders", desc: "Clock-in/out and timesheet reminders" },
-  { id: "recruitment", title: "Recruitment Updates", desc: "Notifications about applicants and interviews" },
+  { id: "recruitment", title: "Recruitment Updates", desc: "Applicants, interviews and panel assignments" },
   { id: "announcement", title: "Company Announcements", desc: "Important company-wide announcements" },
-  { id: "holiday", title: "Holiday Reminders", desc: "Upcoming holidays and events" },
+  { id: "events", title: "Event Updates", desc: "New, updated and cancelled events, plus day-before reminders" },
+  { id: "holiday", title: "Holiday Reminders", desc: "Upcoming public and company holidays" },
+  { id: "celebration", title: "Birthdays & Work Anniversaries", desc: "Celebrations for your colleagues" },
   { id: "document", title: "Document & Request Alerts", desc: "Alerts for document requests and reviews" },
   { id: "system", title: "System Updates", desc: "Core system changes and welcome messages", forceInApp: true },
   { id: "security", title: "Security Alerts", desc: "Password changes, 2FA updates, new logins", forceInApp: true },
+];
+
+// null = never auto-delete. Values are days, and must match the windows the
+// backend accepts in UserNotificationUpdate.
+const RETENTION_OPTIONS: { value: number | null; label: string }[] = [
+  { value: 30, label: "Keep for 1 month" },
+  { value: 90, label: "Keep for 3 months" },
+  { value: 180, label: "Keep for 6 months" },
+  { value: 365, label: "Keep for 1 year" },
+  { value: null, label: "Keep forever" },
 ];
 
 export default function NotificationSettingsPage() {
@@ -61,6 +73,7 @@ export default function NotificationSettingsPage() {
     start: "22:00",
     end: "08:00"
   });
+  const [retentionDays, setRetentionDays] = useState<number | null>(null);
 
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState("");
@@ -78,6 +91,7 @@ export default function NotificationSettingsPage() {
 
       if (user.quiet_hours_start) setQuietHours(prev => ({ ...prev, start: user.quiet_hours_start as string }));
       if (user.quiet_hours_end) setQuietHours(prev => ({ ...prev, end: user.quiet_hours_end as string }));
+      setRetentionDays(user.notification_retention_days ?? null);
     }
   }, [user]);
 
@@ -104,7 +118,8 @@ export default function NotificationSettingsPage() {
         body: JSON.stringify({
           notification_preferences: preferencesPayload,
           quiet_hours_start: quietHours.start,
-          quiet_hours_end: quietHours.end
+          quiet_hours_end: quietHours.end,
+          notification_retention_days: retentionDays
         })
       });
       
@@ -202,6 +217,43 @@ export default function NotificationSettingsPage() {
                 className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#f08a4b]/20 focus:border-[#f08a4b] transition-all"
               />
             </div>
+          </div>
+        </div>
+
+        {/* Notification retention */}
+        <div className="mb-8 border-t border-gray-100 pt-10">
+          <div className="flex items-center gap-3 mb-1">
+            <Trash2 size={20} className="text-gray-800" />
+            <h2 className="text-xl font-bold text-gray-900">Notification Retention</h2>
+          </div>
+          <p className="text-gray-400 text-sm font-medium mb-8 tracking-wide">
+            Choose how long notifications are kept before they are removed automatically.
+          </p>
+
+          <div className="max-w-lg">
+            <label
+              htmlFor="retention"
+              className="block text-xs font-semibold text-gray-600 tracking-wider uppercase mb-2"
+            >
+              Keep notifications for
+            </label>
+            <select
+              id="retention"
+              value={retentionDays === null ? "never" : String(retentionDays)}
+              onChange={(e) =>
+                setRetentionDays(e.target.value === "never" ? null : Number(e.target.value))
+              }
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#f08a4b]/20 focus:border-[#f08a4b] transition-all cursor-pointer"
+            >
+              {RETENTION_OPTIONS.map((opt) => (
+                <option key={opt.label} value={opt.value === null ? "never" : String(opt.value)}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+            <p className="mt-2 text-xs text-gray-400 font-medium">
+              Notifications older than this are permanently deleted and cannot be restored.
+            </p>
           </div>
         </div>
 
