@@ -59,6 +59,35 @@ CORS_ORIGINS: list[str] = os.getenv(
     "http://localhost:3000,http://127.0.0.1:3000"
 ).split(",")
 
+
+def _as_bool(value: str, default: bool = False) -> bool:
+    """Parse a truthy/falsey environment string ("1", "true", "yes", "on")."""
+    if value is None:
+        return default
+    return value.strip().lower() in ("1", "true", "yes", "on")
+
+
+# ── Auth cookie security ──────────────────────────────────────────────────────
+# The refresh-token cookie must be sent over HTTPS only in production. In local
+# dev (plain HTTP) `secure=True` would stop the browser from ever storing the
+# cookie, so this defaults to False and MUST be set to True in production.
+#
+#   COOKIE_SECURE=true      → only sent over HTTPS (production)
+#   COOKIE_SAMESITE=lax     → lax | strict | none  (use "none" for cross-site,
+#                             which also requires COOKIE_SECURE=true)
+COOKIE_SECURE: bool = _as_bool(os.getenv("COOKIE_SECURE"), default=False)
+COOKIE_SAMESITE: str = os.getenv("COOKIE_SAMESITE", "lax").strip().lower()
+
+# ── Rate limiting (brute-force protection) ────────────────────────────────────
+# Simple in-process limiter for sensitive auth endpoints. Set RATE_LIMIT_ENABLED
+# to false to disable entirely (e.g. for load tests).
+RATE_LIMIT_ENABLED: bool = _as_bool(os.getenv("RATE_LIMIT_ENABLED"), default=True)
+# "max attempts" per "window seconds", per client IP, per endpoint scope.
+LOGIN_RATE_LIMIT: int = int(os.getenv("LOGIN_RATE_LIMIT", "5"))
+LOGIN_RATE_WINDOW_SECONDS: int = int(os.getenv("LOGIN_RATE_WINDOW_SECONDS", "60"))
+OTP_RATE_LIMIT: int = int(os.getenv("OTP_RATE_LIMIT", "5"))
+OTP_RATE_WINDOW_SECONDS: int = int(os.getenv("OTP_RATE_WINDOW_SECONDS", "300"))
+
 # ── File Storage ──────────────────────────────────────────────────────────────
 UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", "uploads/cvs")
 
