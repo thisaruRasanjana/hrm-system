@@ -1,13 +1,13 @@
 """
 AI Screening Service — Multi-Provider Implementation.
 
-Supports: Google Gemini, OpenAI (ChatGPT), Anthropic Claude.
+Supports: Google Gemini, OpenAI (ChatGPT), Anthropic Claude, Groq (free, high-quota).
 
-All configuration is in ai_service/.env — no code changes needed to switch providers.
+All configuration is in backend/.env — no code changes needed to switch providers.
 
-  AI_PROVIDER        = gemini | openai | claude
+  AI_PROVIDER        = gemini | openai | claude | groq
   AI_MODEL           = primary model name for the chosen provider
-  AI_MODEL_FALLBACK  = fallback model (Gemini only, for quota exhaustion)
+  AI_MODEL_FALLBACK  = fallback model when primary hits quota (Gemini and Groq)
   AI_API_KEY         = API key for the chosen provider
 
 Deliberately has ZERO imports from the main backend (app.*).
@@ -26,8 +26,14 @@ from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
-# Load .env from the same directory as this file — safe regardless of CWD.
-load_dotenv(Path(__file__).parent / ".env", override=True)
+# Load configuration from the shared backend/.env — single source of truth for all secrets.
+# Path resolves relative to this file's location (ai_service/), so ../backend/.env works
+# regardless of the current working directory when uvicorn is started.
+_ENV_FILE = Path(__file__).parent.parent / "backend" / ".env"
+if not _ENV_FILE.exists():
+    # Fallback: allow a local .env for isolated testing of the ai_service alone
+    _ENV_FILE = Path(__file__).parent / ".env"
+load_dotenv(_ENV_FILE, override=True)
 
 # ── Provider configuration ────────────────────────────────────────────────────
 AI_PROVIDER: str        = os.getenv("AI_PROVIDER", "gemini").lower()
@@ -274,8 +280,8 @@ def _call_gemini(prompt: str, cv_text: str, cv_file_path: str) -> ScreenResult:
     Call Google Gemini with retry logic across primary + fallback models.
     Keeps the original 2-attempt × 2-model strategy that handles quota exhaustion.
     """
-    # Dynamically reload the .env so key changes take effect without restart.
-    load_dotenv(Path(__file__).parent / ".env", override=True)
+    # Dynamically reload the shared backend/.env so key changes take effect without restart.
+    load_dotenv(_ENV_FILE, override=True)
     current_key = os.getenv("AI_API_KEY", "") or os.getenv("GEMINI_API_KEY", "")
 
     from google import genai
@@ -388,12 +394,102 @@ def _call_claude(prompt: str) -> ScreenResult:
     return result
 
 
+def _call_groq(prompt: str) -> ScreenResult:
+    """
+    Call Groq (Llama, Mixtral, etc.) using the OpenAI-compatible REST API.
+
+    Groq is free with generous rate limits — a good default for development and
+    low-volume production. Uses the openai package (already installed) pointed at
+    Groq's endpoint — no extra dependency needed.
+
+    Recommended models (free tier as of 2025):
+      llama-3.3-70b-versatile    — best quality
+      llama-3.1-8b-instant       — fastest, good for fallback
+      mixtral-8x7b-32768         — strong for structured JSON output
+
+    Get a free API key at: https://console.groq.com
+    """
+    from openai import OpenAI, RateLimitError
+
+    client = OpenAI(
+        api_key=AI_API_KEY,
+        base_url="https://api.groq.com/openai/v1",
+    )
+
+    models_to_try = [AI_MODEL]
+    if AI_MODEL_FALLBACK and AI_MODEL_FALLBACK != AI_MODEL:
+        models_to_try.append(AI_MODEL_FALLBACK)
+
+    last_was_quota = False
+
+    for model_name in models_to_try:
+        for attempt in range(1, 3):  # max 2 attempts per model
+            try:
+                print(f"[ai_service] Groq: trying {model_name} (attempt {attempt}/2)...")
+                response = client.chat.completions.create(
+                    model=model_name,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": (
+                                "You are a senior HR talent acquisition specialist. "
+                                "Always respond with valid JSON only — no markdown fences, no commentary."
+                            ),
+                        },
+                        {"role": "user", "content": prompt},
+                    ],
+                    temperature=0.2,
+                    response_format={"type": "json_object"},
+                )
+                content = response.choices[0].message.content or ""
+                result = _parse_json_response(content)
+                logger.info("[ai_service] Groq scored with %s: %.1f", model_name, result.ai_score)
+                return result
+
+            except RateLimitError:
+                logger.warning("[ai_service] Groq rate limit on %s — trying next model.", model_name)
+                last_was_quota = True
+                break
+
+            except Exception as e:
+                err_str = str(e)
+                is_quota     = "429" in err_str or "rate_limit" in err_str.lower()
+                is_not_found = "404" in err_str or "model_not_found" in err_str.lower()
+                is_server    = any(c in err_str for c in ("503", "502", "500"))
+
+                logger.debug(
+                    "[ai_service] Groq %s attempt %d failed: %s: %s",
+                    model_name, attempt, type(e).__name__, str(e)[:150],
+                )
+
+                if is_quota:
+                    logger.warning("[ai_service] Groq quota on %s — trying next model.", model_name)
+                    last_was_quota = True
+                    break
+                elif is_not_found:
+                    logger.warning("[ai_service] Groq model %s not found — trying next.", model_name)
+                    last_was_quota = False
+                    break
+                elif is_server and attempt < 2:
+                    logger.warning("[ai_service] Groq server error — retrying in 5s...")
+                    last_was_quota = False
+                    time.sleep(5)
+                else:
+                    last_was_quota = False
+                    break
+
+    if last_was_quota:
+        raise QuotaExhaustedError("Groq rate limit reached across all models.")
+    raise AIServiceError("Groq API failed for all attempted models.")
+
+
 # ── Provider dispatch ─────────────────────────────────────────────────────────
 
 _PROVIDER_MAP = {
     "gemini": lambda prompt, cv_text, cv_file_path: _call_gemini(prompt, cv_text, cv_file_path),
     "openai": lambda prompt, cv_text, cv_file_path: _call_openai(prompt),
     "claude": lambda prompt, cv_text, cv_file_path: _call_claude(prompt),
+    "groq":   lambda prompt, cv_text, cv_file_path: _call_groq(prompt),
 }
 
 
@@ -438,7 +534,7 @@ def screen_cv(
     if not AI_API_KEY:
         return _fallback_result(
             cv_file_path, cv_text,
-            f"AI scoring unavailable: AI_API_KEY not configured in ai_service/.env.",
+            "AI scoring unavailable: AI_API_KEY not set in backend/.env.",
         )
 
     # ── Step 3: Provider guard ────────────────────────────────────────────────
@@ -447,7 +543,7 @@ def screen_cv(
         return _fallback_result(
             cv_file_path, cv_text,
             f"Unknown AI_PROVIDER '{AI_PROVIDER}'. "
-            f"Must be one of: gemini, openai, claude.",
+            f"Must be one of: gemini, openai, claude, groq.",
         )
 
     # ── Step 4: Build prompt ──────────────────────────────────────────────────
