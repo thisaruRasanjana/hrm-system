@@ -116,6 +116,33 @@ export default function EmployeeAddPage() {
     init();
   }, [authLoading, user]);
 
+  const handleAutoCalculateProrated = () => {
+    const startStr = formData.work.designationStartDate || formData.work.joinedDate;
+    if (!startStr) {
+      alert("Please select a Start Date or Joined Date first.");
+      return;
+    }
+    const startMonth = new Date(startStr).getMonth();
+    const remainingMonths = 12 - startMonth;
+    if (remainingMonths <= 0 || remainingMonths > 12) return;
+
+    const newEntitlements = { ...customLeaveEntitlements };
+    const newModes = { ...leaveModes };
+
+    leaveTypes.forEach((lt) => {
+      newModes[lt.id] = "flat";
+      const defaultDays = lt.default_days || 0;
+      let calculated = (defaultDays / 12) * remainingMonths;
+      // Round to nearest 0.5
+      calculated = Math.round(calculated * 2) / 2;
+      newEntitlements[lt.id] = String(calculated);
+    });
+
+    setLeaveModes(newModes);
+    setCustomLeaveEntitlements(newEntitlements);
+    setShowDesignationOverrides(true);
+  };
+
   const handleSave = async (redirectToRole: boolean = false) => {
     if (!formData.employeeId || !formData.firstName || !formData.lastName || !formData.email || !formData.phone || !formData.work.designationId || !formData.work.departmentId || !formData.work.roleId) {
       setError("Please fill in all required fields marked with *.");
@@ -140,7 +167,7 @@ export default function EmployeeAddPage() {
           if (rule.daysPerMonth && formData.work.designationStartDate && formData.work.designationEndDate) {
             const start = new Date(formData.work.designationStartDate);
             const end = new Date(formData.work.designationEndDate);
-            const months = Math.max(0, (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1);
+            const months = Math.max(0, (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()));
             computedCap = parseFloat(rule.daysPerMonth) * months;
           }
           return ({
@@ -383,10 +410,77 @@ export default function EmployeeAddPage() {
                   <p className="text-[11px] text-gray-400 mt-1">Leave blank if open-ended</p>
                 </FormField>
               </div>
+
+              {/* Duration Stepper */}
+              <div className="flex items-center gap-3">
+                <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">Duration</span>
+                <div className="flex items-center border border-gray-200 rounded-xl overflow-hidden bg-gray-50">
+                  <button
+                    type="button"
+                    disabled={!formData.work.designationStartDate && !formData.work.joinedDate}
+                    onClick={() => {
+                      const startStr = formData.work.designationStartDate || formData.work.joinedDate;
+                      const start = new Date(startStr);
+                      const end = formData.work.designationEndDate ? new Date(formData.work.designationEndDate) : new Date(start);
+                      const diff = Math.max(0, (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()));
+                      const newEnd = new Date(start);
+                      newEnd.setMonth(newEnd.getMonth() + Math.max(1, diff - 1));
+                      setFormData({ ...formData, work: { ...formData.work, designationEndDate: newEnd.toISOString().split('T')[0] } });
+                    }}
+                    className="px-3 py-2 text-gray-500 hover:text-[#EE7F22] hover:bg-orange-50 transition-colors font-bold text-base disabled:opacity-30 disabled:cursor-not-allowed border-r border-gray-200"
+                  >−</button>
+                  <input
+                    type="number" min="1" max="120"
+                    disabled={!formData.work.designationStartDate && !formData.work.joinedDate}
+                    value={(() => {
+                      const startStr = formData.work.designationStartDate || formData.work.joinedDate;
+                      if (!startStr || !formData.work.designationEndDate) return "";
+                      const diff = (new Date(formData.work.designationEndDate).getFullYear() - new Date(startStr).getFullYear()) * 12 + (new Date(formData.work.designationEndDate).getMonth() - new Date(startStr).getMonth());
+                      return diff > 0 ? String(diff) : "";
+                    })()}
+                    onChange={(e) => {
+                      const months = parseInt(e.target.value);
+                      if (!months || months < 1) return;
+                      const start = new Date(formData.work.designationStartDate || formData.work.joinedDate);
+                      const newEnd = new Date(start);
+                      newEnd.setMonth(newEnd.getMonth() + months);
+                      setFormData({ ...formData, work: { ...formData.work, designationEndDate: newEnd.toISOString().split('T')[0] } });
+                    }}
+                    placeholder="—"
+                    className="w-12 text-center bg-transparent text-[14px] font-semibold text-gray-800 outline-none py-2 disabled:opacity-30 disabled:cursor-not-allowed"
+                  />
+                  <button
+                    type="button"
+                    disabled={!formData.work.designationStartDate && !formData.work.joinedDate}
+                    onClick={() => {
+                      const startStr = formData.work.designationStartDate || formData.work.joinedDate;
+                      const start = new Date(startStr);
+                      const end = formData.work.designationEndDate ? new Date(formData.work.designationEndDate) : new Date(start);
+                      const diff = Math.max(0, (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()));
+                      const newEnd = new Date(start);
+                      newEnd.setMonth(newEnd.getMonth() + diff + 1);
+                      setFormData({ ...formData, work: { ...formData.work, designationEndDate: newEnd.toISOString().split('T')[0] } });
+                    }}
+                    className="px-3 py-2 text-gray-500 hover:text-[#EE7F22] hover:bg-orange-50 transition-colors font-bold text-base disabled:opacity-30 disabled:cursor-not-allowed border-l border-gray-200"
+                  >+</button>
+                </div>
+                <span className="text-[13px] text-gray-400">months</span>
+              </div>
               {/* Leave Overrides Grid */}
               <div>
-                <h3 className="text-[12px] font-bold text-gray-700 uppercase tracking-wider mb-1">Leave Overrides for this period</h3>
-                <p className="text-[11px] text-gray-400 mb-3">Set a fixed total for each leave type. Leave blank to use the system default.</p>
+                <div className="flex items-center justify-between mt-2 mb-3">
+                  <div>
+                    <h3 className="text-[12px] font-bold text-gray-700 uppercase tracking-wider mb-1">Leave Overrides for this period</h3>
+                    <p className="text-[11px] text-gray-400">Set a fixed total for each leave type. Leave blank to use the system default.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAutoCalculateProrated}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#EE7F22]/10 text-[#EE7F22] text-xs font-semibold rounded-lg hover:bg-[#EE7F22]/20 transition-colors shadow-sm whitespace-nowrap"
+                  >
+                    ✨ Auto-Calculate Prorated
+                  </button>
+                </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                   {leaveTypes.map((type) => {
                     const mode = leaveModes[type.id] || "flat";
@@ -472,7 +566,7 @@ export default function EmployeeAddPage() {
                               {accrualRules[leaveType.id]?.daysPerMonth && formData.work.designationStartDate && formData.work.designationEndDate && (() => {
                                 const start = new Date(formData.work.designationStartDate);
                                 const end = new Date(formData.work.designationEndDate);
-                                const months = Math.max(0, (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1);
+                                const months = Math.max(0, (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()));
                                 const total = (parseFloat(accrualRules[leaveType.id].daysPerMonth) * months).toFixed(1);
                                 return (
                                   <div className="flex items-center justify-between bg-orange-50 border border-orange-200 rounded-xl px-4 py-3">
