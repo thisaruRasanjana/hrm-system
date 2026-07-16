@@ -294,3 +294,26 @@ def _create_backend():
 # ---------------------------------------------------------------------------
 
 storage = _create_backend()
+
+
+# ---------------------------------------------------------------------------
+# URL resolution helper
+# ---------------------------------------------------------------------------
+
+def resolve_public_url(value: Optional[str]) -> Optional[str]:
+    """Resolve a stored image/file reference to a currently-valid public URL.
+
+    We persist the *storage key* (e.g. "profiles/42.jpg") in the DB rather than a
+    fully-formed URL. This lets us mint a fresh URL on every read — critical for
+    the S3 backend whose pre-signed URLs expire after 1 hour. In local mode this
+    just maps the key to its stable "/uploads/..." path.
+
+    - Empty / None            → None
+    - Absolute http(s) URL    → returned unchanged (legacy rows / external URLs)
+    - Anything else           → treated as a storage key and resolved via get_url()
+    """
+    if not value:
+        return None
+    if value.startswith("http://") or value.startswith("https://"):
+        return value
+    return storage.get_url(value)

@@ -20,6 +20,12 @@ from app.core.deps import get_current_user, get_user_permissions
 from app.auth.service import authenticate_user, get_user_by_email
 from app.auth.models import User, AuditLog, OTPRecord
 from app.core.email import send_otp_email
+from app.core.config import (
+    COOKIE_SECURE, COOKIE_SAMESITE,
+    LOGIN_RATE_LIMIT, LOGIN_RATE_WINDOW_SECONDS,
+    OTP_RATE_LIMIT, OTP_RATE_WINDOW_SECONDS,
+)
+from app.core.rate_limit import enforce_rate_limit
 
 router = APIRouter()
 security = HTTPBearer()
@@ -42,6 +48,8 @@ def login(data: LoginRequest, request: Request, response: Response, db: Session 
     On success, sets the refresh token as an HttpOnly cookie and returns the access token.
     Failed attempts are recorded in the audit log.
     """
+    enforce_rate_limit(request, "login", LOGIN_RATE_LIMIT, LOGIN_RATE_WINDOW_SECONDS)
+
     client_ip = request.client.host if request.client else "Unknown"
 
     identifier = data.email or data.username
@@ -71,8 +79,8 @@ def login(data: LoginRequest, request: Request, response: Response, db: Session 
         key="refresh_token",
         value=refresh_token,
         httponly=True,
-        secure=False,
-        samesite="lax",
+        secure=COOKIE_SECURE,
+        samesite=COOKIE_SAMESITE,
         max_age=60 * 60 * 24 * REFRESH_TOKEN_EXPIRE_DAYS,
         path="/"
     )
@@ -89,12 +97,14 @@ def login(data: LoginRequest, request: Request, response: Response, db: Session 
 
 
 @router.post("/login/2fa")
-def login_2fa(data: dict, response: Response, db: Session = Depends(get_db)):
+def login_2fa(data: dict, request: Request, response: Response, db: Session = Depends(get_db)):
     """
     Complete the second step of two-factor authentication.
     Validates the TOTP code against the user's stored secret.
     On success, issues full access and refresh tokens, setting the cookie.
     """
+    enforce_rate_limit(request, "login_2fa", LOGIN_RATE_LIMIT, LOGIN_RATE_WINDOW_SECONDS)
+
     temp_token = data.get("temp_token")
     code = data.get("code")
 
@@ -120,8 +130,8 @@ def login_2fa(data: dict, response: Response, db: Session = Depends(get_db)):
     refresh_token = create_refresh_token({"sub": str(user.id)})
 
     response.set_cookie(
-        key="refresh_token", value=refresh_token, httponly=True, secure=False,
-        samesite="lax", max_age=60 * 60 * 24 * REFRESH_TOKEN_EXPIRE_DAYS, path="/"
+        key="refresh_token", value=refresh_token, httponly=True, secure=COOKIE_SECURE,
+        samesite=COOKIE_SAMESITE, max_age=60 * 60 * 24 * REFRESH_TOKEN_EXPIRE_DAYS, path="/"
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
@@ -157,8 +167,8 @@ def refresh_token(request: Request, response: Response, db: Session = Depends(ge
         db.commit()
 
         response.set_cookie(
-            key="refresh_token", value=new_refresh, httponly=True, secure=False,
-            samesite="lax", max_age=60 * 60 * 24 * REFRESH_TOKEN_EXPIRE_DAYS, path="/"
+            key="refresh_token", value=new_refresh, httponly=True, secure=COOKIE_SECURE,
+            samesite=COOKIE_SAMESITE, max_age=60 * 60 * 24 * REFRESH_TOKEN_EXPIRE_DAYS, path="/"
         )
         return {"access_token": new_access, "token_type": "bearer"}
     except JWTError:
@@ -189,19 +199,21 @@ def logout(request: Request, response: Response, db: Session = Depends(get_db)):
         except JWTError:
             pass
             
-    response.delete_cookie(key="refresh_token", path="/", httponly=True, secure=False, samesite="lax")
+    response.delete_cookie(key="refresh_token", path="/", httponly=True, secure=COOKIE_SECURE, samesite=COOKIE_SAMESITE)
     return {"message": "Logged out successfully"}
 
 
 # ---------------- SEND OTP ----------------
 
 @router.post("/send-otp")
-def send_otp(data: dict, db: Session = Depends(get_db)):
+def send_otp(data: dict, request: Request, db: Session = Depends(get_db)):
     """
     Generate a 6-digit OTP for the given email and send it via email.
     Any existing OTP records for that email are deleted first to prevent reuse.
     The OTP expires after OTP_EXPIRE_SECONDS (default 300 s / 5 min).
     """
+    enforce_rate_limit(request, "send_otp", OTP_RATE_LIMIT, OTP_RATE_WINDOW_SECONDS)
+
     email = data.get("email")
     if not email:
         raise HTTPException(status_code=400, detail="Email required")
@@ -228,12 +240,14 @@ def send_otp(data: dict, db: Session = Depends(get_db)):
 # ---------------- VERIFY OTP ----------------
 
 @router.post("/verify-otp")
-def verify_otp(data: dict, db: Session = Depends(get_db)):
+def verify_otp(data: dict, request: Request, db: Session = Depends(get_db)):
     """
     Verify the OTP submitted by the user against the stored record.
     Marks the record as verified so the reset-password endpoint can proceed.
     Returns 400 if the OTP is incorrect or has expired.
     """
+    enforce_rate_limit(request, "verify_otp", OTP_RATE_LIMIT, OTP_RATE_WINDOW_SECONDS)
+
     email = data.get("email")
     otp = data.get("otp")
     if not email or not otp:
@@ -258,12 +272,14 @@ def verify_otp(data: dict, db: Session = Depends(get_db)):
 # ---------------- RESET PASSWORD ----------------
 
 @router.post("/reset-password")
-def reset_password(data: dict, db: Session = Depends(get_db)):
+def reset_password(data: dict, request: Request, db: Session = Depends(get_db)):
     """
     Reset the user's password after a successful OTP verification.
     Requires a verified (and non-expired) OTP record for the email.
     The OTP record is deleted after a successful password update.
     """
+    enforce_rate_limit(request, "reset_password", OTP_RATE_LIMIT, OTP_RATE_WINDOW_SECONDS)
+
     email = data.get("email")
     new_password = data.get("password")
     if not email or not new_password:
@@ -397,7 +413,7 @@ def upload_profile_image(
     """
     Upload a new profile image for the current user.
     """
-    from app.core.storage_service import storage as _storage
+    from app.core.storage_service import storage as _storage, resolve_public_url
 
     ext = file.filename.split(".")[-1] if "." in file.filename else "jpg"
     key = f"profiles/{current_user.id}.{ext}"
@@ -405,10 +421,13 @@ def upload_profile_image(
     content = file.file.read()
     _storage.upload(content, key)
 
-    current_user.profile_image_url = _storage.get_url(key)
+    # Persist the storage KEY (not a fully-formed URL) so we can mint a fresh URL
+    # on every read. S3 pre-signed URLs expire after 1h; storing the key avoids
+    # baking a soon-to-be-dead URL into the DB.
+    current_user.profile_image_url = key
     db.commit()
     db.refresh(current_user)
-    return {"profile_image_url": current_user.profile_image_url}
+    return {"profile_image_url": resolve_public_url(current_user.profile_image_url)}
 
 
 @router.put("/security/password")

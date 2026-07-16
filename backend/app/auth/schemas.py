@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_serializer
 from typing import Optional, List
 
 
@@ -80,6 +80,16 @@ class UserResponse(BaseModel):
     designation_history: Optional[List[dict]] = None
 
     model_config = {"from_attributes": True}
+
+    @field_serializer("profile_image_url")
+    def _serialize_profile_image_url(self, value: Optional[str]) -> Optional[str]:
+        """Mint a fresh public URL from the stored key on every response.
+
+        Ensures S3 pre-signed URLs (which expire after 1h) are never served
+        stale, while leaving local "/uploads/..." paths unchanged.
+        """
+        from app.core.storage_service import resolve_public_url
+        return resolve_public_url(value)
 
 
 class UserProfileUpdate(BaseModel):
