@@ -376,7 +376,7 @@ def update_profile(
     # Sanitize all possible date fields to prevent "invalid input syntax for type date: ''"
     date_fields = ["date_of_birth", "joined_date"]
     for field in date_fields:
-        if field in update_data and update_data[field] == "":
+        if field in update_data and update_data[field] in ("", "None", "null"):
             update_data[field] = None
             
     user_fields = ["first_name", "last_name", "phone_number", "address", "date_of_birth", "emergency_contact_number"]
