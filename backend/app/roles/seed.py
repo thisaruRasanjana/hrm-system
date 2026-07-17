@@ -28,6 +28,7 @@ SYSTEM_PERMISSIONS = [
     ("document:request_manage", "document", "request_manage", "Manage all document requests"),
     ("document:template_upload", "document", "template_upload", "Upload document templates"),
     ("document:type_manage", "document", "type_manage", "Manage document types"),
+    ("document:view_employee_docs", "document", "view_employee_docs", "View any employee's uploaded and requested documents"),
 
     # Leave Management
     ("leave:request", "leave", "request", "Submit leave requests"),
@@ -87,6 +88,7 @@ HR_PERMISSIONS = {
     "employee:create", "employee:update", "employee:delete", "employee:view_all", "employee:view_own",
     "role:create", "role:view", "role:assign",
     "document:upload_own", "document:request_own", "document:approve", "document:request_manage", "document:template_upload", "document:type_manage",
+    "document:view_employee_docs",
     # leave:type_manage grants HR access to Leave Settings — leave types plus
     # per-role and per-employee entitlement overrides.
     "leave:request", "leave:assign", "leave:edit_pending", "leave:view_history", "leave:approve", "leave:reject", "leave:report", "leave:type_manage",
