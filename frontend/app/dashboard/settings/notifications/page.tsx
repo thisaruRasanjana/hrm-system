@@ -130,22 +130,20 @@ export default function NotificationSettingsPage() {
 
   return (
     <div className="w-full max-h-full pb-10">
-      <div className="flex items-center justify-between mb-8">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div>
-          <div className="flex items-center gap-3 mb-1">
-            <Bell size={20} className="text-gray-800" />
-            <h2 className="text-xl font-bold text-gray-900">Notification Settings</h2>
-          </div>
-          <p className="text-gray-400 text-sm font-medium tracking-wide">Manage what notifications you receive from the system</p>
+          <h2 className="text-2xl font-bold text-gray-900 mb-1">Notification Settings</h2>
+          <p className="text-gray-400 text-sm font-medium">Manage what notifications you receive from the system.</p>
         </div>
-        {saveMessage && (
-          <span className={`text-sm font-medium ${saveMessage.includes("Failed") ? "text-red-500" : "text-green-500"}`}>
-            {saveMessage}
-          </span>
-        )}
       </div>
       
       <form onSubmit={handleSave}>
+        {saveMessage && (
+          <div className={`p-4 mb-6 rounded-xl text-sm font-bold border ${saveMessage.includes("Failed") ? "bg-red-50 border-red-100 text-red-600" : "bg-green-50 border-green-100 text-green-700"}`}>
+            {saveMessage}
+          </div>
+        )}
         
         {/* Notifications Table Box */}
         <div className="border border-gray-100 rounded-xl overflow-hidden mb-12 shadow-sm">
@@ -179,51 +177,61 @@ export default function NotificationSettingsPage() {
           </div>
         </div>
 
-        {/* Notification retention */}
-        <div className="mb-8 border-t border-gray-100 pt-10">
-          <div className="flex items-center gap-3 mb-1">
-            <Trash2 size={20} className="text-gray-800" />
-            <h2 className="text-xl font-bold text-gray-900">Notification Retention</h2>
+        {/* Notification Retention */}
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-8">
+          <div className="px-6 py-4 border-b border-gray-50 bg-gray-50/50">
+            <h3 className="text-sm font-bold text-gray-800 flex items-center gap-2"><Trash2 size={16} className="text-[#f08a4b]"/> Notification Retention</h3>
           </div>
-          <p className="text-gray-400 text-sm font-medium mb-8 tracking-wide">
-            Choose how long notifications are kept before they are removed automatically.
-          </p>
-
-          <div className="max-w-lg">
-            <label
-              htmlFor="retention"
-              className="block text-xs font-semibold text-gray-600 tracking-wider uppercase mb-2"
-            >
-              Keep notifications for
-            </label>
-            <select
-              id="retention"
-              value={retentionDays === null ? "never" : String(retentionDays)}
-              onChange={(e) =>
-                setRetentionDays(e.target.value === "never" ? null : Number(e.target.value))
-              }
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#f08a4b]/20 focus:border-[#f08a4b] transition-all cursor-pointer"
-            >
-              {RETENTION_OPTIONS.map((opt) => (
-                <option key={opt.label} value={opt.value === null ? "never" : String(opt.value)}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-            <p className="mt-2 text-xs text-gray-400 font-medium">
-              Notifications older than this are permanently deleted and cannot be restored.
+          
+          <div className="p-6">
+            <p className="text-sm text-gray-500 font-medium mb-6">
+              Choose how long notifications are kept before they are removed automatically. Notifications older than this are permanently deleted and cannot be restored.
             </p>
+
+            <div className="max-w-xl">
+              <label
+                htmlFor="retention"
+                className="block text-sm font-bold text-gray-700 mb-2"
+              >
+                Keep notifications for
+              </label>
+              <div className="relative">
+                <select
+                  id="retention"
+                  value={retentionDays === null ? "never" : String(retentionDays)}
+                  onChange={(e) =>
+                    setRetentionDays(e.target.value === "never" ? null : Number(e.target.value))
+                  }
+                  className="w-full border border-gray-200 rounded-xl p-3 pr-10 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#EE7F22]/20 focus:border-[#EE7F22] bg-white transition appearance-none cursor-pointer"
+                >
+                  {RETENTION_OPTIONS.map((opt) => (
+                    <option key={opt.label} value={opt.value === null ? "never" : String(opt.value)}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-400">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
-        <div className="flex justify-end pt-6 border-t border-gray-100">
+        <div className="flex justify-end pt-2">
           <button
             type="submit"
             disabled={isSaving}
-            className="flex items-center gap-2 px-8 py-3 bg-[#f08a4b] hover:bg-[#e0793a] text-white text-sm font-semibold rounded-lg transition-colors shadow-sm disabled:opacity-70 disabled:cursor-not-allowed"
+            className="bg-[#f08a4b] hover:bg-[#e07a3b] text-white px-8 py-2.5 rounded-xl text-sm font-bold transition disabled:opacity-50 shadow-md shadow-orange-100 flex items-center justify-center min-w-[150px]"
           >
-            {isSaving && <Loader2 size={16} className="animate-spin" />}
-            {isSaving ? "Saving..." : "Save Preferences"}
+            {isSaving ? (
+              <span className="flex items-center gap-2">
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                Saving...
+              </span>
+            ) : "Save Preferences"}
           </button>
         </div>
       </form>
