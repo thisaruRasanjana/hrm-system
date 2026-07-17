@@ -228,19 +228,21 @@ export default function Topbar() {
         <div className="relative cursor-pointer group" onClick={() => router.push("/dashboard/notifications")}>
           <Bell size={22} className="group-hover:text-[#f08a4b] transition" />
           {unreadNotifs > 0 && (
-            <span className="absolute -top-1 -right-1 bg-[#f08a4b] text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full border-2 border-white">
+            <span className="absolute -top-1.5 -right-1.5 bg-[#f08a4b] text-white text-[11px] font-bold min-w-[20px] h-[20px] px-1 flex items-center justify-center rounded-full border-[2px] border-white shadow-sm">
               {unreadNotifs > 9 ? "9+" : unreadNotifs}
             </span>
           )}
         </div>
 
-        <div className="relative cursor-pointer" onClick={() => { setMessagesOpen(true); setUnreadMessages(0); }}>
+        <div className="relative cursor-pointer group" onClick={() => { setMessagesOpen(true); setUnreadMessages(0); }}>
           <MessageSquare
             size={22}
-            className="hover:text-[#f08a4b] transition"
+            className="group-hover:text-[#f08a4b] transition"
           />
           {unreadMessages > 0 && (
-            <span className="absolute -top-1 -right-1 w-3 h-3 bg-[#f08a4b] rounded-full border-2 border-white" />
+            <span className="absolute -top-1.5 -right-1.5 bg-[#f08a4b] text-white text-[11px] font-bold min-w-[20px] h-[20px] px-1 flex items-center justify-center rounded-full border-[2px] border-white shadow-sm">
+              {unreadMessages > 9 ? "9+" : unreadMessages}
+            </span>
           )}
         </div>
 
