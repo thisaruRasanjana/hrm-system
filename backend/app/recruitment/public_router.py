@@ -74,7 +74,10 @@ async def apply_for_job(
     vacancy_id: int,
     background_tasks: BackgroundTasks,
     cv_file: UploadFile = File(...),
-    applicant_email: Optional[str] = Form(None),
+    first_name: str = Form(...),
+    last_name: str = Form(...),
+    email: str = Form(...),
+    mobile: Optional[str] = Form(None),
     recaptcha_token: Optional[str] = Form(None),
     db: Session = Depends(get_db),
 ):
@@ -126,51 +129,41 @@ async def apply_for_job(
         raise HTTPException(status_code=413, detail="File size must be under 5 MB.")
     cv_file.file.seek(0)  # reset so storage can read it
 
-    # ── Guard: duplicate application by email ──────────────────────────────────
-    # If an email is provided, prevent the same person from applying twice.
-    if applicant_email and applicant_email.strip():
-        clean_email = applicant_email.strip().lower()
-        duplicate = (
-            db.query(models.Application)
-            .join(models.Candidate)
-            .filter(
-                models.Application.vacancy_id == vacancy_id,
-                models.Candidate.email.ilike(clean_email),
-            )
-            .first()
+    # ── Guard: email format validation ───────────────────────────────────────
+    import re
+    _EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
+    clean_email = email.strip().lower()
+    if not clean_email or not _EMAIL_RE.match(clean_email):
+        raise HTTPException(
+            status_code=422,
+            detail="Please provide a valid email address.",
         )
-        if duplicate:
-            raise HTTPException(
-                status_code=409,
-                detail="An application with this email address has already been submitted for this position.",
-            )
 
-    # ── Guard: duplicate by filename (fallback when no email given) ────────────
-    filename_base = cv_file.filename.rsplit(".", 1)[0]
-    if not applicant_email or not applicant_email.strip():
-        existing = (
-            db.query(models.Application)
-            .join(models.Candidate)
-            .filter(
-                models.Application.vacancy_id == vacancy_id,
-                models.Candidate.full_name == filename_base,
-            )
-            .first()
+    # ── Guard: duplicate application by email ─────────────────────────────────
+    duplicate = (
+        db.query(models.Application)
+        .join(models.Candidate)
+        .filter(
+            models.Application.vacancy_id == vacancy_id,
+            models.Candidate.email.ilike(clean_email),
         )
-        if existing:
-            raise HTTPException(
-                status_code=409,
-                detail="An application with this file name has already been submitted for this position.",
-            )
+        .first()
+    )
+    if duplicate:
+        raise HTTPException(
+            status_code=409,
+            detail="An application with this email address has already been submitted for this position.",
+        )
 
     # ── Save file to disk / S3 ────────────────────────────────────────────────
     file_path = save_file_locally(cv_file)
 
     # ── Create candidate + application records ────────────────────────────────
     candidate = models.Candidate(
-        full_name=filename_base,
-        email=applicant_email.strip() if applicant_email and applicant_email.strip() else None,
-        phone=None,
+        full_name=f"{first_name.strip()} {last_name.strip()}",
+        email=clean_email,
+        phone=mobile.strip() if mobile and mobile.strip() else None,
+        source="public",
         cv_file_path=file_path,
         uploaded_at=datetime.utcnow(),
     )

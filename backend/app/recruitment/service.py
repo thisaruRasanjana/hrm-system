@@ -161,15 +161,19 @@ def process_cv_background(candidate_id: int, vacancy_id: int, file_path: str):
 
         candidate = db.query(models.Candidate).filter(models.Candidate.id == candidate_id).first()
         if candidate:
-            if result.full_name and result.full_name.strip():
+            is_hr_upload = candidate.source == "hr_upload"
+
+            # Only overwrite name if this was an HR bulk upload (where full_name is just the filename).
+            if is_hr_upload and result.full_name and result.full_name.strip():
                 candidate.full_name = result.full_name
-            # Only fill in email if the candidate did NOT already provide one.
-            # Public portal candidates may have typed their email — preserve it.
+
+            # Only fill in email if not already set (public candidates always have one).
             if not _has_valid_email(candidate.email):
                 candidate.email = result.email  # may be None — frontend shows "Not provided"
-            # Replace the "Processing..." placeholder with the AI result.
-            # Fall back to "Not provided" if AI could not extract a phone number.
-            candidate.phone = result.phone if result.phone else "Not provided"
+
+            # Only fill in phone if not already set (public candidates may have provided one).
+            if not candidate.phone:
+                candidate.phone = result.phone if result.phone else "Not provided"
             candidate.ai_score = result.ai_score
             candidate.ai_reasoning = result.ai_reasoning
             db.commit()
@@ -245,11 +249,12 @@ def upload_cvs(
                 failed += 1
                 continue
 
-            # Create candidate with "Uploaded" status (spec §1.2.5)
+            # Create candidate with 'Uploaded' status — AI will fill in contact details asynchronously.
             candidate = models.Candidate(
                 full_name=filename_base,
-                email="Processing...",
-                phone="Processing...",
+                email=None,
+                phone=None,
+                source="hr_upload",
                 cv_file_path=file_path,
                 uploaded_at=datetime.utcnow(),
             )
