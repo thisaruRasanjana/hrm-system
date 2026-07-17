@@ -19,3 +19,9 @@ import app.leave.models             # noqa: E402, F401
 import app.messages.models          # noqa: E402, F401
 import app.notifications.models     # noqa: E402, F401
 import app.time_tracking.models     # noqa: E402, F401
+
+# Install the global soft-delete query filter now that every mapped class
+# (and thus every SoftDeleteMixin subclass) has been imported/registered.
+from app.database.soft_delete import install_soft_delete_filter  # noqa: E402
+
+install_soft_delete_filter()

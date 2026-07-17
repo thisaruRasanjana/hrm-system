@@ -80,14 +80,6 @@ def create_employee(db: Session, employee: EmployeeCreate, background_tasks: Bac
     3. Assign initial Role to User
     4. Send welcome email after commit (via BackgroundTasks)
     """
-    def _tombstone(value, pk, max_len=255):
-        """Free a unique column on a soft-deleted row without deleting it.
-        Rows can't be hard-deleted: audit_logs (and other tables) hold FK
-        references to users/employees."""
-        if not value or str(value).startswith("deleted_"):
-            return value
-        return f"deleted_{pk}_{value}"[:max_len]
-
     # Validate any pre-assigned leave entitlements up front so a bad value fails
     # cleanly (400) instead of a rolled-back 500 on an FK/constraint violation,
     # and so negative days can never be stored (mirrors set_employee_leave_entitlements).
@@ -113,32 +105,11 @@ def create_employee(db: Session, employee: EmployeeCreate, background_tasks: Bac
                 )
 
     try:
-        # Rename unique fields on any soft-deleted user/employee with this email
-        # so the unique constraints don't block re-creation of the account.
-        stale_user = db.query(User).filter(
-            User.email == employee.email,
-            User.is_deleted == True
-        ).first()
-        if stale_user:
-            stale_emp = db.query(Employee).filter(Employee.user_id == stale_user.id).first()
-            if stale_emp:
-                stale_emp.email = _tombstone(stale_emp.email, stale_emp.id)
-                stale_emp.employee_id = _tombstone(stale_emp.employee_id, stale_emp.id, max_len=50)
-                stale_emp.is_deleted = True
-            stale_user.email = _tombstone(stale_user.email, stale_user.id)
-            stale_user.username = _tombstone(stale_user.username, stale_user.id)
-            db.flush()
-
-        # Also free any orphaned soft-deleted employee row with this email
-        stale_emp_only = db.query(Employee).filter(
-            Employee.email == employee.email,
-            Employee.is_deleted == True
-        ).first()
-        if stale_emp_only:
-            stale_emp_only.email = _tombstone(stale_emp_only.email, stale_emp_only.id)
-            stale_emp_only.employee_id = _tombstone(stale_emp_only.employee_id, stale_emp_only.id, max_len=50)
-            db.flush()
-
+        # A soft-deleted user/employee may still hold this email or employee_id.
+        # That is fine: uniqueness is enforced by PARTIAL unique indexes scoped to
+        # live rows (WHERE is_deleted = false), so a new active record can reuse the
+        # identifiers of a soft-deleted one. If an *active* row already holds them,
+        # the insert raises IntegrityError, mapped to a friendly 400 below.
         temp_password = "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(12))
         hashed = hash_password(temp_password)
 
