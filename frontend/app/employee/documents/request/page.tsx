@@ -126,16 +126,21 @@ export default function EmployeeRequestDocumentPage() {
         {/* Document Type */}
         <div className="space-y-1.5">
           <label className="text-[12px] text-gray-500 font-bold uppercase tracking-wider">Document Type</label>
-          <select
-            value={documentType}
-            onChange={(e) => setDocumentType(e.target.value)}
-            className="w-full border border-gray-200 shadow-sm rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#F2924E]/20 focus:border-[#F2924E] transition-all bg-white"
-          >
-            <option value="">Select document type</option>
-            {documentTypes.map((type) => (
-              <option key={type} value={type}>{type}</option>
-            ))}
-          </select>
+          <div className="relative">
+            <select
+              value={documentType}
+              onChange={(e) => setDocumentType(e.target.value)}
+              className="appearance-none w-full border border-gray-200 shadow-sm rounded-xl px-4 py-2.5 pr-9 text-sm outline-none focus:ring-2 focus:ring-[#F2924E]/20 focus:border-[#F2924E] transition-all bg-white"
+            >
+              <option value="">Select document type</option>
+              {documentTypes.map((type) => (
+                <option key={type} value={type}>{type}</option>
+              ))}
+            </select>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </div>
         </div>
 
         {/* Reason */}
