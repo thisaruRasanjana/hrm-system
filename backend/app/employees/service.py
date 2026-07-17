@@ -475,7 +475,8 @@ def update_employee(db: Session, employee_id: int, employee_update: EmployeeUpda
                 user.username = update_data["email"]
             if "phone" in update_data: user.phone_number = update_data["phone"]
             if "address" in update_data: user.address = update_data["address"]
-            if "date_of_birth" in update_data: user.date_of_birth = str(update_data["date_of_birth"])
+            if "date_of_birth" in update_data: 
+                user.date_of_birth = str(update_data["date_of_birth"]) if update_data["date_of_birth"] else None
             if "emergency_contact_phone" in update_data: user.emergency_contact_number = update_data["emergency_contact_phone"]
             if "employee_id" in update_data: user.employee_id = update_data["employee_id"]
             if "designation" in update_data: user.position = update_data["designation"]
