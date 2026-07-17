@@ -96,6 +96,13 @@ _EMAIL_QUEUE_KEY = "pending_notification_emails"
 def _queue_email(db: Session, user, message: str, category: Optional[str], link: Optional[str]) -> None:
     """Stage a notification email to be sent if and when this session commits."""
     try:
+        # Belt-and-suspenders: never email a soft-deleted or deactivated account.
+        # notify_* already resolve recipients through the global soft-delete query
+        # filter, but this is the single boundary every notification email funnels
+        # through, so we re-check here to also cover a user object that reached us
+        # via a relationship load (which the query filter intentionally skips).
+        if getattr(user, "is_deleted", False) or getattr(user, "is_active", True) is False:
+            return
         to = getattr(user, "email", None)
         if not to or not _should_send_email(user, category):
             return
