@@ -81,8 +81,12 @@ class Candidate(Base):
     """
     A person who has applied (or been uploaded) for one or more vacancies.
 
-    Contact fields are intentionally nullable — the AI screener populates
-    them asynchronously after the initial CV upload.
+    `source` distinguishes how the candidate entered the system:
+      - 'public'    : Self-applied via the public job portal (contact details explicitly provided).
+      - 'hr_upload' : Uploaded internally by HR in bulk (contact details extracted by AI asynchronously).
+
+    For 'public' candidates, full_name, email, and phone are always populated immediately.
+    For 'hr_upload' candidates, email/phone start as None and are filled in by the AI screener.
     """
 
     __tablename__ = "candidates"
@@ -93,6 +97,8 @@ class Candidate(Base):
     email        = Column(String(254), nullable=True)
     # Phone numbers vary widely in length; 50 chars handles any international format.
     phone        = Column(String(50),  nullable=True)
+    # 'public' = self-applied via the job portal; 'hr_upload' = uploaded by HR internally.
+    source       = Column(String(20),  nullable=False, default="hr_upload")
     cv_file_path = Column(String(500), nullable=False)
     uploaded_at  = Column(DateTime,    nullable=False, default=datetime.utcnow)
     # AI-generated fields — null until the background screener completes.
