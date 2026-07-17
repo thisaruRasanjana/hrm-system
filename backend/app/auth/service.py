@@ -52,39 +52,25 @@ def authenticate_user(db: Session, identifier: str, password: str) -> Optional[d
     Returns a token dict on success, None on failure.
     """
     from sqlalchemy.orm import joinedload
-
-    identifier = identifier.strip()
     from app.roles.models import Role
 
-    # Code-level bypass for admin account to preserve DB data while fixing login
-    if (identifier.lower() == "admin" or identifier.lower() == "admin@hrm.lk") and password == "Admin@123":
-        user = (
-            db.query(User)
-            .options(joinedload(User.roles).joinedload(Role.permissions))
-            .filter(
-                (User.email.ilike("admin@hrm.lk")),
-                ((User.is_deleted == False) | (User.is_deleted == None))
-            )
-            .first()
+    identifier = identifier.strip()
+
+    user = (
+        db.query(User)
+        .options(joinedload(User.roles).joinedload(Role.permissions))
+        .filter(
+            ((User.email.ilike(identifier)) | (User.username.ilike(identifier))),
+            ((User.is_deleted == False) | (User.is_deleted == None))
         )
-    else:
-        user = (
-            db.query(User)
-            .options(joinedload(User.roles).joinedload(Role.permissions))
-            .filter(
-                ((User.email.ilike(identifier)) | (User.username.ilike(identifier))),
-                ((User.is_deleted == False) | (User.is_deleted == None))
-            )
-            .first()
-        )
+        .first()
+    )
 
     if not user:
         return None
 
-    # Only verify password if it's not the admin override credentials
-    if not ((identifier.lower() == "admin" or identifier.lower() == "admin@hrm.lk") and password == "Admin@123"):
-        if not verify_password(password, user.password_hash):
-            return None
+    if not verify_password(password, user.password_hash):
+        return None
 
     access_token = create_access_token({"sub": str(user.id)})
     refresh_token = create_refresh_token({"sub": str(user.id)})

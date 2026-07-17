@@ -1,8 +1,7 @@
 import asyncio
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.staticfiles import StaticFiles
 import os
 import logging
@@ -73,19 +72,24 @@ except ImportError:
 from app.core.config import EMAIL_POLL_INTERVAL_SECONDS
 
 async def email_polling_loop():
+    from app.core.scheduler import advisory_lock
     await asyncio.sleep(5)
     while True:
         try:
-            from app.documents.services import email_service
-            db = SessionLocal()
-            try:
-                result = await asyncio.to_thread(email_service.fetch_and_process_external_requests, db)
-            finally:
-                db.close()
-            if isinstance(result, int) and result > 0:
-                print(f"[Email Poller] Synced {result} new external email request(s).")
+            # Only one worker processes the inbox per cycle (advisory lock),
+            # otherwise every worker would poll and double-import the same emails.
+            with advisory_lock("email_poller") as got_lock:
+                if got_lock:
+                    from app.documents.services import email_service
+                    db = SessionLocal()
+                    try:
+                        result = await asyncio.to_thread(email_service.fetch_and_process_external_requests, db)
+                    finally:
+                        db.close()
+                    if isinstance(result, int) and result > 0:
+                        logger.info("[Email Poller] Synced %s new external email request(s).", result)
         except Exception as e:
-            print(f"[Email Poller] Loop Error: {e}")
+            logger.error("[Email Poller] Loop Error: %s", e)
         await asyncio.sleep(EMAIL_POLL_INTERVAL_SECONDS)
 
 
@@ -97,48 +101,54 @@ async def holiday_reminder_loop():
     Dedupes against the notifications table, not process memory: an in-memory
     guard is reset by every restart, which would re-send the reminder each time.
     """
+    from app.core.scheduler import advisory_lock
     await asyncio.sleep(30)  # Delay startup to let DB initialize
     while True:
         try:
-            from datetime import date, timedelta
-            from app.calendar_holidays.models import Holiday
-            from app.auth.models import User
-            from app.notifications.service import notify_users, already_notified_today
+            # One worker per cycle sends the reminders (advisory lock); the
+            # notifications-table dedupe is a second guard, but the lock avoids
+            # N workers racing to send in the first place.
+            with advisory_lock("holiday_reminder") as got_lock:
+                if got_lock:
+                    from datetime import date, timedelta
+                    from app.calendar_holidays.models import Holiday
+                    from app.auth.models import User
+                    from app.notifications.service import notify_users, already_notified_today
 
-            tomorrow = (date.today() + timedelta(days=1)).isoformat()
+                    tomorrow = (date.today() + timedelta(days=1)).isoformat()
 
-            db = SessionLocal()
-            try:
-                holidays = db.query(Holiday).filter(Holiday.date == tomorrow).all()
-                if holidays:
-                    # Get all active user IDs
-                    active_user_ids = [
-                        uid for (uid,) in
-                        db.query(User.id).filter(User.is_active == True).all()
-                    ]
-                    if active_user_ids:
-                        sent = 0
-                        for holiday in holidays:
-                            if already_notified_today(db, "holiday_reminder", holiday.id):
-                                continue
-                            notify_users(
-                                db,
-                                active_user_ids,
-                                f"\U0001f4c5 Tomorrow is {holiday.name}",
-                                category="holiday",
-                                type="info",
-                                link="/dashboard#widget-calendar",
-                                entity_type="holiday_reminder",
-                                entity_id=str(holiday.id),
-                            )
-                            sent += 1
-                        if sent:
-                            db.commit()
-                            print(f"[Holiday Reminder] Sent {sent} holiday reminder(s) to {len(active_user_ids)} users.")
-            finally:
-                db.close()
+                    db = SessionLocal()
+                    try:
+                        holidays = db.query(Holiday).filter(Holiday.date == tomorrow).all()
+                        if holidays:
+                            # Get all active user IDs
+                            active_user_ids = [
+                                uid for (uid,) in
+                                db.query(User.id).filter(User.is_active == True).all()
+                            ]
+                            if active_user_ids:
+                                sent = 0
+                                for holiday in holidays:
+                                    if already_notified_today(db, "holiday_reminder", holiday.id):
+                                        continue
+                                    notify_users(
+                                        db,
+                                        active_user_ids,
+                                        f"\U0001f4c5 Tomorrow is {holiday.name}",
+                                        category="holiday",
+                                        type="info",
+                                        link="/dashboard#widget-calendar",
+                                        entity_type="holiday_reminder",
+                                        entity_id=str(holiday.id),
+                                    )
+                                    sent += 1
+                                if sent:
+                                    db.commit()
+                                    logger.info("[Holiday Reminder] Sent %s holiday reminder(s) to %s users.", sent, len(active_user_ids))
+                    finally:
+                        db.close()
         except Exception as e:
-            print(f"[Holiday Reminder] Loop Error: {e}")
+            logger.error("[Holiday Reminder] Loop Error: %s", e)
         await asyncio.sleep(3600)  # Check every hour
 
 async def daily_digest_loop():
@@ -152,25 +162,29 @@ async def daily_digest_loop():
     process memory, so restarts (uvicorn --reload fires one on every code save)
     cannot re-send the same reminder.
     """
+    from app.core.scheduler import advisory_lock
     await asyncio.sleep(45)  # let the DB settle, and stagger off the holiday loop
     while True:
         try:
-            from datetime import date
+            # One worker per cycle runs events/celebrations/purge (advisory lock).
+            with advisory_lock("daily_digest") as got_lock:
+                if got_lock:
+                    from datetime import date
 
-            today = date.today()
-            db = SessionLocal()
-            try:
-                _notify_tomorrows_events(db, today)
-                _notify_celebrations(db, today)
+                    today = date.today()
+                    db = SessionLocal()
+                    try:
+                        _notify_tomorrows_events(db, today)
+                        _notify_celebrations(db, today)
 
-                from app.notifications.service import purge_expired_notifications
-                purged = purge_expired_notifications(db)
-                if purged:
-                    print(f"[Notifications] Retention purge removed {purged} old notification(s).")
-            finally:
-                db.close()
+                        from app.notifications.service import purge_expired_notifications
+                        purged = purge_expired_notifications(db)
+                        if purged:
+                            logger.info("[Notifications] Retention purge removed %s old notification(s).", purged)
+                    finally:
+                        db.close()
         except Exception as e:
-            print(f"[Daily Digest] Loop Error: {e}")
+            logger.error("[Daily Digest] Loop Error: %s", e)
         await asyncio.sleep(3600)
 
 
@@ -310,7 +324,14 @@ from app.departments.seed import seed_departments
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    Base.metadata.create_all(bind=engine)
+    # Schema ownership: Alembic is authoritative. create_all() is a dev-only
+    # convenience so contributors can spin up without running migrations. In
+    # production set ENVIRONMENT=production and run `alembic upgrade head` — the
+    # two schema sources must not both manage the DB, or they drift.
+    if os.getenv("ENVIRONMENT", "development").strip().lower() == "production":
+        logger.info("[Startup] ENVIRONMENT=production — skipping create_all(); Alembic migrations are authoritative.")
+    else:
+        Base.metadata.create_all(bind=engine)
 
     db = SessionLocal()
     try:
@@ -461,9 +482,3 @@ if STORAGE_BACKEND != "s3":
 @app.get("/")
 def root():
     return {"message": "HRM System API v2.0 — Role-based permissions active"}
-
-security_bearer = HTTPBearer()
-
-@app.get("/protected")
-def protected_route(credentials: HTTPAuthorizationCredentials = Depends(security_bearer)):
-    return {"message": "Authorized", "token": credentials.credentials}

@@ -28,6 +28,7 @@ Benefits:
 
 import hashlib
 import logging
+from contextlib import contextmanager
 from datetime import date, timedelta
 
 from sqlalchemy import text
@@ -64,6 +65,38 @@ def _try_acquire_lock(db, key: int) -> bool:
 def _release_lock(db, key: int) -> None:
     """Release an advisory lock acquired by this session."""
     db.execute(text("SELECT pg_advisory_unlock(:key)"), {"key": key})
+
+
+@contextmanager
+def advisory_lock(job_name: str):
+    """Acquire a Postgres advisory lock for the duration of one job cycle.
+
+    Yields True if THIS process won the lock (and should run the work), or False
+    if another worker holds it. This is what keeps the background loops in
+    main.py (email poller, holiday reminder, daily digest) from firing once per
+    worker under ``uvicorn --workers N`` — the same guarantee the APScheduler job
+    below already relies on. The lock is always released and its session closed
+    on exit, even if the body raises.
+
+    Usage::
+
+        with advisory_lock("email_poller") as got_lock:
+            if got_lock:
+                ...  # do the once-per-cycle work
+    """
+    key = _pg_lock_key(job_name)
+    db = SessionLocal()
+    acquired = False
+    try:
+        acquired = _try_acquire_lock(db, key)
+        yield acquired
+    finally:
+        if acquired:
+            try:
+                _release_lock(db, key)
+            except Exception as exc:  # pragma: no cover - best-effort release
+                logger.warning("[Scheduler] Failed to release lock for %s: %s", job_name, exc)
+        db.close()
 
 
 # ── Job: nightly designation-expiry check ────────────────────────────────────
