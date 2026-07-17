@@ -20,7 +20,6 @@ mammoth
 xhtml2pdf
 python-docx
 jinja2
-apscheduler
 
 # ── Recruitment / AI / Email ──────────────────────────────────────────────────
 fastapi-mail==1.4.2
