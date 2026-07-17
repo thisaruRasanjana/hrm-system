@@ -141,17 +141,18 @@ export default function EmployeeDocumentsPage() {
       <div className="space-y-6 w-full">
         <DocumentTabs />
 
-        <button
-          onClick={() => setDetail(null)}
-          className="inline-flex items-center gap-2 text-sm font-medium text-gray-500 hover:text-[#EE7F22] transition-colors"
-        >
-          <ArrowLeft size={16} />
-          Back to employee list
-        </button>
+        <div>
+          <button
+            onClick={() => setDetail(null)}
+            className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors mb-3 font-medium"
+          >
+            <ArrowLeft size={16} /> Back to employee list
+          </button>
+        </div>
 
         {/* Employee header */}
         <div className="bg-white border border-gray-100 shadow-sm rounded-xl p-6 flex items-center gap-4">
-          <div className="w-12 h-12 bg-orange-400 text-white rounded-full flex items-center justify-center text-sm font-semibold flex-shrink-0">
+          <div className="w-14 h-14 bg-gradient-to-br from-[#f08a4b] to-[#d66f1b] text-white rounded-2xl flex items-center justify-center text-lg font-bold shadow-sm flex-shrink-0">
             {getInitials(emp.first_name, emp.last_name)}
           </div>
           <div className="flex-1">
@@ -283,28 +284,30 @@ export default function EmployeeDocumentsPage() {
       </div>
 
       {/* Active / Inactive toggle + search */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="inline-flex bg-gray-100 p-1 rounded-xl">
+      <div className="flex flex-wrap items-center gap-4">
+        <div className="inline-flex bg-gray-50/80 p-1 rounded-xl border border-gray-100">
           {(["active", "inactive"] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setStatusTab(tab)}
-              className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${
+              className={`px-5 py-2 rounded-lg text-sm font-bold transition-all duration-200 border ${
                 statusTab === tab
-                  ? "bg-white shadow-sm " + (tab === "active" ? "text-[#EE7F22]" : "text-gray-700")
-                  : "text-gray-500 hover:text-gray-700"
+                  ? "bg-white shadow-sm border-gray-100 " + (tab === "active" ? "text-[#f08a4b]" : "text-gray-800")
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-white/50"
               }`}
             >
               {tab === "active" ? "Active Employees" : "Inactive Employees"}
             </button>
           ))}
         </div>
-        <input
-          placeholder="Search by name or employee ID..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="flex-1 min-w-[220px] border border-gray-100 shadow-sm rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 transition"
-        />
+        <div className="flex-1 min-w-[250px]">
+          <input
+            placeholder="Search by name or employee ID..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full border border-gray-200 rounded-xl p-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#f08a4b]/20 focus:border-[#f08a4b] bg-white transition"
+          />
+        </div>
       </div>
 
       {/* Employee list */}
@@ -319,9 +322,9 @@ export default function EmployeeDocumentsPage() {
           </div>
         ) : (
           filteredEmployees.map((emp) => (
-            <div key={emp.id} className="flex items-center justify-between px-6 py-4 hover:bg-orange-50/20 transition-colors">
+            <div key={emp.id} className="flex items-center justify-between px-6 py-4 hover:bg-orange-50/30 transition-colors">
               <div className="flex items-center gap-4 min-w-0">
-                <div className="w-10 h-10 bg-orange-400 text-white rounded-full flex items-center justify-center text-sm font-medium flex-shrink-0">
+                <div className="w-12 h-12 bg-gradient-to-br from-[#f08a4b] to-[#d66f1b] text-white rounded-xl flex items-center justify-center text-sm font-bold flex-shrink-0 shadow-sm">
                   {getInitials(emp.first_name, emp.last_name)}
                 </div>
                 <div className="min-w-0">
@@ -343,7 +346,7 @@ export default function EmployeeDocumentsPage() {
                 <button
                   onClick={() => openEmployee(emp)}
                   disabled={detailLoading}
-                  className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-md text-sm disabled:opacity-60"
+                  className="bg-[#f08a4b] hover:bg-[#e07a3b] text-white px-5 py-2.5 rounded-xl text-sm font-bold transition disabled:opacity-50 shadow-sm shadow-orange-100 flex items-center gap-2"
                 >
                   View Documents
                 </button>
