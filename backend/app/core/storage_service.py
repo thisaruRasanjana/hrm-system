@@ -89,10 +89,19 @@ class _LocalStorageBackend:
         self._root = os.path.join(_backend_dir, "uploads")
 
     def _abs(self, key: str) -> str:
-        """Convert a storage key to an absolute local path."""
-        # Normalize legacy "uploads/"-prefixed / backslash keys, then prevent traversal.
+        """Convert a storage key to an absolute local path, confined to the root.
+
+        Normalizes legacy "uploads/"-prefixed / backslash keys, then verifies the
+        resolved path stays inside the upload root so a crafted key containing
+        ".." can never read or write outside it (path-traversal defense).
+        """
         safe = os.path.normpath(_normalize_key(key)).lstrip("/").lstrip("\\")
-        return os.path.join(self._root, safe)
+        abs_path = os.path.join(self._root, safe)
+        real_root = os.path.realpath(self._root)
+        real_path = os.path.realpath(abs_path)
+        if real_path != real_root and not real_path.startswith(real_root + os.sep):
+            raise HTTPException(status_code=400, detail="Invalid file path.")
+        return abs_path
 
     def upload(self, file_data: bytes, key: str) -> str:
         """Write bytes to disk. Creates parent dirs as needed. Returns the key."""
@@ -170,7 +179,13 @@ class _S3StorageBackend:
             region_name=AWS_REGION,
         )
         if AWS_S3_ENDPOINT_URL:
+            # A custom endpoint means an S3-compatible store (MinIO, Ceph, etc.).
+            # Those require path-style addressing — the default virtual-hosted style
+            # would produce presigned URLs like http://<bucket>.localhost:9000/...
+            # which don't resolve. Real AWS (no endpoint) keeps its default style.
+            from botocore.config import Config
             kwargs["endpoint_url"] = AWS_S3_ENDPOINT_URL
+            kwargs["config"] = Config(s3={"addressing_style": "path"})
 
         import boto3
         self._s3 = boto3.client("s3", **kwargs)

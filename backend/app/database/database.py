@@ -1,8 +1,12 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from dotenv import load_dotenv
+import logging
 import os
+import re
 import urllib.parse
+
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 
@@ -22,7 +26,9 @@ if not DATABASE_URL:
         f"@{DB_HOST}:{DB_PORT}/{DB_NAME}"
     )
 
-print("DATABASE URL USED BY FASTAPI:", DATABASE_URL)
+# Log the connection target with the password masked — never emit credentials.
+_masked_url = re.sub(r"://([^:/@]+):[^@/]+@", r"://\1:****@", DATABASE_URL)
+logger.info("Database engine target: %s", _masked_url)
 
 engine = create_engine(
     DATABASE_URL,
