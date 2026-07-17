@@ -340,6 +340,7 @@ export default function EmployeeManagementPage() {
                               last_name: emp.last_name,
                               department: emp.department_rel?.name,
                               designation: emp.designation,
+                              status: emp.status,
                             })}
                             className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
                             aria-label="Delete"

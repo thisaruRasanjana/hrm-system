@@ -57,6 +57,7 @@ from app.documents.routers.hr_request_router    import router as hr_request_rout
 from app.documents.routers.template_router      import router as template_router
 from app.documents.routers.document_type_router import router as document_type_router
 from app.documents.routers.promotion_router     import router as promotion_letter_router
+from app.documents.routers.employee_docs_router import router as employee_docs_router
 
 # ── Recruitment routers (from recruitment branch) ──────────────────────────────
 try:
@@ -445,6 +446,7 @@ app.include_router(hr_request_router,       tags=["HR Document Requests"])
 app.include_router(template_router,         tags=["Document Templates"])
 app.include_router(document_type_router,    tags=["Document Types"])
 app.include_router(promotion_letter_router, tags=["Promotion Letters"])
+app.include_router(employee_docs_router,    tags=["Employee Documents Browser"])
 
 # ── Static file uploads (Local Only) ───────────────────────────────────────────
 from app.core.config import STORAGE_BACKEND
