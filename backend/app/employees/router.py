@@ -81,6 +81,18 @@ def update_employee(
     return db_employee
 
 
+@router.put("/{employee_id}/role", dependencies=[Depends(require_permission("role:assign"))])
+def update_employee_role(
+    employee_id: int, 
+    payload: schemas.EmployeeRoleUpdate, 
+    db: Session = Depends(get_db)
+):
+    success = service.update_employee_role(db, employee_id, payload.role_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Employee or User not found")
+    return {"success": True, "message": "Role assigned successfully"}
+
+
 @router.delete("/{employee_id}", dependencies=[Depends(require_permission("employee:delete"))])
 def delete_employee(employee_id: int, db: Session = Depends(get_db)):
     success = service.delete_employee(db=db, employee_id=employee_id)

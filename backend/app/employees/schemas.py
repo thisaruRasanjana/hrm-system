@@ -87,6 +87,10 @@ class EmployeeUpdate(BaseModel):
     bank_branch: Optional[str] = None
 
 
+class EmployeeRoleUpdate(BaseModel):
+    role_id: int
+
+
 class RoleInfo(BaseModel):
     id: int
     role_name: str
