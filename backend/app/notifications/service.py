@@ -14,9 +14,11 @@ Usage:
 """
 
 import logging
-from datetime import datetime, time
+import threading
+from datetime import datetime
 from typing import Optional, List
 
+from sqlalchemy import event, func
 from sqlalchemy.orm import Session
 
 from app.notifications.models import Notification
@@ -26,42 +28,8 @@ logger = logging.getLogger(__name__)
 # Categories that are ALWAYS delivered in-app (cannot be disabled by user prefs)
 ALWAYS_DELIVER_CATEGORIES = {"security", "system"}
 
-# Categories that ignore quiet hours entirely
-IGNORE_QUIET_HOURS_CATEGORIES = {"security"}
 
-
-# ── Preference / Quiet-Hours Helpers ────────────────────────────────────────
-
-def _parse_time(time_str: Optional[str]) -> Optional[time]:
-    """Parse an 'HH:MM' string into a datetime.time object."""
-    if not time_str:
-        return None
-    try:
-        parts = time_str.strip().split(":")
-        return time(int(parts[0]), int(parts[1]))
-    except (ValueError, IndexError):
-        return None
-
-
-def _is_in_quiet_hours(user) -> bool:
-    """
-    Check if the current server time falls within the user's quiet-hour window.
-    Handles midnight wrapping (e.g. 22:00 → 08:00).
-    """
-    start = _parse_time(getattr(user, "quiet_hours_start", None))
-    end = _parse_time(getattr(user, "quiet_hours_end", None))
-    if start is None or end is None:
-        return False
-
-    now = datetime.now().time()
-
-    if start <= end:
-        # Simple range: e.g. 09:00 → 17:00
-        return start <= now <= end
-    else:
-        # Wraps midnight: e.g. 22:00 → 08:00
-        return now >= start or now <= end
-
+# ── Preference Helpers ──────────────────────────────────────────────────────
 
 def _get_user_prefs(user) -> Optional[dict]:
     """Return the notification_preferences JSON dict or None."""
@@ -99,27 +67,91 @@ def _should_send_email(user, category: Optional[str]) -> bool:
     Decide whether an email notification should be sent for this user/category.
 
     Rules:
-    - Missing/null preferences → treat email as enabled (but won't actually
-      send unless the caller has an email sender to call).
-    - If category's email is explicitly False → skip.
-    - Quiet hours suppress email for non-urgent categories.
+    - If the category's email switch is explicitly False → skip.
+    - Otherwise → send (unconfigured categories default to enabled).
     """
     prefs = _get_user_prefs(user)
-    if prefs is None:
-        return True
+    cat_prefs = prefs.get(category) if prefs else None
 
-    cat_prefs = prefs.get(category)
-    if cat_prefs is None:
-        return True
-
-    if not cat_prefs.get("email", True):
-        return False
-
-    # Quiet hours suppress email for non-urgent categories
-    if category not in IGNORE_QUIET_HOURS_CATEGORIES and _is_in_quiet_hours(user):
+    if cat_prefs is not None and not cat_prefs.get("email", True):
         return False
 
     return True
+
+
+# ── Email Delivery ─────────────────────────────────────────────────────────
+#
+# Emails are staged on the Session and only sent once that session COMMITS.
+# Two rules drive this design:
+#
+#   1. Never email about something that didn't happen. notify_* deliberately
+#      does not commit — the caller's transaction does. Sending inline would
+#      email the user even if the caller then rolled back.
+#   2. Never make a user wait for SMTP. Sending is handed to a background
+#      thread, so a slow or dead mail server cannot stall the HTTP response.
+
+_EMAIL_QUEUE_KEY = "pending_notification_emails"
+
+
+def _queue_email(db: Session, user, message: str, category: Optional[str], link: Optional[str]) -> None:
+    """Stage a notification email to be sent if and when this session commits."""
+    try:
+        # Belt-and-suspenders: never email a soft-deleted or deactivated account.
+        # notify_* already resolve recipients through the global soft-delete query
+        # filter, but this is the single boundary every notification email funnels
+        # through, so we re-check here to also cover a user object that reached us
+        # via a relationship load (which the query filter intentionally skips).
+        if getattr(user, "is_deleted", False) or getattr(user, "is_active", True) is False:
+            return
+        to = getattr(user, "email", None)
+        if not to or not _should_send_email(user, category):
+            return
+        db.info.setdefault(_EMAIL_QUEUE_KEY, []).append((to, message, category, link))
+    except Exception as e:
+        logger.error(f"[Notifications] Failed to queue email: {e}")
+
+
+def _send_queued(queue: List[tuple]) -> None:
+    """
+    Send staged emails one by one. Runs off-request; never raises.
+
+    Collapses duplicates so a mailbox receives a given message once per batch.
+    Notifications are per-user, but several user accounts can share one email
+    address, which would otherwise deliver the same announcement to that
+    address once per account.
+    """
+    from app.core.email import send_notification_email
+
+    seen: set = set()
+    for to, message, category, link in queue:
+        key = (to.strip().lower(), message)
+        if key in seen:
+            continue
+        seen.add(key)
+        try:
+            send_notification_email(to, message, category=category, link=link)
+        except Exception as e:
+            # A failed email must never surface to the user — the in-app
+            # notification is already delivered and is the source of truth.
+            logger.error(f"[Notifications] Email to {to} failed: {e}")
+
+
+@event.listens_for(Session, "after_commit")
+def _dispatch_notification_emails(session: Session) -> None:
+    """Once the notification rows are durable, hand their emails to a thread."""
+    queue = session.info.pop(_EMAIL_QUEUE_KEY, None)
+    if not queue:
+        return
+    try:
+        threading.Thread(target=_send_queued, args=(queue,), daemon=True).start()
+    except Exception as e:
+        logger.error(f"[Notifications] Failed to start email thread: {e}")
+
+
+@event.listens_for(Session, "after_rollback")
+def _discard_notification_emails(session: Session) -> None:
+    """The action was rolled back, so its emails must never go out."""
+    session.info.pop(_EMAIL_QUEUE_KEY, None)
 
 
 # ── Recipient Resolution ───────────────────────────────────────────────────
@@ -218,6 +250,11 @@ def notify_user(
             logger.warning(f"[Notifications] User {user_id} not found, skipping notification")
             return None
 
+        # Email and in-app are independent switches in Settings → Notifications,
+        # so a user who turned off in-app but left email on still gets mailed.
+        # Staged, not sent: goes out only if the caller's transaction commits.
+        _queue_email(db, user, message, category, link)
+
         if not _should_deliver_in_app(user, category):
             return None
 
@@ -271,6 +308,9 @@ def notify_users(
             user = user_map.get(uid)
             if not user:
                 continue
+            # Independent of the in-app switch — see notify_user.
+            _queue_email(db, user, message, category, link)
+
             if not _should_deliver_in_app(user, category):
                 continue
             notifications.append(Notification(
@@ -379,6 +419,98 @@ def notify_permission(
         )
     except Exception as e:
         logger.error(f"[Notifications] Failed to notify by permission '{permission}': {e}")
+        return 0
+
+
+# ── Once-Per-Day Guards ────────────────────────────────────────────────────
+
+def already_notified_today(db: Session, entity_type: str, entity_id: str) -> bool:
+    """
+    Has a notification for this entity already gone out today?
+
+    Daily reminders must be idempotent: the loops that send them re-run on every
+    process start, and an in-memory guard is wiped by each restart (uvicorn
+    --reload restarts on every code save), which would re-send the same reminder
+    all day. The notifications table itself is the only guard that survives a
+    restart, so it is the source of truth.
+
+    ``entity_type`` must be specific to the reminder (e.g. "event_reminder", not
+    "event") so a reminder is not confused with other notifications about the
+    same entity — such as the "New upcoming event" message for that event.
+
+    Returns True (i.e. "skip sending") on error, because re-sending a duplicate
+    is worse than missing one reminder.
+    """
+    try:
+        return (
+            db.query(Notification.id)
+            .filter(
+                Notification.entity_type == entity_type,
+                Notification.entity_id == str(entity_id),
+                func.date(Notification.created_at) == func.current_date(),
+            )
+            .first()
+            is not None
+        )
+    except Exception as e:
+        logger.error(
+            f"[Notifications] Dedupe check failed for {entity_type}/{entity_id}: {e}"
+        )
+        return True
+
+
+# ── Retention / Auto-Cleanup ───────────────────────────────────────────────
+
+# Retention windows offered in Settings → Notifications, in days.
+# None (never) is represented by a NULL notification_retention_days column.
+RETENTION_CHOICES = {30, 90, 180, 365}
+
+
+def purge_expired_notifications(db: Session) -> int:
+    """
+    Permanently delete notifications older than each user's retention window.
+
+    Users with a NULL ``notification_retention_days`` keep everything forever.
+    Purged rows are gone for good — this is the "cannot be restored" path the
+    settings copy warns about, so it only ever acts on the window the user
+    themselves chose.
+
+    Returns the number of rows deleted. Never raises.
+    """
+    from datetime import timedelta
+
+    try:
+        from app.auth.models import User
+
+        total = 0
+        rows = (
+            db.query(User.id, User.notification_retention_days)
+            .filter(User.notification_retention_days.isnot(None))
+            .all()
+        )
+        for user_id, days in rows:
+            if not days or days not in RETENTION_CHOICES:
+                continue
+            cutoff = datetime.now() - timedelta(days=days)
+            deleted = (
+                db.query(Notification)
+                .filter(
+                    Notification.user_id == user_id,
+                    Notification.created_at < cutoff,
+                )
+                .delete(synchronize_session=False)
+            )
+            total += deleted or 0
+
+        if total:
+            db.commit()
+        return total
+    except Exception as e:
+        logger.error(f"[Notifications] Retention purge failed: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
         return 0
 
 

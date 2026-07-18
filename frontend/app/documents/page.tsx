@@ -40,6 +40,8 @@ export default function HRDocumentsPage() {
     const base = pathname.startsWith("/dashboard") ? "/dashboard/documents" : "/documents";
     if (hasPermission("document:approve")) {
       router.replace(`${base}/approval`);
+    } else if (hasPermission("document:view_employee_docs")) {
+      router.replace(`${base}/employee_documents`);
     } else if (hasPermission("document:request_manage")) {
       router.replace(`${base}/request_management`);
     } else if (hasPermission("document:template_upload")) {

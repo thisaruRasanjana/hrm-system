@@ -233,7 +233,7 @@ export default function LeaveSettingsPage() {
           if (rawVal !== '' && entry?.period_start && entry?.period_end) {
             const start = new Date(entry.period_start);
             const end = new Date(entry.period_end);
-            const months = Math.max(0, (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1);
+            const months = Math.max(0, (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()));
             computedCap = Number(rawVal) * months;
           }
           return {
@@ -750,7 +750,7 @@ export default function LeaveSettingsPage() {
                                     if (!dpm || !entry?.period_start || !entry?.period_end) return null;
                                     const start = new Date(entry.period_start!);
                                     const end = new Date(entry.period_end!);
-                                    const months = Math.max(0, (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1);
+                                    const months = Math.max(0, (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()));
                                     const total = (Number(dpm) * months).toFixed(1);
                                     return (
                                       <div className="flex justify-between items-center bg-gray-50 rounded-lg px-2.5 py-2 border border-gray-100">

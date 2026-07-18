@@ -138,20 +138,24 @@ export default function HRRequestDocumentPage() {
           <label className="text-sm text-gray-600 font-medium">
             Document Type
           </label>
+          <div className="relative mt-2 w-full">
+            <select
+              value={documentType}
+              onChange={(e) => setDocumentType(e.target.value)}
+              className="appearance-none w-full border border-gray-200 bg-white shadow-sm rounded-lg px-4 py-3 pr-9 text-sm outline-none focus:ring-2 focus:ring-[#F2924E]/30 transition"
+            >
+              <option value="">Select document type</option>
 
-          <select
-            value={documentType}
-            onChange={(e) => setDocumentType(e.target.value)}
-            className="mt-2 w-full border border-gray-200 bg-white shadow-sm rounded-lg px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#F2924E]/30 transition"
-          >
-            <option value="">Select document type</option>
-
-            {documentTypes.map((type) => (
-              <option key={type} value={type}>
-                {type}
-              </option>
-            ))}
-          </select>
+              {documentTypes.map((type) => (
+                <option key={type} value={type}>
+                  {type}
+                </option>
+              ))}
+            </select>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </div>
         </div>
 
         {/* Purpose */}

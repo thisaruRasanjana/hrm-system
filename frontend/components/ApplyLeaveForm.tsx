@@ -216,20 +216,25 @@ const ApplyLeaveForm: React.FC<Props> = ({ onSubmitted }) => {
         </div>
       )}
 
-      <div className="mb-4">
-        <label className="block text-sm text-gray-600 mb-1">Leave type</label>
-        <select
-          value={leaveTypeId}
-          onChange={(e) => setLeaveTypeId(e.target.value)}
-          disabled={loadingTypes}
-          className="w-full border border-gray-200 shadow-sm rounded-lg px-4 py-2.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-300 transition"
-        >
-          {leaveTypes.map((type) => (
-            <option key={type.id} value={type.id}>
-              {type.name}
-            </option>
-          ))}
-        </select>
+      <div className="mb-5">
+        <label className="block text-sm font-medium text-gray-700 mb-1.5">Leave type</label>
+        <div className="relative">
+          <select
+            value={leaveTypeId}
+            onChange={(e) => setLeaveTypeId(e.target.value)}
+            disabled={loadingTypes}
+            className="appearance-none w-full border border-gray-200 shadow-sm rounded-xl px-4 py-2.5 pr-9 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#EE7F22]/20 focus:border-[#EE7F22] transition text-sm"
+          >
+            {leaveTypes.map((type) => (
+              <option key={type.id} value={type.id}>
+                {type.name}
+              </option>
+            ))}
+          </select>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </div>
       </div>
 
       <div className="mb-4">

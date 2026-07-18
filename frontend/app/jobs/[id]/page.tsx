@@ -161,9 +161,16 @@ export default function PublicJobPage() {
   const [vacancy, setVacancy] = useState<Vacancy | null>(null);
 
   const [cvFile, setCvFile] = useState<File | null>(null);
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
+  const [mobile, setMobile] = useState("");
+
   const [fileError, setFileError] = useState("");
+  const [firstNameError, setFirstNameError] = useState("");
+  const [lastNameError, setLastNameError] = useState("");
   const [emailError, setEmailError] = useState("");
+  const [mobileError, setMobileError] = useState("");
   const [captchaError, setCaptchaError] = useState("");
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState("");
@@ -196,8 +203,14 @@ export default function PublicJobPage() {
       valid = false;
     }
 
-    // Validate: email format (only if provided)
-    if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+    // Validate fields
+    if (!firstName.trim()) { setFirstNameError("First name is required."); valid = false; } else { setFirstNameError(""); }
+    if (!lastName.trim()) { setLastNameError("Last name is required."); valid = false; } else { setLastNameError(""); }
+    // Mobile is optional, no required validation needed
+    setMobileError("");
+
+    // Validate: email format
+    if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       setEmailError("Please enter a valid email address.");
       valid = false;
     } else {
@@ -216,7 +229,10 @@ export default function PublicJobPage() {
     try {
       const form = new FormData();
       form.append("cv_file", cvFile!);
-      if (email.trim()) form.append("applicant_email", email.trim());
+      form.append("first_name", firstName.trim());
+      form.append("last_name", lastName.trim());
+      form.append("email", email.trim());
+      form.append("mobile", mobile.trim());
       if (captchaToken) form.append("recaptcha_token", captchaToken);
 
       const res = await fetch(`${API}/public/jobs/${id}/apply`, {
@@ -400,28 +416,66 @@ export default function PublicJobPage() {
               <FieldError msg={fileError} />
             </div>
 
-            {/* Email */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Email Address <span className="text-gray-400 font-normal">(optional)</span>
-              </label>
-              <input
-                type="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => { setEmail(e.target.value); setEmailError(""); }}
-                className={`w-full border rounded-xl px-4 py-3 text-sm text-gray-700 placeholder-gray-400 bg-white focus:outline-none focus:ring-2 transition ${
-                  emailError
-                    ? "border-red-300 ring-2 ring-red-100 focus:ring-red-200 focus:border-red-400"
-                    : "border-gray-200 focus:ring-orange-200 focus:border-orange-300"
-                }`}
-              />
-              <FieldError msg={emailError} />
-              {!emailError && (
-                <p className="mt-1 text-xs text-gray-400">
-                  Used to prevent duplicate applications. We'll also extract your info from your CV automatically.
-                </p>
-              )}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              {/* First Name */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">First Name *</label>
+                <input
+                  type="text"
+                  placeholder="John"
+                  value={firstName}
+                  onChange={(e) => { setFirstName(e.target.value); setFirstNameError(""); }}
+                  className={`w-full border rounded-xl px-4 py-3 text-sm text-gray-700 placeholder-gray-400 bg-white focus:outline-none focus:ring-2 transition ${
+                    firstNameError ? "border-red-300 ring-2 ring-red-100 focus:ring-red-200 focus:border-red-400" : "border-gray-200 focus:ring-orange-200 focus:border-orange-300"
+                  }`}
+                />
+                <FieldError msg={firstNameError} />
+              </div>
+              {/* Last Name */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Last Name *</label>
+                <input
+                  type="text"
+                  placeholder="Doe"
+                  value={lastName}
+                  onChange={(e) => { setLastName(e.target.value); setLastNameError(""); }}
+                  className={`w-full border rounded-xl px-4 py-3 text-sm text-gray-700 placeholder-gray-400 bg-white focus:outline-none focus:ring-2 transition ${
+                    lastNameError ? "border-red-300 ring-2 ring-red-100 focus:ring-red-200 focus:border-red-400" : "border-gray-200 focus:ring-orange-200 focus:border-orange-300"
+                  }`}
+                />
+                <FieldError msg={lastNameError} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              {/* Email */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Email Address *</label>
+                <input
+                  type="email"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={(e) => { setEmail(e.target.value); setEmailError(""); }}
+                  className={`w-full border rounded-xl px-4 py-3 text-sm text-gray-700 placeholder-gray-400 bg-white focus:outline-none focus:ring-2 transition ${
+                    emailError ? "border-red-300 ring-2 ring-red-100 focus:ring-red-200 focus:border-red-400" : "border-gray-200 focus:ring-orange-200 focus:border-orange-300"
+                  }`}
+                />
+                <FieldError msg={emailError} />
+              </div>
+              {/* Mobile */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Mobile Number <span className="text-gray-400 font-normal">(optional)</span></label>
+                <input
+                  type="text"
+                  placeholder="+1 (555) 000-0000"
+                  value={mobile}
+                  onChange={(e) => { setMobile(e.target.value); setMobileError(""); }}
+                  className={`w-full border rounded-xl px-4 py-3 text-sm text-gray-700 placeholder-gray-400 bg-white focus:outline-none focus:ring-2 transition ${
+                    mobileError ? "border-red-300 ring-2 ring-red-100 focus:ring-red-200 focus:border-red-400" : "border-gray-200 focus:ring-orange-200 focus:border-orange-300"
+                  }`}
+                />
+                <FieldError msg={mobileError} />
+              </div>
             </div>
 
             {/* reCAPTCHA */}
