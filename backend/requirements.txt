@@ -1,50 +1,54 @@
+# Pinned to the versions validated in development for reproducible builds.
+# Regenerate after intentional upgrades (e.g. `pip install -U <pkg>` then update
+# the pin here). Keep this list curated — it is the source of truth for prod.
+
 # ── Core framework ─────────────────────────────────────────────────────────────
-fastapi
-uvicorn
-python-dotenv
-sqlalchemy
-psycopg2-binary
-alembic
-python-multipart
+fastapi==0.128.0
+uvicorn==0.40.0
+python-dotenv==1.2.1
+sqlalchemy==2.0.45
+psycopg2-binary==2.9.11
+alembic==1.18.4
+python-multipart==0.0.21
 
 # ── Auth & Security (from dev) ─────────────────────────────────────────────────
-python-jose[cryptography]
-passlib[bcrypt]
-bcrypt<4.1.0
-pyotp
-qrcode[pil]
-email-validator
+python-jose[cryptography]==3.5.0
+passlib[bcrypt]==1.7.4
+bcrypt==3.2.0
+pyotp==2.9.0
+qrcode[pil]==8.2
+email-validator==2.3.0
+
+# ── Background scheduling (nightly jobs / advisory-lock loops) ─────────────────
+apscheduler==3.11.2
 
 # ── Document processing (from sachintha/documents) ─────────────────────────────
-mammoth
-xhtml2pdf
-python-docx
-jinja2
-apscheduler
+mammoth==1.12.0
+xhtml2pdf==0.2.17
+python-docx==1.2.0
+jinja2==3.1.6
 
 # ── Recruitment / AI / Email ──────────────────────────────────────────────────
 fastapi-mail==1.4.2
 httpx==0.28.1
-PyPDF2
-python-docx
+PyPDF2==3.0.1
 
-# ── AI Providers (multi-provider support) ─────────────────────────────────
+# ── AI Providers (multi-provider support) ─────────────────────────────
 # Only the package matching AI_PROVIDER in .env will be imported at runtime.
 # All three are installed so switching providers requires no reinstall.
-google-genai          # AI_PROVIDER=gemini
-openai                # AI_PROVIDER=openai   (ChatGPT, GPT-4o, etc.)
-anthropic             # AI_PROVIDER=claude
+google-genai==2.12.1   # AI_PROVIDER=gemini
+openai==2.45.0         # AI_PROVIDER=openai   (ChatGPT, GPT-4o, etc.)
+anthropic==0.116.0     # AI_PROVIDER=claude
 
 # ── Leave reports (PDF export) ─────────────────────────────────────────────────
-reportlab
+reportlab==4.4.10
 
 # ── Testing ────────────────────────────────────────────────────────────────────
 pytest==8.3.5
 pytest-asyncio==0.24.0
 
 # ── Pydantic settings ──────────────────────────────────────────────────────────
-pydantic-settings
+pydantic-settings==2.14.0
 
 # ── AWS S3 / MinIO ───────────────────────────────────────────────────────────
-boto3>=1.34.0
-
+boto3==1.43.49

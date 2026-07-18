@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
-  ArrowLeft, Shield, Plus, Pencil, Trash2, Check, Lock, AlertCircle, ChevronDown,
+  ArrowLeft, Shield, Plus, Pencil, Trash2, Check, Lock, AlertCircle, ChevronDown, UserPlus,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/auth-context";
@@ -32,13 +32,10 @@ interface Employee {
   role?: { id: number; role_name: string };
 }
 
-// Built-in roles seeded by the backend — these are protected and cannot be
-// deleted. Kept in sync with SYSTEM_ROLE_NAMES in backend/app/roles/seed.py.
-// (The backend enforces this too; this just hides the delete button.)
+// Built-in roles seeded by the backend
 const SYSTEM_ROLE_NAMES = ["Super Admin", "HR", "Manager", "Employee"];
 
 // Map a permission's `resource` field to a friendly category label + sort order.
-// Resources come from backend/app/roles/seed.py (employee, role, document, …).
 const RESOURCE_META: Record<string, { label: string; order: number }> = {
   employee:      { label: "Employee Management", order: 1 },
   role:          { label: "Roles & Permissions", order: 2 },
@@ -62,7 +59,6 @@ const categorize = (perms: Permission[]): [string, Permission[]][] => {
 };
 
 const categoryLabel = (key: string) => RESOURCE_META[key]?.label ?? key;
-/** Human-readable label for a permission (description), with the raw name as fallback. */
 const prettyLabel = (perm: Permission) => perm.description || perm.permission_name;
 
 function AssignRoleContent() {
@@ -77,9 +73,6 @@ function AssignRoleContent() {
 
   useEffect(() => {
     if (authLoading) return;
-    // Assigning a role to a specific employee needs role:assign. Pure Role
-    // Management (no employee context) is also valid for role:view / role:create,
-    // matching how the sidebar gates the "Role Management" link.
     const allowed = id
       ? hasPermission("role:assign")
       : hasAnyPermission(["role:view", "role:create", "role:assign"]);
@@ -137,14 +130,11 @@ function AssignRoleContent() {
   const selectedRole = roles.find(r => r.id === selectedRoleId);
   const selectedIsSystem = !!selectedRole && SYSTEM_ROLE_NAMES.includes(selectedRole.role_name);
 
-  // When selected role changes, reset edit mode
   useEffect(() => {
     setIsEditingExistingRole(false);
     setSelectedPermissionIds([]);
   }, [selectedRoleId]);
 
-  // Switching between "existing" and "custom" should start from a clean slate
-  // so permission picks from one mode don't carry into the other.
   useEffect(() => {
     setIsEditingExistingRole(false);
     setSelectedPermissionIds([]);
@@ -244,61 +234,37 @@ function AssignRoleContent() {
         roleIdToAssign = newRole.id;
       }
 
-      // In pure Role Management mode (no employee), selecting an existing role
-      // without clicking "Edit Permissions" is a no-op — don't claim success.
       if (!id && assignmentOption === "existing" && !isEditingExistingRole) {
         setErrorMsg('Nothing to save. Click "Edit Permissions" to change this role, or pick "Create Custom Role".');
         setIsSubmitting(false);
         return;
       }
 
-      const roleName = assignmentOption === "custom"
-        ? customRoleName
-        : roles.find(r => r.id === roleIdToAssign)?.role_name || "Role";
-
-      if (id) {
-        // Final step: Assign the role (new or updated) to the employee
-        if (!employee?.user_id) {
-          setErrorMsg("Cannot assign role: This employee is not linked to a system user account. Please create a user account for them first.");
-          setIsSubmitting(false);
-          return;
-        }
-
-        if (!roleIdToAssign) {
-          setErrorMsg("Please select a role to assign.");
-          setIsSubmitting(false);
-          return;
-        }
-
-        await api.post("/roles/assign", {
-          user_id: employee.user_id,
-          role_ids: [roleIdToAssign],
-        });
-
-        setSuccessMsg(`"${roleName}" permissions updated and assigned to ${employee?.first_name ?? "the employee"}.`);
-        setTimeout(() => router.push("/dashboard/employees"), 2000);
+      // If assigning to an employee
+      if (id && roleIdToAssign) {
+        await api.put(`/employees/${id}/role`, { role_id: roleIdToAssign });
+        setSuccessMsg("Role & permissions assigned successfully.");
+        setTimeout(() => router.push(`/dashboard/EmployeeManagement/edit?id=${id}`), 1000);
       } else {
-        // Pure Role Management mode — the role was created/updated above.
-        // Refresh the list so the UI reflects the change, then reset the form.
         await refreshRoles();
-        setSuccessMsg(`Role "${roleName}" successfully saved.`);
-        setIsEditingExistingRole(false);
         if (assignmentOption === "custom") {
           setCustomRoleName("");
-          setSelectedPermissionIds([]);
           setAssignmentOption("existing");
+          setSelectedRoleId(roleIdToAssign);
         }
-        // Stay on the page; clear the banner so the buttons re-enable.
+        setIsEditingExistingRole(false);
+        setSuccessMsg("Role saved successfully.");
         setTimeout(() => setSuccessMsg(null), 3000);
       }
-    } catch (error: unknown) {
-      let msg = "Failed to save role assignment.";
-      if (error instanceof Error) {
+    } catch (error: any) {
+      let msg = "An error occurred while saving.";
+      if (error?.detail && Array.isArray(error.detail)) {
+        msg = error.detail.map((e: any) => e.msg || e.type).join(", ");
+      } else if (error?.detail) {
+        msg = typeof error.detail === "string" ? error.detail : JSON.stringify(error.detail);
+      } else if (error instanceof Error) {
         msg = error.message;
-      } else if (typeof error === "string") {
-        msg = error;
       } else {
-        console.error("Unexpected error object:", error);
         msg = JSON.stringify(error);
       }
       setErrorMsg(msg);
@@ -312,37 +278,37 @@ function AssignRoleContent() {
     const checked = selectedPermissionIds.includes(perm.id);
     return (
       <label
-        className={`flex items-start gap-3 p-3 rounded-xl border transition-all cursor-pointer ${
-          checked ? "bg-[#F2924E]/5 border-[#F2924E]" : "bg-white border-gray-100 hover:border-gray-200"
+        className={`flex items-start gap-3 p-3.5 rounded-xl border transition-all cursor-pointer ${
+          checked ? "bg-[#f08a4b]/5 border-[#f08a4b]" : "bg-white border-gray-100 hover:border-gray-200 shadow-sm hover:shadow-md"
         }`}
       >
         <span className="relative mt-0.5 flex-shrink-0 inline-flex">
           <input
             type="checkbox"
-            className="peer appearance-none w-4 h-4 rounded border-2 border-gray-300 bg-white transition-colors cursor-pointer focus:outline-none checked:bg-[#F2924E] checked:border-[#F2924E]"
+            className="peer appearance-none w-4 h-4 rounded border-2 border-gray-300 bg-white transition-colors cursor-pointer focus:outline-none checked:bg-[#f08a4b] checked:border-[#f08a4b]"
             checked={checked}
             onChange={() => handleTogglePermission(perm.id)}
           />
           <Check size={12} strokeWidth={3.5} className="pointer-events-none absolute inset-0 m-auto text-white opacity-0 peer-checked:opacity-100" />
         </span>
         <div className="min-w-0">
-          <p className={`text-sm font-medium leading-tight ${checked ? "text-gray-900" : "text-gray-600"}`}>
+          <p className={`text-sm font-bold leading-tight ${checked ? "text-[#f08a4b]" : "text-gray-700"}`}>
             {prettyLabel(perm)}
           </p>
-          <p className="text-[11px] text-gray-400 font-mono mt-0.5 truncate">{perm.permission_name}</p>
+          <p className="text-[11px] text-gray-400 font-medium mt-1 truncate tracking-wide">{perm.permission_name}</p>
         </div>
       </label>
     );
   };
 
   const PermissionBullet = ({ perm }: { perm: Permission }) => (
-    <div className="flex items-start gap-2.5">
-      <div className="w-6 h-6 rounded-lg bg-[#F2924E]/10 flex items-center justify-center flex-shrink-0">
-        <Check size={13} className="text-[#F2924E]" />
+    <div className="flex items-start gap-3 p-3.5 rounded-xl border border-gray-100 bg-white shadow-sm">
+      <div className="w-5 h-5 rounded-full bg-green-50 border border-green-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+        <Check size={12} strokeWidth={3} className="text-green-600" />
       </div>
       <div className="min-w-0">
-        <p className="text-sm text-gray-700 font-medium leading-tight">{prettyLabel(perm)}</p>
-        <p className="text-[11px] text-gray-400 font-mono truncate">{perm.permission_name}</p>
+        <p className="text-sm text-gray-700 font-bold leading-tight">{prettyLabel(perm)}</p>
+        <p className="text-[11px] text-gray-400 font-medium tracking-wide mt-1 truncate">{perm.permission_name}</p>
       </div>
     </div>
   );
@@ -350,11 +316,11 @@ function AssignRoleContent() {
   const CategoryCard = ({
     categoryKey, perms, mode,
   }: { categoryKey: string; perms: Permission[]; mode: "edit" | "view" }) => (
-    <div className="bg-gray-50/60 rounded-2xl p-5 border border-gray-100">
-      <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-4 flex items-center gap-2">
-        <span className="w-1.5 h-1.5 rounded-full bg-[#F2924E]" />
+    <div className="bg-gray-50/50 rounded-2xl p-5 border border-gray-100 shadow-inner">
+      <h4 className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+        <span className="w-1.5 h-1.5 rounded-full bg-[#f08a4b]" />
         {categoryLabel(categoryKey)}
-        <span className="ml-auto text-[10px] font-semibold text-gray-400 normal-case">{perms.length}</span>
+        <span className="ml-auto text-[10px] font-bold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-md normal-case">{perms.length} Permissions</span>
       </h4>
       <div className={`grid grid-cols-1 sm:grid-cols-2 ${mode === "edit" ? "lg:grid-cols-3" : ""} gap-3`}>
         {perms.map(perm =>
@@ -368,13 +334,15 @@ function AssignRoleContent() {
 
   const StepCircle = ({ num, active, completed }: { num: number; active?: boolean; completed?: boolean }) => (
     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[14px] font-bold border-2 transition-all duration-300 ${
-      active ? "bg-[#F2924E] border-[#F2924E] text-white shadow-lg shadow-[#F2924E]/20 scale-110" :
-      completed ? "bg-[#F2924E]/10 border-[#F2924E] text-[#F2924E]" :
+      active ? "bg-[#f08a4b] border-[#f08a4b] text-white shadow-md shadow-orange-100 scale-110" :
+      completed ? "bg-orange-50 border-orange-100 text-[#f08a4b]" :
       "bg-white border-gray-200 text-gray-400"
     }`}>
       {completed ? <Check size={16} strokeWidth={3} /> : num}
     </div>
   );
+
+  const inputClass = "w-full border border-gray-200 rounded-xl p-3 pr-10 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#EE7F22]/20 focus:border-[#EE7F22] bg-white transition";
 
   if (loading) return (
     <div className="max-w-[1000px] mx-auto pb-20 pt-2 space-y-6" aria-hidden="true">
@@ -390,25 +358,11 @@ function AssignRoleContent() {
           <div className="skeleton-shimmer h-20 rounded-2xl" />
         </div>
       </div>
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-        <div className="skeleton-shimmer h-4 w-24 rounded mb-4" />
-        <div className="skeleton-shimmer h-12 w-72 rounded-lg mb-8" />
-        {[1, 2].map(n => (
-          <div key={n} className="bg-gray-50/60 rounded-2xl p-5 mb-4">
-            <div className="skeleton-shimmer h-3.5 w-28 rounded mb-4" />
-            <div className="grid grid-cols-3 gap-3">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="skeleton-shimmer h-11 rounded-xl" />
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
     </div>
   );
 
   return (
-    <div className="max-w-[1000px] mx-auto pb-20 pt-2 space-y-6">
+    <div className="max-w-[1000px] mx-auto pb-20 pt-2 space-y-8">
       {/* Header */}
       <div>
         <Link
@@ -417,17 +371,17 @@ function AssignRoleContent() {
         >
           <ArrowLeft size={16} /> Back
         </Link>
-        <h1 className="text-2xl font-semibold text-gray-900 flex items-center gap-2">
-          <Shield size={22} className="text-[#F2924E]" />
+        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2 mb-1">
+          <Shield size={22} className="text-[#f08a4b]" />
           {id ? "Assign Role & Permissions" : "Role Management"}
         </h1>
-        <p className="text-sm text-gray-500 mt-1">
-          {employee ? `Defining access for ${employee.first_name} ${employee.last_name}` : "Create and manage system roles and permissions"}
+        <p className="text-sm text-gray-400 font-medium">
+          {employee ? `Defining access for ${employee.first_name} ${employee.last_name}` : "Create and manage system roles and permissions."}
         </p>
         {employee?.role && (
-          <div className="mt-3 inline-flex items-center gap-2 px-3 py-1 bg-[#F2924E]/10 border border-[#F2924E]/20 rounded-full text-[13px] text-[#c4691f] font-medium">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#F2924E]" />
-            Current role: <strong>{employee.role.role_name}</strong>
+          <div className="mt-4 inline-flex items-center gap-2 px-3 py-1.5 bg-[#f08a4b]/10 border border-[#f08a4b]/20 rounded-full text-[13px] text-[#f08a4b] font-bold shadow-sm">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#f08a4b]" />
+            Current role: <span>{employee.role.role_name}</span>
           </div>
         )}
       </div>
@@ -437,9 +391,9 @@ function AssignRoleContent() {
         <div className="flex items-center gap-4 px-1">
           <div className="flex items-center gap-3">
             <StepCircle num={1} completed />
-            <span className="text-sm font-medium text-gray-500">Employee Details</span>
+            <span className="text-sm font-bold text-gray-500">Employee Details</span>
           </div>
-          <div className="w-16 h-[2px] bg-[#F2924E]" />
+          <div className="w-16 h-[2px] bg-[#f08a4b] shadow-sm" />
           <div className="flex items-center gap-3">
             <StepCircle num={2} active />
             <span className="text-sm font-bold text-gray-900">Assign Role &amp; Permissions</span>
@@ -447,195 +401,232 @@ function AssignRoleContent() {
         </div>
       )}
 
-      {/* Banners */}
+      {/* Messages */}
       {successMsg && (
-        <div className="p-4 bg-green-50 border border-green-100 rounded-2xl text-green-700 text-sm font-medium flex items-center gap-3">
-          <Check size={18} strokeWidth={2.5} />
+        <div className="p-4 bg-green-50 border border-green-100 rounded-xl text-green-700 text-sm font-bold flex items-center gap-3">
+          <Check size={18} strokeWidth={3} className="text-green-600" />
           {successMsg}{id ? " Redirecting..." : ""}
         </div>
       )}
       {errorMsg && (
-        <div className="p-4 bg-red-50 border border-red-100 rounded-2xl text-red-600 text-sm max-h-[120px] overflow-y-auto whitespace-pre-wrap break-words flex items-start gap-3">
-          <AlertCircle size={18} className="flex-shrink-0 mt-0.5" />
+        <div className="p-4 bg-red-50 border border-red-100 rounded-xl text-red-600 text-sm font-bold flex items-start gap-3">
+          <AlertCircle size={18} strokeWidth={2.5} className="flex-shrink-0 mt-0.5" />
           <span>{errorMsg}</span>
         </div>
       )}
       {employee && !employee.user_id && (
-        <div className="p-5 bg-amber-50 border border-amber-100 rounded-2xl">
-          <div className="flex gap-3 text-amber-800">
-            <AlertCircle size={22} className="flex-shrink-0" />
-            <div>
-              <p className="text-[15px] font-bold">System User Account Required</p>
-              <p className="text-sm mt-1 opacity-90">This employee does not have a linked system user account. Roles and permissions can only be assigned to employees with active system access.</p>
-            </div>
+        <div className="p-4 bg-amber-50 border border-amber-100 rounded-xl flex items-start gap-3">
+          <AlertCircle size={20} className="flex-shrink-0 text-amber-600 mt-0.5" />
+          <div>
+            <p className="text-[14px] font-bold text-amber-800">System User Account Required</p>
+            <p className="text-sm mt-0.5 font-medium text-amber-700/80">This employee does not have a linked system user account. Roles and permissions can only be assigned to employees with active system access.</p>
           </div>
         </div>
       )}
 
       {/* Assignment Option */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-        <h2 className="text-base font-semibold text-gray-800 flex items-center gap-2 mb-5">
-          <Shield size={18} className="text-[#F2924E]" />
-          {id ? "Assignment Option" : "What do you want to do?"}
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <label className={`flex items-start gap-3 p-5 rounded-2xl border transition-all duration-200 cursor-pointer ${assignmentOption === "existing" ? "border-[#F2924E] bg-[#F2924E]/5" : "border-gray-100 hover:border-gray-200"}`}>
-            <input type="radio" name="assignmentOption" className="mt-1 appearance-none w-4 h-4 rounded-full border-2 border-gray-300 bg-white transition-colors cursor-pointer focus:outline-none checked:border-[#F2924E] checked:bg-[#F2924E] checked:shadow-[inset_0_0_0_2px_#ffffff]" checked={assignmentOption === "existing"} onChange={() => setAssignmentOption("existing")} />
-            <div>
-              <p className={`text-sm font-bold ${assignmentOption === "existing" ? "text-[#F2924E]" : "text-gray-800"}`}>Select Existing Role</p>
-              <p className="text-xs text-gray-500 mt-1">View, edit or {id ? "assign" : "manage"} a predefined role and its permissions</p>
-            </div>
-          </label>
-          <label className={`flex items-start gap-3 p-5 rounded-2xl border transition-all duration-200 cursor-pointer ${assignmentOption === "custom" ? "border-[#F2924E] bg-[#F2924E]/5" : "border-gray-100 hover:border-gray-200"}`}>
-            <input type="radio" name="assignmentOption" className="mt-1 appearance-none w-4 h-4 rounded-full border-2 border-gray-300 bg-white transition-colors cursor-pointer focus:outline-none checked:border-[#F2924E] checked:bg-[#F2924E] checked:shadow-[inset_0_0_0_2px_#ffffff]" checked={assignmentOption === "custom"} onChange={() => setAssignmentOption("custom")} />
-            <div>
-              <p className={`text-sm font-bold ${assignmentOption === "custom" ? "text-[#F2924E]" : "text-gray-800"}`}>Create Custom Role</p>
-              <p className="text-xs text-gray-500 mt-1">Define a brand-new role with a specific set of permissions</p>
-            </div>
-          </label>
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-50 bg-gray-50/50">
+          <h3 className="text-sm font-bold text-gray-800 flex items-center gap-2">
+            <Shield size={16} className="text-[#f08a4b]" />
+            {id ? "Assignment Option" : "What do you want to do?"}
+          </h3>
+        </div>
+        <div className="p-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <label className={`flex items-start gap-3 p-5 rounded-xl border transition-all duration-200 cursor-pointer ${assignmentOption === "existing" ? "border-[#f08a4b] bg-[#f08a4b]/5 shadow-sm" : "border-gray-200 hover:border-[#f08a4b]/50"}`}>
+              <input type="radio" name="assignmentOption" className="mt-1 appearance-none w-4 h-4 rounded-full border-2 border-gray-300 bg-white transition-colors cursor-pointer focus:outline-none checked:border-[#f08a4b] checked:bg-[#f08a4b] checked:shadow-[inset_0_0_0_2px_#ffffff]" checked={assignmentOption === "existing"} onChange={() => setAssignmentOption("existing")} />
+              <div>
+                <p className={`text-sm font-bold ${assignmentOption === "existing" ? "text-[#f08a4b]" : "text-gray-800"}`}>Select Existing Role</p>
+                <p className={`text-xs mt-1 font-medium ${assignmentOption === "existing" ? "text-gray-600" : "text-gray-500"}`}>View, edit or {id ? "assign" : "manage"} a predefined role and its permissions</p>
+              </div>
+            </label>
+            <label className={`flex items-start gap-3 p-5 rounded-xl border transition-all duration-200 cursor-pointer ${assignmentOption === "custom" ? "border-[#f08a4b] bg-[#f08a4b]/5 shadow-sm" : "border-gray-200 hover:border-[#f08a4b]/50"}`}>
+              <input type="radio" name="assignmentOption" className="mt-1 appearance-none w-4 h-4 rounded-full border-2 border-gray-300 bg-white transition-colors cursor-pointer focus:outline-none checked:border-[#f08a4b] checked:bg-[#f08a4b] checked:shadow-[inset_0_0_0_2px_#ffffff]" checked={assignmentOption === "custom"} onChange={() => setAssignmentOption("custom")} />
+              <div>
+                <p className={`text-sm font-bold ${assignmentOption === "custom" ? "text-[#f08a4b]" : "text-gray-800"}`}>Create Custom Role</p>
+                <p className={`text-xs mt-1 font-medium ${assignmentOption === "custom" ? "text-gray-600" : "text-gray-500"}`}>Define a brand-new role with a specific set of permissions</p>
+              </div>
+            </label>
+          </div>
         </div>
       </div>
 
       {/* ── Existing role panel ─────────────────────────────────────────────── */}
       {assignmentOption === "existing" ? (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-          <div className="mb-6">
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Role</label>
-            <div className="relative max-w-md">
-              <select
-                value={selectedRoleId || ""}
-                onChange={(e) => setSelectedRoleId(parseInt(e.target.value))}
-                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#F2924E]/40 focus:border-[#F2924E] appearance-none cursor-pointer"
-              >
-                {roles.map(role => (
-                  <option key={role.id} value={role.id}>{role.role_name}</option>
-                ))}
-              </select>
-              <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400" />
-            </div>
-            {selectedRole?.description && <p className="text-[13px] text-gray-500 mt-2 italic">{selectedRole.description}</p>}
-
-            {selectedRole && selectedIsSystem && (
-              <p className="mt-3 inline-flex items-center gap-1.5 text-xs text-gray-500 bg-gray-50 border border-gray-100 rounded-lg px-3 py-1.5 font-medium">
-                <Lock size={13} /> Built-in system role — protected from deletion
-              </p>
-            )}
-
-            {!id && selectedRole && !selectedIsSystem && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-50 bg-gray-50/50 flex items-center justify-between">
+            <h3 className="text-sm font-bold text-gray-800 flex items-center gap-2">
+              <Shield size={16} className="text-[#f08a4b]" /> Role Configuration
+            </h3>
+            {selectedRole && !isEditingExistingRole && (
               <button
                 type="button"
-                onClick={openDeleteConfirm}
-                disabled={isDeleting || isSubmitting || !!successMsg}
-                className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-red-200 text-red-600 text-sm font-semibold hover:bg-red-50 transition-colors disabled:opacity-50"
+                onClick={startEditingRole}
+                className="inline-flex items-center gap-1.5 text-xs text-[#f08a4b] font-bold hover:underline"
               >
-                <Trash2 size={15} />
-                {isDeleting ? "Deleting..." : "Delete this role"}
+                <Pencil size={13} /> Edit Permissions
+              </button>
+            )}
+            {selectedRole && isEditingExistingRole && (
+              <button
+                type="button"
+                onClick={() => setIsEditingExistingRole(false)}
+                className="text-xs text-gray-400 font-bold hover:underline"
+              >
+                Cancel Edit
               </button>
             )}
           </div>
 
-          {selectedRole && (
-            <div className="mt-8">
-              <div className="flex items-center justify-between mb-5">
-                <h3 className="text-base font-semibold text-gray-800">
-                  {isEditingExistingRole ? `Editing "${selectedRole.role_name}" Permissions` : "Permission Summary"}
-                </h3>
-                {!isEditingExistingRole ? (
-                  <button
-                    type="button"
-                    onClick={startEditingRole}
-                    className="inline-flex items-center gap-1.5 text-[13px] text-[#F2924E] font-bold hover:underline"
-                  >
-                    <Pencil size={14} /> Edit Permissions
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setIsEditingExistingRole(false)}
-                    className="text-[13px] text-gray-400 font-bold hover:underline"
-                  >
-                    Cancel Edit
-                  </button>
-                )}
-              </div>
-
-              {(!isEditingExistingRole && selectedRole.permissions.length === 0) ? (
-                <p className="text-sm text-gray-400 bg-gray-50/60 border border-gray-100 rounded-2xl p-6 text-center">
-                  This role has no permissions yet.
-                </p>
-              ) : (
-                <div className="space-y-4">
-                  {categorize(isEditingExistingRole ? allPermissions : selectedRole.permissions).map(([key, perms]) => (
-                    <CategoryCard key={key} categoryKey={key} perms={perms} mode={isEditingExistingRole ? "edit" : "view"} />
+          <div className="p-6">
+            <div className="mb-8">
+              <label className="block text-sm font-bold text-gray-700 mb-2">Role Selection</label>
+              <div className="relative max-w-md">
+                <select
+                  value={selectedRoleId || ""}
+                  onChange={(e) => setSelectedRoleId(parseInt(e.target.value))}
+                  className={`${inputClass} appearance-none cursor-pointer`}
+                >
+                  {roles.map(role => (
+                    <option key={role.id} value={role.id}>{role.role_name}</option>
                   ))}
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-400">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </div>
+              </div>
+              
+              {selectedRole?.description && <p className="text-[13px] text-gray-500 font-medium mt-2">{selectedRole.description}</p>}
+
+              {selectedRole && selectedIsSystem && (
+                <div className="mt-4 inline-flex items-center gap-2 text-xs text-gray-500 bg-gray-50 border border-gray-100 rounded-lg px-3 py-1.5 font-bold">
+                  <Lock size={13} /> Built-in system role — protected from deletion
                 </div>
               )}
 
-              {isEditingExistingRole && (
-                <p className="text-[13px] text-gray-400 mt-4 italic flex items-center gap-1.5">
-                  <AlertCircle size={13} /> Changing permissions for this role affects ALL users assigned to it.
-                </p>
+              {!id && selectedRole && !selectedIsSystem && (
+                <div className="mt-4">
+                  <button
+                    type="button"
+                    onClick={openDeleteConfirm}
+                    disabled={isDeleting || isSubmitting || !!successMsg}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-red-200 text-red-600 text-sm font-bold hover:bg-red-50 transition-colors disabled:opacity-50"
+                  >
+                    <Trash2 size={15} />
+                    {isDeleting ? "Deleting..." : "Delete this role"}
+                  </button>
+                </div>
               )}
             </div>
-          )}
+
+            {selectedRole && (
+              <div>
+                <div className="mb-4 flex items-center justify-between border-t border-gray-50 pt-8">
+                  <h3 className="text-sm font-bold text-gray-800">
+                    {isEditingExistingRole ? `Editing "${selectedRole.role_name}" Permissions` : "Permission Summary"}
+                  </h3>
+                </div>
+
+                {(!isEditingExistingRole && selectedRole.permissions.length === 0) ? (
+                  <p className="text-sm font-medium text-gray-400 bg-gray-50/50 border border-gray-100 rounded-xl p-8 text-center">
+                    This role has no permissions yet.
+                  </p>
+                ) : (
+                  <div className="space-y-4">
+                    {categorize(isEditingExistingRole ? allPermissions : selectedRole.permissions).map(([key, perms]) => (
+                      <CategoryCard key={key} categoryKey={key} perms={perms} mode={isEditingExistingRole ? "edit" : "view"} />
+                    ))}
+                  </div>
+                )}
+
+                {isEditingExistingRole && (
+                  <p className="text-[12px] text-amber-600 font-bold mt-4 flex items-center gap-1.5 bg-amber-50 border border-amber-100 p-3 rounded-lg">
+                    <AlertCircle size={14} /> Changing permissions for this role affects ALL users assigned to it.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       ) : (
         /* ── Custom role panel ─────────────────────────────────────────────── */
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-          <h2 className="text-base font-semibold text-gray-800 flex items-center gap-2 mb-5">
-            <Plus size={18} className="text-[#F2924E]" /> Create New Role
-          </h2>
-          <div className="mb-6 max-w-md">
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
-              Role Name <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              placeholder="e.g. Finance Manager"
-              value={customRoleName}
-              onChange={(e) => setCustomRoleName(e.target.value)}
-              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#F2924E]/40 focus:border-[#F2924E]"
-            />
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-50 bg-gray-50/50">
+            <h3 className="text-sm font-bold text-gray-800 flex items-center gap-2">
+              <Plus size={16} className="text-[#f08a4b]" /> Create Custom Role
+            </h3>
           </div>
-          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
-            Permissions <span className="text-gray-300 normal-case font-medium">({selectedPermissionIds.length} selected)</span>
-          </label>
-          <div className="space-y-4">
-            {categorize(allPermissions).map(([key, perms]) => (
-              <CategoryCard key={key} categoryKey={key} perms={perms} mode="edit" />
-            ))}
+          
+          <div className="p-6">
+            <div className="mb-8 max-w-md">
+              <label className="block text-sm font-bold text-gray-700 mb-2">
+                Role Name <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Finance Manager"
+                value={customRoleName}
+                onChange={(e) => setCustomRoleName(e.target.value)}
+                className={inputClass}
+              />
+            </div>
+            
+            <div className="mb-4 flex items-center justify-between border-t border-gray-50 pt-8">
+              <label className="block text-sm font-bold text-gray-800">
+                Permissions <span className="text-gray-400 normal-case font-medium ml-1">({selectedPermissionIds.length} selected)</span>
+              </label>
+            </div>
+            
+            <div className="space-y-4">
+              {categorize(allPermissions).map(([key, perms]) => (
+                <CategoryCard key={key} categoryKey={key} perms={perms} mode="edit" />
+              ))}
+            </div>
           </div>
         </div>
       )}
 
       {/* Footer actions */}
-      <div className="flex justify-end gap-3">
-        <button
-          type="button"
-          onClick={() => router.back()}
-          disabled={isSubmitting || !!successMsg}
-          className="px-6 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-semibold text-sm hover:bg-gray-50 transition-colors disabled:opacity-50"
-        >
-          Cancel
-        </button>
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={isSubmitting || !!successMsg}
-          className="px-6 py-2.5 rounded-xl bg-[#F2924E] hover:bg-[#e07d3a] text-white font-semibold text-sm shadow-sm transition flex items-center gap-2 disabled:opacity-60"
-        >
-          {isSubmitting ? (
-            <span>Saving...</span>
-          ) : (
-            <>
-              <Check size={16} strokeWidth={3} />
-              {id
-                ? (assignmentOption === "custom" ? "Create & Assign Role" : isEditingExistingRole ? "Apply Changes & Assign" : "Confirm Assignment")
-                : (assignmentOption === "custom" ? "Create Role" : "Save Changes")}
-            </>
-          )}
-        </button>
-      </div>
+      {(id || assignmentOption === "custom" || isEditingExistingRole) && (
+        <div className="flex justify-end gap-3 mt-8">
+          <button
+            type="button"
+            onClick={() => {
+              if (id) {
+                router.push(`/dashboard/EmployeeManagement/edit?id=${encodeURIComponent(id)}`);
+              } else {
+                router.push("/dashboard");
+              }
+            }}
+            disabled={isSubmitting || !!successMsg}
+            className="px-6 py-2.5 rounded-xl border border-gray-200 text-gray-700 font-bold text-sm hover:bg-gray-50 transition-colors disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={isSubmitting || !!successMsg}
+            className="bg-[#f08a4b] hover:bg-[#e07a3b] text-white px-8 py-2.5 rounded-xl text-sm font-bold transition disabled:opacity-50 shadow-md shadow-orange-100 flex items-center gap-2 min-w-[150px] justify-center"
+          >
+            {isSubmitting ? (
+              <span className="flex items-center gap-2">
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                Saving...
+              </span>
+            ) : (
+              <>
+                {id
+                  ? (assignmentOption === "custom" ? "Create & Assign Role" : isEditingExistingRole ? "Apply Changes & Assign" : "Confirm Assignment")
+                  : (assignmentOption === "custom" ? "Create Role" : "Save Changes")}
+              </>
+            )}
+          </button>
+        </div>
+      )}
 
       <ConfirmModal
         isOpen={showDeleteConfirm}

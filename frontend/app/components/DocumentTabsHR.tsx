@@ -9,6 +9,7 @@ const ALL_TABS = [
   { name: "My Documents",        suffix: "",                    permission: "document:upload_own" },
   { name: "Request Document",    suffix: "/request",            permission: "document:request_own" },
   { name: "Approval Management", suffix: "/approval",           permission: "document:approve" },
+  { name: "Employee Documents",  suffix: "/employee_documents", permission: "document:view_employee_docs" },
   { name: "Request Management",  suffix: "/request_management", permission: "document:request_manage" },
   { name: "Template Management", suffix: "/templates_management", permission: "document:template_upload" },
   { name: "Document Types",      suffix: "/document_types",    permission: "document:type_manage" },

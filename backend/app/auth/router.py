@@ -376,7 +376,7 @@ def update_profile(
     # Sanitize all possible date fields to prevent "invalid input syntax for type date: ''"
     date_fields = ["date_of_birth", "joined_date"]
     for field in date_fields:
-        if field in update_data and update_data[field] == "":
+        if field in update_data and update_data[field] in ("", "None", "null"):
             update_data[field] = None
             
     user_fields = ["first_name", "last_name", "phone_number", "address", "date_of_birth", "emergency_contact_number"]
@@ -568,12 +568,12 @@ def update_notifications(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Update the current user's notification preferences and quiet-hour window.
+    Update the current user's notification preferences.
     Stored directly on the user record for use by the notification system.
     """
     current_user.notification_preferences = data.notification_preferences
-    current_user.quiet_hours_start = data.quiet_hours_start
-    current_user.quiet_hours_end = data.quiet_hours_end
+    # None is a real choice here ("never auto-delete"), not a missing value.
+    current_user.notification_retention_days = data.notification_retention_days
 
     db.commit()
     db.refresh(current_user)

@@ -13,6 +13,13 @@ router = APIRouter(dependencies=[Depends(get_current_user)])
 def read_employees(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     return service.get_employees(db, skip=skip, limit=limit)
 
+@router.post("/test-expiration-alerts", dependencies=[Depends(require_permission("employee:update"))])
+async def trigger_expiration_alerts():
+    """Manually trigger the nightly expiration alert job for testing."""
+    from app.core.scheduler import check_expiring_designations
+    await check_expiring_designations()
+    return {"message": "Expiration checks triggered manually."}
+
 
 @router.get("/panel-options", response_model=List[schemas.EmployeePanelOption])
 def list_panel_options(db: Session = Depends(get_db)):

@@ -1,6 +1,7 @@
-from sqlalchemy import Column, String, Integer, Date, Enum, Text, ForeignKey, Boolean, JSON, func
+from sqlalchemy import Column, String, Integer, Date, Enum, Text, ForeignKey, Boolean, JSON, func, Index, text
 from sqlalchemy.orm import relationship
 from app.database.base import Base
+from app.database.soft_delete import SoftDeleteMixin
 import enum
 
 
@@ -9,14 +10,21 @@ class EmployeeStatus(enum.Enum):
     inactive = "inactive"
 
 
-class Employee(Base):
+class Employee(Base, SoftDeleteMixin):
     __tablename__ = "employees"
+    # Uniqueness is enforced by PARTIAL unique indexes scoped to live rows
+    # (WHERE is_deleted = false), so a soft-deleted employee no longer blocks a
+    # new record from reusing the same employee_id / email.
+    __table_args__ = (
+        Index("ix_employees_employee_id_active", "employee_id", unique=True, postgresql_where=text("is_deleted = false")),
+        Index("ix_employees_email_active", "email", unique=True, postgresql_where=text("is_deleted = false")),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
-    employee_id = Column(String(50), unique=True, index=True)
+    employee_id = Column(String(50))
     first_name = Column(String(100), nullable=False)
     last_name = Column(String(100), nullable=False)
-    email = Column(String(255), unique=True, index=True, nullable=False)
+    email = Column(String(255), nullable=False)
     phone = Column(String(20), nullable=True)
     address = Column(Text, nullable=True)
 
@@ -27,7 +35,7 @@ class Employee(Base):
     designation = Column(String(100), nullable=True)
     joined_date = Column(Date, nullable=True)
     status = Column(Enum(EmployeeStatus, name="employeestatus", create_type=False), default=EmployeeStatus.active)
-    is_deleted = Column(Boolean, default=False)
+    # is_deleted is provided by SoftDeleteMixin
 
     date_of_birth = Column(Date, nullable=True)
     gender = Column(String(20), nullable=True)

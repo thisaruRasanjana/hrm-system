@@ -161,15 +161,19 @@ def process_cv_background(candidate_id: int, vacancy_id: int, file_path: str):
 
         candidate = db.query(models.Candidate).filter(models.Candidate.id == candidate_id).first()
         if candidate:
-            if result.full_name and result.full_name.strip():
+            is_hr_upload = candidate.source == "hr_upload"
+
+            # Only overwrite name if this was an HR bulk upload (where full_name is just the filename).
+            if is_hr_upload and result.full_name and result.full_name.strip():
                 candidate.full_name = result.full_name
-            # Only fill in email if the candidate did NOT already provide one.
-            # Public portal candidates may have typed their email — preserve it.
+
+            # Only fill in email if not already set (public candidates always have one).
             if not _has_valid_email(candidate.email):
                 candidate.email = result.email  # may be None — frontend shows "Not provided"
-            # Replace the "Processing..." placeholder with the AI result.
-            # Fall back to "Not provided" if AI could not extract a phone number.
-            candidate.phone = result.phone if result.phone else "Not provided"
+
+            # Only fill in phone if not already set (public candidates may have provided one).
+            if not candidate.phone:
+                candidate.phone = result.phone if result.phone else "Not provided"
             candidate.ai_score = result.ai_score
             candidate.ai_reasoning = result.ai_reasoning
             db.commit()
@@ -245,11 +249,12 @@ def upload_cvs(
                 failed += 1
                 continue
 
-            # Create candidate with "Uploaded" status (spec §1.2.5)
+            # Create candidate with 'Uploaded' status — AI will fill in contact details asynchronously.
             candidate = models.Candidate(
                 full_name=filename_base,
-                email="Processing...",
-                phone="Processing...",
+                email=None,
+                phone=None,
+                source="hr_upload",
                 cv_file_path=file_path,
                 uploaded_at=datetime.utcnow(),
             )
@@ -482,6 +487,19 @@ def upsert_interview_panel(db: Session, vacancy_id: int, data: schemas.Interview
         .filter(models.InterviewPanel.vacancy_id == vacancy_id)
         .first()
     )
+    # Remember who was already on the panel so we only notify people whose
+    # assignment is actually new — this endpoint replaces the whole panel and
+    # is re-saved on every edit, so notifying everyone each time would spam.
+    previously_assigned: set[int] = set()
+    if panel:
+        if panel.panel_head_id:
+            previously_assigned.add(panel.panel_head_id)
+        previously_assigned.update(
+            uid for (uid,) in db.query(models.InterviewPanelMember.user_id)
+            .filter(models.InterviewPanelMember.panel_id == panel.id)
+            .all()
+        )
+
     if panel:
         panel.panel_head_id = data.panel_head_id
         panel.interview_link = data.interview_link
@@ -505,7 +523,55 @@ def upsert_interview_panel(db: Session, vacancy_id: int, data: schemas.Interview
 
     db.commit()
     db.refresh(panel)
+
+    _notify_new_panel_members(
+        db,
+        vacancy=vacancy,
+        panel=panel,
+        newly_assigned=[
+            uid for uid in ([data.panel_head_id] + unique_member_ids)
+            if uid not in previously_assigned
+        ],
+    )
+
     return _enrich_panel(db, panel)
+
+
+def _notify_new_panel_members(db: Session, *, vacancy, panel, newly_assigned: list[int]) -> None:
+    """
+    Tell people they've been put on an interview panel.
+
+    Sent only to newly-assigned users. Never raises — a notification failure
+    must not undo a saved panel.
+    """
+    if not newly_assigned:
+        return
+    try:
+        from app.notifications.service import notify_users
+
+        head_id = panel.panel_head_id
+        for user_id in newly_assigned:
+            role = "Panel Head" if user_id == head_id else "Panel Member"
+            message = (
+                f"You've been added as {role} for the {vacancy.title} interview panel"
+            )
+            notify_users(
+                db,
+                [user_id],
+                message,
+                category="recruitment",
+                type="info",
+                link=f"/recruitment/{vacancy.id}",
+                entity_type="vacancy",
+                entity_id=str(vacancy.id),
+            )
+        db.commit()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(
+            f"[Recruitment] Panel assignment notification failed: {e}"
+        )
+        db.rollback()
 
 
 def get_interview_panel(db: Session, vacancy_id: int):

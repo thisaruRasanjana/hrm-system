@@ -1,22 +1,31 @@
-from sqlalchemy import Column, String, Integer, Boolean, DateTime, func, Table, ForeignKey
+from sqlalchemy import Column, String, Integer, Boolean, DateTime, func, Table, ForeignKey, Index, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from app.database.base import Base
+from app.database.soft_delete import SoftDeleteMixin
 from app.roles.models import user_roles  # noqa: F401 — ensures table is registered
 
 
-class User(Base):
+class User(Base, SoftDeleteMixin):
     __tablename__ = "users"
-    __table_args__ = {"extend_existing": True}
+    # Uniqueness is enforced by PARTIAL unique indexes scoped to live rows
+    # (WHERE is_deleted = false), so a soft-deleted account no longer blocks a
+    # new employee from reusing the same email / username / employee_id.
+    __table_args__ = (
+        Index("ix_users_email_active", "email", unique=True, postgresql_where=text("is_deleted = false")),
+        Index("ix_users_username_active", "username", unique=True, postgresql_where=text("is_deleted = false")),
+        Index("ix_users_employee_id_active", "employee_id", unique=True, postgresql_where=text("is_deleted = false")),
+        {"extend_existing": True},
+    )
 
     id = Column(Integer, primary_key=True, index=True)
-    email = Column(String(255), unique=True, index=True, nullable=False)
-    username = Column(String(100), unique=True, index=True, nullable=True)
+    email = Column(String(255), nullable=False)
+    username = Column(String(100), nullable=True)
     password_hash = Column("hashed_password", String(255), nullable=False)  # DB col: hashed_password
     is_active = Column(Boolean, default=True)
     is_superadmin = Column(Boolean, default=False)
-    is_deleted = Column(Boolean, default=False)
+    # is_deleted is provided by SoftDeleteMixin
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     refresh_token = Column(String, nullable=True)
@@ -29,7 +38,7 @@ class User(Base):
     # Profile Fields
     first_name = Column(String, nullable=True)
     last_name = Column(String, nullable=True)
-    employee_id = Column(String, unique=True, nullable=True)
+    employee_id = Column(String, nullable=True)  # uniqueness via ix_users_employee_id_active
     department = Column(String, nullable=True)
     phone_number = Column(String, nullable=True)
     address = Column(String, nullable=True)
@@ -43,8 +52,9 @@ class User(Base):
 
     # Notification preferences
     notification_preferences = Column(JSONB, nullable=True)
-    quiet_hours_start = Column(String, default="22:00")
-    quiet_hours_end = Column(String, default="08:00")
+    # How long to keep notifications before permanent deletion, in days.
+    # NULL = keep forever (never auto-delete). Purged items are unrecoverable.
+    notification_retention_days = Column(Integer, nullable=True)
 
     # Relationships (RBAC via join table — from dev)
     roles = relationship("Role", secondary=user_roles, back_populates="users")
