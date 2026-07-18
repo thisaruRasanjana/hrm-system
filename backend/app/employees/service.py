@@ -461,7 +461,28 @@ def update_employee(db: Session, employee_id: int, employee_update: EmployeeUpda
     return db_employee
 
 
-def delete_employee(db: Session, employee_id: int):
+def update_employee_role(db: Session, employee_id: int, role_id: int) -> bool:
+    """Assign a new role to an employee (updates their user record)."""
+    db_employee = get_employee_by_id(db, employee_id)
+    if not db_employee or not db_employee.user:
+        return False
+        
+    from app.roles.models import Role
+    role = db.query(Role).filter_by(id=role_id).first()
+    if not role:
+        return False
+        
+    user = db_employee.user
+    user.role_id = role.id
+    user.role = role.role_name
+    
+    # Update the M:M relationship
+    user.roles = [role]
+    db.commit()
+    return True
+
+
+def delete_employee(db: Session, employee_id: int) -> bool:
     db_employee = db.query(Employee).filter(Employee.id == employee_id).first()
     if db_employee:
         db_employee.is_deleted = True
