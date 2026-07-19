@@ -15,6 +15,7 @@ from app.core.storage import save_file_locally
 from app.database.database import SessionLocal
 from . import models, schemas
 from app.auth.models import User
+from app.departments.models import Department
 from app.roles.models import Permission, Role, role_permissions, user_roles
 
 logger = logging.getLogger(__name__)
@@ -49,6 +50,58 @@ DECISION_STATUS_MAP: dict[str, str] = {
 EVALUATION_MAX_TOTAL: int = 25
 
 
+# ── Panel membership guard ──────────────────────────────────────────────────
+
+def _get_vacancy_id_for_application(db: Session, application_id: int) -> int | None:
+    """Return the vacancy_id for a given application, or None if not found."""
+    app = db.query(models.Application).filter(models.Application.id == application_id).first()
+    return app.vacancy_id if app else None
+
+
+def _assert_panel_member(db: Session, vacancy_id: int, user: User) -> None:
+    """
+    Raises HTTP 403 if the calling user is not a panel member OR panel head
+    for the given vacancy.
+
+    Users with recruitment:manage are always allowed (HR/admins can act on any vacancy).
+    Users with only recruitment:interview_panel must be explicitly on the vacancy's panel.
+
+    This is the server-side enforcement of the frontend's panel-scoped UI guard.
+    """
+    # HR / admins with full manage permission bypass the membership check.
+    user_perms = {p.permission_name for role in user.roles for p in role.permissions}
+    if "recruitment:manage" in user_perms:
+        return
+
+    # For panel-only users, check they are either the panel head or a listed member.
+    panel = (
+        db.query(models.InterviewPanel)
+        .filter(models.InterviewPanel.vacancy_id == vacancy_id)
+        .first()
+    )
+    if not panel:
+        raise HTTPException(
+            status_code=403,
+            detail="No interview panel has been set up for this vacancy yet.",
+        )
+
+    is_head   = (panel.panel_head_id == user.id)
+    is_member = (
+        db.query(models.InterviewPanelMember)
+        .filter(
+            models.InterviewPanelMember.panel_id == panel.id,
+            models.InterviewPanelMember.user_id  == user.id,
+        )
+        .first()
+    ) is not None
+
+    if not (is_head or is_member):
+        raise HTTPException(
+            status_code=403,
+            detail="You are not a member of the interview panel for this vacancy.",
+        )
+
+
 # ── Vacancy CRUD ───────────────────────────────────────────────────────────────
 
 def create_vacancy(db: Session, vacancy_data: schemas.VacancyCreate) -> dict:
@@ -57,7 +110,17 @@ def create_vacancy(db: Session, vacancy_data: schemas.VacancyCreate) -> dict:
     Uses model_dump() (Pydantic v2) instead of the deprecated .dict().
     """
     try:
-        vacancy = models.Vacancy(**vacancy_data.model_dump())
+        data_dict = vacancy_data.model_dump()
+        dept_id = data_dict.get("department_id")
+        
+        # Look up the department to populate the legacy string column
+        dept = db.query(Department).filter(Department.id == dept_id).first()
+        if not dept:
+            raise HTTPException(status_code=400, detail="Invalid department ID.")
+            
+        data_dict["department"] = dept.name
+        
+        vacancy = models.Vacancy(**data_dict)
         db.add(vacancy)
         db.commit()
         db.refresh(vacancy)
@@ -230,24 +293,42 @@ def upload_cvs(
                 failed += 1
                 continue
 
-            file_path = save_file_locally(file)
+            # ── Read file bytes once (needed for hash + size check + storage) ──
+            file_bytes = file.file.read()
+            file.file.seek(0)  # reset so storage can read it again
 
-            # Use filename (without extension) as a temporary name until AI overwrites it.
-            filename_base = file.filename.rsplit(".", 1)[0]
+            # ── File size guard: 5 MB max ─────────────────────────────────────
+            if len(file_bytes) > 5 * 1024 * 1024:
+                failed += 1
+                continue
 
-            # Duplicate check: same filename already applied to this vacancy
+            # ── Content hash: SHA-256 of raw bytes ────────────────────────────
+            # This is the ONLY reliable duplicate key for HR uploads.
+            # A filename-based check breaks after the AI renames the candidate
+            # (full_name goes from "john_cv" → "John Smith"), so re-uploading
+            # the same file would not be caught. The content hash is immutable
+            # regardless of any downstream renaming.
+            import hashlib
+            content_hash = hashlib.sha256(file_bytes).hexdigest()
+
+            # ── Duplicate check: same file content already uploaded to this vacancy ──
             existing = (
-                db.query(models.Application)
-                .join(models.Candidate)
+                db.query(models.Candidate)
+                .join(models.Application)
                 .filter(
                     models.Application.vacancy_id == vacancy_id,
-                    models.Candidate.full_name == filename_base,
+                    models.Candidate.content_hash == content_hash,
                 )
                 .first()
             )
             if existing:
                 failed += 1
                 continue
+
+            file_path = save_file_locally(file)
+
+            # Use filename (without extension) as a temporary name until AI overwrites it.
+            filename_base = file.filename.rsplit(".", 1)[0]
 
             # Create candidate with 'Uploaded' status — AI will fill in contact details asynchronously.
             candidate = models.Candidate(
@@ -256,6 +337,7 @@ def upload_cvs(
                 phone=None,
                 source="hr_upload",
                 cv_file_path=file_path,
+                content_hash=content_hash,
                 uploaded_at=datetime.utcnow(),
             )
             db.add(candidate)
@@ -264,7 +346,7 @@ def upload_cvs(
             application = models.Application(
                 vacancy_id=vacancy_id,
                 candidate_id=candidate.id,
-                status=STATUS_UPLOADED,   # ← was "Not Called"
+                status=STATUS_UPLOADED,
             )
             db.add(application)
             db.commit()
@@ -795,7 +877,7 @@ def update_candidate_details(db: Session, candidate_id: int, data: schemas.Candi
 
 # ── Interview Evaluations ─────────────────────────────────────────────────────
 
-def create_evaluation(db: Session, application_id: int, data: schemas.EvaluationCreate):
+def create_evaluation(db: Session, application_id: int, data: schemas.EvaluationCreate, current_user: User = None):
     application = (
         db.query(models.Application)
         .filter(models.Application.id == application_id)
@@ -804,7 +886,10 @@ def create_evaluation(db: Session, application_id: int, data: schemas.Evaluation
     if not application:
         raise HTTPException(status_code=404, detail="Application not found")
 
-    # Prevent duplicate submission: same user, same round (user_id preferred; fall back to name)
+    # ── Guard: caller must be on the panel for this specific vacancy ──────────────────────
+    if current_user is not None:
+        _assert_panel_member(db, application.vacancy_id, current_user)
+
     if data.evaluator_user_id:
         duplicate = (
             db.query(models.InterviewEvaluation)
@@ -997,8 +1082,15 @@ def get_final_decision_view(db: Session, application_id: int):
     }
 
 
-async def submit_final_decision(db: Session, application_id: int, data: schemas.FinalDecisionCreate, background_tasks=None):
+async def submit_final_decision(db: Session, application_id: int, data: schemas.FinalDecisionCreate, background_tasks=None, current_user: User = None):
     """Record the panel head's final decision, update status, and email the candidate in the background."""
+
+    # ── Guard: caller must be on the panel for this specific vacancy ──────────────────────
+    if current_user is not None:
+        app_check = db.query(models.Application).filter(models.Application.id == application_id).first()
+        if app_check:
+            _assert_panel_member(db, app_check.vacancy_id, current_user)
+
     allowed = {DECISION_NEXT_ROUND, DECISION_JOB_OFFERED, DECISION_REJECTED}
     if data.decision not in allowed:
         raise HTTPException(
@@ -1085,7 +1177,7 @@ async def submit_final_decision(db: Session, application_id: int, data: schemas.
     return existing
 
 
-def trigger_next_round(db: Session, application_id: int):
+def trigger_next_round(db: Session, application_id: int, current_user: User = None):
     """
     Called when panel head selects 'Proceed to Next Round'.
     Increments application.active_round by 1 (Round 1 → 2 → 3 …).
@@ -1098,6 +1190,10 @@ def trigger_next_round(db: Session, application_id: int):
     )
     if not application:
         raise HTTPException(status_code=404, detail="Application not found")
+
+    # ── Guard: caller must be on the panel for this specific vacancy ──────────────────────
+    if current_user is not None:
+        _assert_panel_member(db, application.vacancy_id, current_user)
 
     # Increment the round counter — works for Round 2, 3, 4, …
     next_round = (application.active_round or 1) + 1
