@@ -45,14 +45,14 @@ class VacancyCreate(BaseModel):
     """Payload for creating a new vacancy. All text fields are trimmed and validated."""
 
     title:            str           = Field(..., min_length=3, max_length=100)
-    department:       str           = Field(..., min_length=2, max_length=80)
+    department_id:    int           = Field(...)
     experience_level: str           = Field(...)
     # description / requirements are rich-text HTML; max_length guards raw HTML size.
     description:      str           = Field(..., max_length=50_000)
     requirements:     str           = Field(..., max_length=50_000)
     status:           Optional[str] = Field("Draft")
 
-    @field_validator("title", "department", mode="before")
+    @field_validator("title", mode="before")
     @classmethod
     def strip_whitespace(cls, value: str) -> str:
         """Strip leading/trailing whitespace from all plain-text fields."""
@@ -121,6 +121,7 @@ class VacancyResponse(BaseModel):
 
     id:               int
     title:            str
+    department_id:    Optional[int]
     department:       str
     experience_level: Optional[str]
     description:      Optional[str]
@@ -141,6 +142,7 @@ class PublicVacancyResponse(BaseModel):
 
     id:               int
     title:            str
+    department_id:    Optional[int]
     department:       str
     experience_level: Optional[str]
     description:      Optional[str]

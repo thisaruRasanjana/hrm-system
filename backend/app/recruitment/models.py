@@ -50,6 +50,7 @@ class Vacancy(Base):
 
     id               = Column(Integer,     primary_key=True, index=True)
     title            = Column(String(255), nullable=False)
+    department_id    = Column(Integer, ForeignKey("departments.id"), nullable=True)
     department       = Column(String(100), nullable=False)
     # experience_level is always one of a short controlled vocabulary,
     # but we keep VARCHAR(50) over CHAR because the lengths differ.
@@ -60,6 +61,8 @@ class Vacancy(Base):
     # status is a controlled enum-like field; String(50) is generous but safe.
     status           = Column(String(50),  nullable=False, default="Draft")
     created_date     = Column(Date,        nullable=False, default=date.today)
+
+    department_rel = relationship("Department")
 
     # Cascade deletes: removing a vacancy removes all linked applications & panel.
     applications = relationship(
@@ -101,6 +104,9 @@ class Candidate(Base):
     source       = Column(String(20),  nullable=False, default="hr_upload")
     cv_file_path = Column(String(500), nullable=False)
     uploaded_at  = Column(DateTime,    nullable=False, default=datetime.utcnow)
+    # SHA-256 hash of the CV file bytes. Used for duplicate detection on HR bulk uploads
+    # so that re-uploading the same file is caught even after AI renames the candidate.
+    content_hash = Column(String(64),  nullable=True, index=True)
     # AI-generated fields — null until the background screener completes.
     ai_score     = Column(Float,       nullable=True)
     ai_reasoning = Column(Text,        nullable=True)
