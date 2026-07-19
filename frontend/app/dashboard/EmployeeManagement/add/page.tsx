@@ -84,7 +84,7 @@ export default function EmployeeAddPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showAdditionalInfo, setShowAdditionalInfo] = useState(false);
-  const [fieldErrors, setFieldErrors] = useState<{ email?: string; phone?: string; joinedDate?: string }>({});
+  const [fieldErrors, setFieldErrors] = useState<{ email?: string; phone?: string; joinedDate?: string; dateOfBirth?: string; emergencyPhone?: string }>({});
 
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const phoneRegex = /^\+?[0-9\s\-()]{7,15}$/;
@@ -102,6 +102,16 @@ export default function EmployeeAddPage() {
         const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
         if (value > todayStr) return "Joined date cannot be a future date.";
       }
+    }
+    if (name === "dateOfBirth") {
+      if (value) {
+        const today = new Date();
+        const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+        if (value > todayStr) return "Date of birth cannot be a future date.";
+      }
+    }
+    if (name === "emergencyPhone") {
+      if (value && !phoneRegex.test(value)) return "Please enter a valid phone number.";
     }
     return undefined;
   };
@@ -706,7 +716,16 @@ export default function EmployeeAddPage() {
             >
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <FormField label="Date of Birth">
-                  <input type="date" value={formData.dateOfBirth} onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })} className={`${inputCls} [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-50`} />
+                  <input
+                    type="date"
+                    value={formData.dateOfBirth}
+                    onChange={(e) => {
+                      setFormData({ ...formData, dateOfBirth: e.target.value });
+                      setFieldErrors(prev => ({ ...prev, dateOfBirth: validateField("dateOfBirth", e.target.value) }));
+                    }}
+                    className={`${inputCls} [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-50 ${fieldErrors.dateOfBirth ? "border-red-400 focus:border-red-400 focus:ring-red-100" : ""}`}
+                  />
+                  {fieldErrors.dateOfBirth && <p className="mt-1.5 text-xs text-red-500 flex items-center gap-1"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>{fieldErrors.dateOfBirth}</p>}
                 </FormField>
                 <FormField label="Gender">
                   <select value={formData.gender} onChange={(e) => setFormData({ ...formData, gender: e.target.value })} className={selectCls}>
@@ -748,7 +767,15 @@ export default function EmployeeAddPage() {
                   </FormField>
                 </div>
                 <FormField label="Phone Number">
-                  <input type="tel" placeholder="+94 77 000 0000" value={formData.emergencyContactPhone} onChange={(e) => setFormData({ ...formData, emergencyContactPhone: e.target.value })} className={inputCls} />
+                  <input
+                    type="tel"
+                    placeholder="+94 77 000 0000"
+                    value={formData.emergencyContactPhone}
+                    onChange={(e) => setFormData({ ...formData, emergencyContactPhone: e.target.value })}
+                    onBlur={(e) => setFieldErrors(prev => ({ ...prev, emergencyPhone: validateField("emergencyPhone", e.target.value) }))}
+                    className={`${inputCls} ${fieldErrors.emergencyPhone ? "border-red-400 focus:border-red-400 focus:ring-red-100" : ""}`}
+                  />
+                  {fieldErrors.emergencyPhone && <p className="mt-1.5 text-xs text-red-500 flex items-center gap-1"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>{fieldErrors.emergencyPhone}</p>}
                 </FormField>
               </div>
             </SectionCard>
