@@ -5,6 +5,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { IconChevron } from "../../../components/Icons";
 import RichTextEditor from "../../../components/RichTextEditor";
+import DepartmentSelect from "@/components/DepartmentSelect";
 
 function stripHtml(html: string): string {
   return html.replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").trim();
@@ -15,11 +16,12 @@ const baseInput =
 const inputCls = `${baseInput} border-gray-200 focus:ring-2 focus:ring-orange-200 focus:border-orange-300`;
 const errorCls = `${baseInput} border-red-300 ring-2 ring-red-100 focus:ring-red-200 focus:border-red-400`;
 const fieldCls = (err?: string) => (err ? errorCls : inputCls);
+const selectFieldCls = (err?: string) => `${fieldCls(err)} appearance-none bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20width%3D%2220%22%20height%3D%2220%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22%239CA3AF%22%3E%3Cpath%20d%3D%22M5.23%207.21a.75.75%200%20011.06.02L10%2011.168l3.71-3.938a.75.75%200%20111.08%201.04l-4.25%204.5a.75.75%200%2001-1.08%200l-4.25-4.5a.75.75%200%2001.02-1.06z%22%2F%3E%3C%2Fsvg%3E')] bg-[length:20px_20px] bg-[position:right_12px_center] bg-no-repeat pr-10`;
 
 type EligibleUser = { id: number; first_name: string; last_name: string; full_name: string; email: string };
 
 type FormState = {
-  title: string; department: string; experience_level: string;
+  title: string; department_id: number | null; experience_level: string;
   description: string; requirements: string; status: string;
 };
 type FormErrors = Partial<Record<keyof FormState, string>>;
@@ -29,8 +31,7 @@ function validate(form: FormState): FormErrors {
   if (!form.title.trim()) e.title = "Position title is required.";
   else if (form.title.trim().length < 3) e.title = "Title must be at least 3 characters.";
   else if (form.title.trim().length > 100) e.title = "Title cannot exceed 100 characters.";
-  if (!form.department.trim()) e.department = "Department is required.";
-  else if (form.department.trim().length < 2) e.department = "Department must be at least 2 characters.";
+  if (!form.department_id) e.department_id = "Department is required.";
   if (!form.experience_level) e.experience_level = "Please select an experience level.";
   const descText = stripHtml(form.description);
   if (!descText) e.description = "Job description is required.";
@@ -117,7 +118,7 @@ function CharCount({ current, max }: { current: number; max: number }) {
   );
 }
 
-const INITIAL_FORM: FormState = { title: "", department: "", experience_level: "", description: "", requirements: "", status: "Draft" };
+const INITIAL_FORM: FormState = { title: "", department_id: null, experience_level: "", description: "", requirements: "", status: "Draft" };
 
 export default function VacancyCreatePage() {
   const router = useRouter();
@@ -235,13 +236,19 @@ export default function VacancyCreatePage() {
             <FieldError msg={errors.title} />
           </div>
 
-          <div data-field-error={errors.department ? true : undefined}>
+          <div data-field-error={errors.department_id ? true : undefined}>
             <div className="flex justify-between items-center mb-1.5">
               <label className="text-sm font-medium text-gray-700">Department <span className="text-red-400">*</span></label>
-              <CharCount current={form.department.length} max={80} />
             </div>
-            <input id="field-department" type="text" placeholder="e.g. IT, Finance, HR" className={fieldCls(errors.department)} value={form.department} onChange={set("department")} onBlur={() => handleBlur("department")} maxLength={90} />
-            <FieldError msg={errors.department} />
+            <DepartmentSelect
+              value={form.department_id}
+              onChange={(id) => {
+                setForm((prev) => ({ ...prev, department_id: id }));
+                handleBlur("department_id");
+              }}
+              selectClass={selectFieldCls(errors.department_id)}
+            />
+            <FieldError msg={errors.department_id} />
           </div>
 
           <div data-field-error={errors.experience_level ? true : undefined}>

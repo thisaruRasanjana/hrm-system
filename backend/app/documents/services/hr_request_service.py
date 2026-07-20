@@ -26,6 +26,31 @@ from app.core.storage_service import storage
 _notif_logger = logging.getLogger(__name__)
 
 
+# Allowed status transitions for a document request. A request moves forward
+# (PENDING → IN_PROGRESS → APPROVED → COMPLETED) or can be REJECTED from any
+# non-terminal state. COMPLETED and REJECTED are terminal — reopening them (e.g.
+# APPROVED/COMPLETED → PENDING) is an illegal transition and is refused, mirroring
+# the document-approval flow's state guard (BUG-19 / TC-REQ-012).
+_ALLOWED_TRANSITIONS = {
+    RequestStatus.PENDING: {RequestStatus.IN_PROGRESS, RequestStatus.APPROVED, RequestStatus.REJECTED},
+    RequestStatus.IN_PROGRESS: {RequestStatus.APPROVED, RequestStatus.REJECTED, RequestStatus.COMPLETED},
+    RequestStatus.APPROVED: {RequestStatus.COMPLETED, RequestStatus.REJECTED},
+    RequestStatus.COMPLETED: set(),
+    RequestStatus.REJECTED: set(),
+}
+
+
+def _ensure_valid_transition(current: RequestStatus, new: RequestStatus) -> None:
+    """Reject an illegal status transition with 400; a same-status update is a no-op."""
+    if current == new:
+        return
+    if new not in _ALLOWED_TRANSITIONS.get(current, set()):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot change request status from {current.value} to {new.value}.",
+        )
+
+
 def ensure_can_handle_request(db: Session, request: DocumentRequest, current_user_id: int) -> None:
     """Raise 403 if current_user is not allowed to act on this request
     (separation of duties — no self/peer handling; HR requests escalate to a super admin)."""
@@ -137,6 +162,10 @@ def update_request_status(
     if current_user_id is not None:
         ensure_can_handle_request(db, request, current_user_id)
 
+    # Guard the state machine: block illegal transitions (e.g. reopening an
+    # APPROVED/COMPLETED request back to PENDING) before mutating anything.
+    _ensure_valid_transition(request.status, new_status)
+
     if new_status == RequestStatus.REJECTED and not rejection_reason:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -150,6 +179,32 @@ def update_request_status(
     try:
         db.commit()
         db.refresh(request)
+
+        # ── Notify external requester by email ────────────────────────────
+        # They have no portal account, so the in-app notification below cannot
+        # reach them — email is the only way to close the loop. Best-effort: a
+        # mail failure must not roll back a status change HR already made.
+        if (
+            new_status == RequestStatus.REJECTED
+            and getattr(request, "source", "INTERNAL") == "EXTERNAL"
+            and request.requester_email
+        ):
+            try:
+                from app.documents.services.email_service import send_rejection_to_requester
+                send_rejection_to_requester(
+                    to_email=request.requester_email,
+                    document_type=request.document_type,
+                    rejection_reason=rejection_reason,
+                )
+                _notif_logger.info(
+                    "[Documents] Rejection email sent to external requester %s",
+                    request.requester_email,
+                )
+            except Exception as e:
+                _notif_logger.error(
+                    "[Documents] Failed to email rejection to %s: %s",
+                    request.requester_email, e,
+                )
 
         # ── Notify requesting employee (if internal) ──────────────────────
         if request.employee_id:
@@ -183,19 +238,30 @@ def assign_employee_to_request(
     db: Session,
     request_id: UUID,
     employee_id: int,
+    current_user_id: int = None,
 ) -> dict:
     """Link an internal employee to an (initially external) document request.
 
     This is used when HR identifies which employee an external email request
     belongs to, before generating the document.
 
+    Assigning changes who the request's *submitter* is, which re-runs
+    separation-of-duties routing. Assigning the employee linked to your own user
+    account therefore escalates the request to a super admin and removes your own
+    access to it. That is intended — nobody should issue their own employment
+    letter — but it used to happen silently, leaving the handler with an
+    unexplained 403 on the next action. We now report it back so the UI can say so.
+
     Args:
         db: Active SQLAlchemy database session.
         request_id: UUID of the DocumentRequest to update.
         employee_id: Integer primary key of the Employee to link.
+        current_user_id: Handler performing the assignment, used to detect that
+            they have just escalated the request away from themselves.
 
     Returns:
-        Dict with a confirmation message and the employee's display name.
+        Dict with a confirmation message, the employee's display name, and an
+        ``escalated`` flag plus ``warning`` text when the caller has lost access.
 
     Raises:
         HTTPException 404: If request or employee is not found.
@@ -222,7 +288,20 @@ def assign_employee_to_request(
         ) from exc
 
     employee_name = f"{employee.first_name} {employee.last_name}"
-    return {
+    result = {
         "message": f"Assigned {employee_name} to this request.",
         "employee_name": employee_name,
+        "escalated": False,
     }
+
+    # Did this assignment just route the request away from the person making it?
+    if current_user_id is not None:
+        from app.documents.services.approval_routing import can_user_handle
+        if not can_user_handle(db, current_user_id, employee.user_id, "document:request_manage"):
+            result["escalated"] = True
+            result["warning"] = (
+                f"This request is about {employee_name}, so it has been escalated to a "
+                "super admin. You can no longer generate or action it yourself."
+            )
+
+    return result

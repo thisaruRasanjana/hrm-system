@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 
 from app.documents.models.template_model import DocumentTemplate
 from app.core.storage_service import storage
+from app.core.file_validation import validate_upload, TEMPLATE_TYPES
 
 
 def _detect_type_from_file(filename: str, fallback: str) -> str:
@@ -72,10 +73,16 @@ def create_template(
     file_path = None
 
     if file and file.filename:
-        template_type = _detect_type_from_file(file.filename, template_type)
-        ext = os.path.splitext(file.filename or "")[1].lower()
+        # Validate by magic bytes, not extension: templates are only ever DOCX or
+        # PDF. This rejects executables/scripts (.exe/.sh/.html/.svg/...) that a
+        # caller could otherwise upload and have served from public /uploads.
+        file_bytes, _detected, ext = validate_upload(
+            file,
+            TEMPLATE_TYPES,
+            reject_message="Only PDF and DOCX templates are allowed",
+        )
+        template_type = _detect_type_from_file(f"x{ext}", template_type)
         key = f"templates/{uuid4().hex}{ext}"
-        file_bytes = file.file.read()
         storage.upload(file_bytes, key)
         file_path = key
         content = None  # file-backed templates have no inline content
@@ -175,10 +182,13 @@ def update_template(
         template.content = content
 
     if file and file.filename:
-        template.template_type = _detect_type_from_file(file.filename, template.template_type)
-        ext = os.path.splitext(file.filename or "")[1].lower()
+        file_bytes, _detected, ext = validate_upload(
+            file,
+            TEMPLATE_TYPES,
+            reject_message="Only PDF and DOCX templates are allowed",
+        )
+        template.template_type = _detect_type_from_file(f"x{ext}", template.template_type)
         key = f"templates/{uuid4().hex}{ext}"
-        file_bytes = file.file.read()
         storage.upload(file_bytes, key)
         template.file_path = key
         template.content = None  # file-backed template; clear any old HTML content

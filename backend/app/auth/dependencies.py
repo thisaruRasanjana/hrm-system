@@ -1,4 +1,4 @@
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from app.database.database import get_db
@@ -7,9 +7,10 @@ from app.auth import service
 from app.auth.models import User
 
 # Use the login endpoint (to be implemented in Step 5) as the token URL
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
 
 def get_current_user(
+    request: Request,
     db: Session = Depends(get_db), 
     token: str = Depends(oauth2_scheme)
 ) -> User:
@@ -19,7 +20,11 @@ def get_current_user(
         headers={"WWW-Authenticate": "Bearer"},
     )
     
-    payload = security.decode_access_token(token)
+    actual_token = token or request.query_params.get("token")
+    if not actual_token:
+        raise credentials_exception
+    
+    payload = security.decode_access_token(actual_token)
     if payload is None:
         raise credentials_exception
     

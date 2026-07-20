@@ -38,6 +38,7 @@ class LeaveRequestOut(BaseModel):
     role: Optional[str] = None
     parent_request_id: Optional[int] = None
     approved_by_name: Optional[str] = None
+    created_at: datetime
 
     class Config:
         from_attributes = True
@@ -74,6 +75,7 @@ class RequestMedicalLeave(BaseModel):
 class LeaveTypeCreate(BaseModel):
     name: str
     description: Optional[str] = None
+    default_days: Optional[float] = None
     directly_requestable: bool = True
 
 class LeaveTypeOut(BaseModel):
@@ -195,6 +197,7 @@ class LeaveAuditLogOut(BaseModel):
     id: int
     leave_request_id: int
     changed_by_employee_id: Optional[int]
+    changer_name: Optional[str] = None
     old_status: Optional[str]
     new_status: str
     note: Optional[str]

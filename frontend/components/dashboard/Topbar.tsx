@@ -6,7 +6,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import MessagesPanel from "./MessagesPanel";
 import NotificationsDropdown from "./NotificationsDropdown";
 import { useAuth } from "@/context/auth-context";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, fileUrl } from "@/lib/api";
 
 /**
  * Everything the search can jump to. Each entry is gated by the same permission
@@ -145,7 +145,10 @@ export default function Topbar() {
     }
   };
 
-  const profileImage = user?.profile_image_url ?? null;
+  // Wrap in fileUrl() so a relative "/uploads/..." key from the local storage
+  // backend resolves against the API host, not the frontend origin (broken img).
+  // Full S3 presigned URLs pass through unchanged.
+  const profileImage = user?.profile_image_url ? fileUrl(user.profile_image_url) : null;
   const initials = `${user?.first_name?.[0] || ""}${user?.last_name?.[0] || ""}`.toUpperCase() || user?.email?.[0]?.toUpperCase() || "?";
 
   const fetchUnreadMessages = async () => {

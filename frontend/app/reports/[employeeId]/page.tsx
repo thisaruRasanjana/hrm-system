@@ -20,7 +20,13 @@ export default function EmployeeReportDetailPage() {
   const params = useParams();
   const employeeId = String(params.employeeId);
 
-  const [period, setPeriod] = useState<ReportPeriod>("monthly");
+  const today = new Date();
+  const toYMD = (d: Date) => d.toISOString().split("T")[0];
+  const initialStart = new Date(today.getFullYear(), today.getMonth(), 1);
+  const initialEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+
+  const [customStart, setCustomStart] = useState<string>(toYMD(initialStart));
+  const [customEnd, setCustomEnd] = useState<string>(toYMD(initialEnd));
   const [activeTab, setActiveTab] = useState<DetailTab>("attendance");
 
   const [employee, setEmployee] = useState<any>(null);
@@ -29,11 +35,21 @@ export default function EmployeeReportDetailPage() {
 
   // ✅ Fetch data from backend
   useEffect(() => {
-    apiFetch(`/reports/leave?employee_id=${employeeId}`)
+    let url = `/reports/leave?employee_id=${employeeId}`;
+    if (customStart && customEnd) {
+      url += `&start_date=${customStart}&end_date=${customEnd}`;
+    }
+
+    apiFetch(url)
       .then((res) => res.json())
       .then((data) => {
         if (!data.records || data.records.length === 0) {
-          notFound();
+          if (!employee) {
+            notFound();
+          } else {
+            setLeaveRecords([]);
+            setLoading(false);
+          }
           return;
         }
 
@@ -62,6 +78,7 @@ export default function EmployeeReportDetailPage() {
           days: r.total_days,
           reason: r.reason,
           status: r.status,
+          created_at: r.created_at,
         }));
 
         setLeaveRecords(mappedLeaves);
@@ -70,7 +87,7 @@ export default function EmployeeReportDetailPage() {
       .catch(() => {
         notFound();
       });
-  }, [employeeId]);
+  }, [employeeId, customStart, customEnd]);
 
   // ⚠️ Placeholder (until backend ready)
   const attendanceRecords: any[] = [];
@@ -89,14 +106,19 @@ export default function EmployeeReportDetailPage() {
   }, [activeTab, attendanceRecords, leaveRecords, violationRecords]);
 
   // ✅ Loading state
-  if (loading) {
+  if (loading && !employee) {
     return <div className="p-10">Loading...</div>;
   }
 
   if (!employee) return null;
 
   return (
-    <div>
+    <div className="relative">
+      {loading && (
+        <div className="absolute inset-0 bg-white/50 backdrop-blur-[1px] z-50 flex items-center justify-center">
+          <span className="text-gray-500 font-medium">Refreshing...</span>
+        </div>
+      )}
       <LeaveTabs />
 
           <div className="mt-2">
@@ -114,15 +136,17 @@ export default function EmployeeReportDetailPage() {
 
           <EmployeeReportHeader
             employee={employee}
-            period={period}
-            setPeriod={setPeriod}
+            customStart={customStart}
+            customEnd={customEnd}
           />
 
           <EmployeeReportStats
             employee={employee}
             activeTab={activeTab}
-            period={period}
-            setPeriod={setPeriod}
+            customStart={customStart}
+            setCustomStart={setCustomStart}
+            customEnd={customEnd}
+            setCustomEnd={setCustomEnd}
           />
 
           <EmployeeDetailTabs

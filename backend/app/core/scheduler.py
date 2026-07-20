@@ -26,15 +26,18 @@ Benefits:
   - Safe for any number of workers / replicas.
 """
 
+import asyncio
 import hashlib
 import logging
 from contextlib import contextmanager
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 from sqlalchemy import text
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.interval import IntervalTrigger
 
+from app.core.config import EMAIL_POLL_INTERVAL_SECONDS
 from app.database.database import SessionLocal
 from app.employees.models import Employee, EmployeeDesignationHistory
 from app.notifications.service import notify_users, get_user_ids_with_permission
@@ -99,17 +102,139 @@ def advisory_lock(job_name: str):
         db.close()
 
 
+# ── Job: inbound email poller ────────────────────────────────────────────────
+
+_EMAIL_POLLER_JOB = "email_poller"
+
+
+async def poll_email_inbox(*, force: bool = False) -> int:
+    """Run ONE inbound-email poll cycle. Returns the number of requests created.
+
+    Replaces the former hand-rolled ``while True: await asyncio.sleep(...)`` loop
+    in main.py. APScheduler gives us ``max_instances=1`` (a slow IMAP cycle can
+    never overlap itself), a real job registry, and the same lifecycle as every
+    other scheduled job — the old loop was invisible and unmanageable.
+
+    The blocking IMAP/DB work is offloaded with ``asyncio.to_thread`` so it never
+    stalls the event loop.
+
+    Args:
+        force: Bypass the advisory lock. Only for the manual "poll now" trigger,
+            where the operator explicitly wants this process to do the work.
+    """
+    from app.documents.services import email_service
+
+    def _run() -> int:
+        db = SessionLocal()
+        try:
+            return email_service.fetch_and_process_external_requests(db)
+        finally:
+            db.close()
+
+    logger.info("[Email Poller] step6: poll cycle starting (force=%s)", force)
+
+    if force:
+        created = await asyncio.to_thread(_run)
+        logger.info("[Email Poller] step6: forced cycle finished, %s created", created)
+        return created
+
+    # ── Step 7: only one worker per cycle ────────────────────────────────────
+    # Under `uvicorn --workers N` every worker schedules this job, so without the
+    # advisory lock the same inbox would be polled N times concurrently.
+    with advisory_lock(_EMAIL_POLLER_JOB) as got_lock:
+        if not got_lock:
+            # Previously this branch logged NOTHING, so a poller that never ran
+            # was indistinguishable from one finding no mail.
+            logger.info(
+                "[Email Poller] step7: lock held by another worker — skipping this cycle."
+            )
+            return 0
+        logger.info("[Email Poller] step7: advisory lock acquired — this worker owns the cycle.")
+        created = await asyncio.to_thread(_run)
+        logger.info("[Email Poller] step6: cycle finished, %s request(s) created", created)
+        return created
+
+
 # ── Job: nightly designation-expiry check ────────────────────────────────────
 
 _DESIGNATION_EXPIRY_JOB = "check_expiring_designations"
 _DESIGNATION_EXPIRY_KEY = _pg_lock_key(_DESIGNATION_EXPIRY_JOB)
 
 
+def run_designation_expiry_check(db) -> int:
+    """Find active employees whose designation period ends today or in exactly 3
+    days and warn every HR user holding 'employee:update'.
+
+    Synchronous and self-contained so it can be unit-tested directly (seed an
+    expiring designation → call this → assert the notification) and triggered
+    on demand, independent of the nightly async wrapper. Soft-deleted employees
+    are excluded automatically by the global soft-delete filter.
+
+    Returns the number of expiring designations that were alerted on.
+    """
+    today = date.today()
+    in_3_days = today + timedelta(days=3)
+
+    expiring = (
+        db.query(Employee, EmployeeDesignationHistory)
+        .join(
+            EmployeeDesignationHistory,
+            Employee.id == EmployeeDesignationHistory.employee_id,
+        )
+        .filter(
+            Employee.status == "active",
+            EmployeeDesignationHistory.end_date.in_([today, in_3_days]),
+        )
+        .all()
+    )
+
+    if not expiring:
+        logger.info("[Scheduler] %s: no expiring designations found.", _DESIGNATION_EXPIRY_JOB)
+        return 0
+
+    hr_user_ids = get_user_ids_with_permission(db, "employee:update")
+    if not hr_user_ids:
+        logger.warning(
+            "[Scheduler] %s: expiring designations found but no HR users to notify.",
+            _DESIGNATION_EXPIRY_JOB,
+        )
+        return 0
+
+    alerted = 0
+    for emp, hist in expiring:
+        days_left = (hist.end_date - today).days
+        when = "today" if days_left == 0 else f"in {days_left} days"
+        message = (
+            f"Reminder: {emp.first_name} {emp.last_name}'s "
+            f"designation period ({hist.designation_name}) ends {when}. "
+            f"Please review their profile."
+        )
+        notify_users(
+            db,
+            hr_user_ids,
+            message,
+            category="system",
+            type="warning",
+            link=f"/dashboard/EmployeeManagement/edit?id={emp.id}",
+            entity_type="employee",
+            entity_id=str(emp.id),
+        )
+        alerted += 1
+        logger.info(
+            "[Scheduler] Notified HR about %s %s (designation ends %s).",
+            emp.first_name,
+            emp.last_name,
+            when,
+        )
+
+    db.commit()
+    return alerted
+
+
 async def check_expiring_designations() -> None:
     """
-    Nightly job: find employees whose active designation period ends today or in
-    exactly 3 days, and send a warning notification to all HR users who have the
-    'employee:update' permission.
+    Nightly job: warn HR about employees whose designation period ends today or
+    in exactly 3 days (see :func:`run_designation_expiry_check`).
 
     Protected by a PostgreSQL advisory lock so only one worker runs this even
     when the application is deployed with multiple processes.
@@ -130,65 +255,10 @@ async def check_expiring_designations() -> None:
 
         # ── Step 2: Do the work ───────────────────────────────────────────────
         try:
-            today = date.today()
-            in_3_days = today + timedelta(days=3)
-
-            expiring = (
-                db.query(Employee, EmployeeDesignationHistory)
-                .join(
-                    EmployeeDesignationHistory,
-                    Employee.id == EmployeeDesignationHistory.employee_id,
-                )
-                .filter(
-                    Employee.status == "active",
-                    EmployeeDesignationHistory.end_date.in_([today, in_3_days]),
-                )
-                .all()
-            )
-
-            if not expiring:
-                logger.info("[Scheduler] %s: no expiring designations found.", _DESIGNATION_EXPIRY_JOB)
-                return
-
-            hr_user_ids = get_user_ids_with_permission(db, "employee:update")
-            if not hr_user_ids:
-                logger.warning(
-                    "[Scheduler] %s: expiring designations found but no HR users to notify.",
-                    _DESIGNATION_EXPIRY_JOB,
-                )
-                return
-
-            for emp, hist in expiring:
-                days_left = (hist.end_date - today).days
-                when = "today" if days_left == 0 else f"in {days_left} days"
-                message = (
-                    f"Reminder: {emp.first_name} {emp.last_name}'s "
-                    f"designation period ({hist.designation_name}) ends {when}. "
-                    f"Please review their profile."
-                )
-                notify_users(
-                    db,
-                    hr_user_ids,
-                    message,
-                    category="system",
-                    type="warning",
-                    link=f"/dashboard/EmployeeManagement/edit?id={emp.id}",
-                    entity_type="employee",
-                    entity_id=str(emp.id),
-                )
-                logger.info(
-                    "[Scheduler] Notified HR about %s %s (designation ends %s).",
-                    emp.first_name,
-                    emp.last_name,
-                    when,
-                )
-
-            db.commit()
-
+            run_designation_expiry_check(db)
         except Exception as exc:
             logger.error("[Scheduler] %s: job failed: %s", _DESIGNATION_EXPIRY_JOB, exc)
             db.rollback()
-
         finally:
             # ── Step 3: Always release the lock ──────────────────────────────
             _release_lock(db, _DESIGNATION_EXPIRY_KEY)
@@ -215,8 +285,23 @@ def start_scheduler() -> None:
             replace_existing=True,
             misfire_grace_time=3600,          # tolerate up to 1-hour misfire
         )
+        scheduler.add_job(
+            poll_email_inbox,
+            IntervalTrigger(seconds=EMAIL_POLL_INTERVAL_SECONDS),
+            id=_EMAIL_POLLER_JOB,
+            replace_existing=True,
+            # A slow IMAP cycle must never overlap the next one.
+            max_instances=1,
+            coalesce=True,
+            misfire_grace_time=EMAIL_POLL_INTERVAL_SECONDS,
+            # Don't wait a full interval for the first run after a restart.
+            next_run_time=datetime.now() + timedelta(seconds=10),
+        )
         scheduler.start()
-        logger.info("[Scheduler] APScheduler started (PG advisory lock enabled).")
+        logger.info(
+            "[Scheduler] APScheduler started (PG advisory lock enabled); "
+            "email poller every %ss.", EMAIL_POLL_INTERVAL_SECONDS,
+        )
 
 
 def shutdown_scheduler() -> None:

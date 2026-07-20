@@ -18,6 +18,7 @@ from app.database.deps import get_db
 from app.recruitment import models, schemas, service
 from app.recruitment.service import STATUS_ACTIVE
 from app.core.storage import save_file_locally
+from app.core.storage_service import storage
 from app.core.config import RECAPTCHA_SECRET_KEY
 
 router = APIRouter(prefix="/public", tags=["Public Job Portal"])
@@ -196,6 +197,17 @@ async def apply_for_job(
 
     except Exception as exc:
         db.rollback()
+        # ── Clean up the orphaned file to prevent disk / S3 leaks. ───────────────
+        # The file was saved before the DB commit, so if the commit fails
+        # we must delete it — otherwise a file sits on disk (or S3) with
+        # no candidate row pointing to it.
+        try:
+            storage.delete(file_path)
+        except Exception as cleanup_exc:
+            import logging
+            logging.getLogger(__name__).error(
+                f"[Recruitment] Failed to delete orphaned CV '{file_path}' after commit failure: {cleanup_exc}"
+            )
         raise HTTPException(
             status_code=500,
             detail="Failed to save application. Please try again.",

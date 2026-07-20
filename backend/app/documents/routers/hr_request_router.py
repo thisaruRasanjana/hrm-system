@@ -64,6 +64,28 @@ def generate_document(
         )
 
 
+@router.post("/poll-inbox")
+async def poll_inbox_now(
+    current_user = Depends(require_permission("document:request_manage"))
+):
+    """Run ONE inbound-email poll cycle immediately instead of waiting for the
+    scheduled interval.
+
+    Exists so QA can trigger the external-request flow on demand. Import is
+    idempotent (deduped on the email's Message-ID), so calling this repeatedly
+    is safe and will not create duplicate requests.
+    """
+    from app.core.scheduler import poll_email_inbox
+
+    # force=True: the operator explicitly asked THIS process to do the work, so
+    # skip the advisory lock that would otherwise defer to another worker.
+    created = await poll_email_inbox(force=True)
+    return {
+        "created": created,
+        "detail": f"Poll cycle complete — {created} new external request(s) imported.",
+    }
+
+
 @router.patch("/{request_id}/status")
 def update_request_status(
     request_id: UUID,
@@ -88,8 +110,15 @@ def assign_employee(
     db: Session = Depends(get_db),
     current_user = Depends(require_permission("document:request_manage"))
 ):
-    """Link an existing employee to an external email request."""
-    return hr_request_service.assign_employee_to_request(db, request_id, employee_id)
+    """Link an existing employee to an external email request.
+
+    The response carries ``escalated``/``warning`` when the assignment has routed
+    the request away from the caller (i.e. it is about them), so the UI can
+    explain the loss of access instead of the caller hitting a bare 403 later.
+    """
+    return hr_request_service.assign_employee_to_request(
+        db, request_id, employee_id, current_user.id,
+    )
 
 
 @router.post("/{request_id}/custom-letter")
