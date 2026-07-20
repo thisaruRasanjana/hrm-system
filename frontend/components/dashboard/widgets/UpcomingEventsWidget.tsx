@@ -88,7 +88,8 @@ export default function UpcomingEventsWidget({ permissions }: Props) {
     } finally { setSaving(false); }
   };
 
-  // "Add to Calendar" — opens Google Calendar with event pre-filled
+  // "Add to Calendar" — saves/removes this event to the user's own dashboard
+  // Calendar widget (per-user), then tells the Calendar widget to refresh.
   const toggleCalendar = async (ev: Event, e: React.MouseEvent) => {
     e.stopPropagation();
     try {
@@ -96,6 +97,8 @@ export default function UpcomingEventsWidget({ permissions }: Props) {
       const res = await apiFetch(`/events/${ev.id}/save`, { method });
       if (res.ok) {
         setEvents(prev => prev.map(e => e.id === ev.id ? { ...e, is_saved: !ev.is_saved } : e));
+        // Let the Calendar widget re-fetch the user's saved events immediately.
+        window.dispatchEvent(new Event("calendar:changed"));
       }
     } catch (e) { console.error(e); }
   };
