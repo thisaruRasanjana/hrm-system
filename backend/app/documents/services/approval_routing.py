@@ -10,6 +10,9 @@ Rule (confirmed with the product owner):
 - A submission from a PRIVILEGED user (who DOES hold the manage/approve
   permission — e.g. HR) escalates to SUPER ADMINS only. No peer may handle it.
 - The submitter is never an eligible handler of their own submission.
+- A submission with NO submitter (an external email request, or an employee with
+  no linked user account) has no conflict of interest to guard against, so every
+  authorised handler — HR and super admins alike — may handle it.
 
 "Super admin" = a user with the "Super Admin" role OR the is_superadmin flag.
 
@@ -68,9 +71,15 @@ def eligible_handlers_from_sets(
     """Pure partition logic — reused per-item without re-querying."""
     hr_ids = approver_ids - super_admin_ids  # non-super-admin approvers
 
-    submitter_is_privileged = (
-        submitter_user_id is not None and submitter_user_id in approver_ids
-    )
+    if submitter_user_id is None:
+        # No submitter at all — an external email request, or an employee with no
+        # linked user account. Separation of duties exists to stop someone acting
+        # on their OWN submission; with nobody to be conflicted with there is
+        # nothing to separate, so every authorised handler qualifies. Excluding
+        # super admins here just hid inbound external requests from them.
+        return set(approver_ids) | set(super_admin_ids)
+
+    submitter_is_privileged = submitter_user_id in approver_ids
     if submitter_is_privileged:
         eligible = set(super_admin_ids)            # escalate to super admins only
     else:
