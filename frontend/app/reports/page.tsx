@@ -48,39 +48,18 @@ type BackendLeaveReportResponse = {
 };
 
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
-function getPeriodDateRange(period: ReportPeriod): { start: string; end: string } {
-  const today = new Date();
-  const toYMD = (d: Date) => d.toISOString().split("T")[0];
-
-  if (period === "weekly") {
-    // Mon → Sun of the current week
-    const day = today.getDay(); // 0 = Sun
-    const diffToMon = (day + 6) % 7;
-    const mon = new Date(today);
-    mon.setDate(today.getDate() - diffToMon);
-    const sun = new Date(mon);
-    sun.setDate(mon.getDate() + 6);
-    return { start: toYMD(mon), end: toYMD(sun) };
-  }
-
-  if (period === "monthly") {
-    const start = new Date(today.getFullYear(), today.getMonth(), 1);
-    const end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-    return { start: toYMD(start), end: toYMD(end) };
-  }
-
-  // annually
-  const start = new Date(today.getFullYear(), 0, 1);
-  const end = new Date(today.getFullYear(), 11, 31);
-  return { start: toYMD(start), end: toYMD(end) };
-}
+const today = new Date();
+const toYMD = (d: Date) => d.toISOString().split("T")[0];
 
 export default function ReportsPage() {
   const { loading: authLoading, hasPermission } = useAuth();
   const canViewReports = hasPermission("leave:report");
 
-  const [period, setPeriod] = useState<ReportPeriod>("monthly");
+  const initialStart = new Date(today.getFullYear(), today.getMonth(), 1);
+  const initialEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+
+  const [customStart, setCustomStart] = useState<string>(toYMD(initialStart));
+  const [customEnd, setCustomEnd] = useState<string>(toYMD(initialEnd));
   const [search, setSearch] = useState("");
   const [department, setDepartment] = useState("All Departments");
 
@@ -94,8 +73,7 @@ export default function ReportsPage() {
         setLoading(true);
         setError("");
 
-        const { start, end } = getPeriodDateRange(period);
-        const response = await apiFetch(`/reports/leave?start_date=${start}&end_date=${end}`);
+        const response = await apiFetch(`/reports/leave?start_date=${customStart}&end_date=${customEnd}`);
 
         if (!response.ok) {
           throw new Error("Failed to fetch report data");
@@ -112,7 +90,7 @@ export default function ReportsPage() {
     };
 
     fetchReport();
-  }, [period]);
+  }, [customStart, customEnd]);
 
   const summaryCards = useMemo(() => {
     if (!reportData) return [];
@@ -238,17 +216,15 @@ export default function ReportsPage() {
   };
 
   const handleDownloadCsv = () => {
-    const { start, end } = getPeriodDateRange(period);
     downloadReport(
-      `/reports/leave/export/csv?start_date=${start}&end_date=${end}`,
+      `/reports/leave/export/csv?start_date=${customStart}&end_date=${customEnd}`,
       "leave_report.csv"
     );
   };
 
   const handleDownloadPdf = () => {
-    const { start, end } = getPeriodDateRange(period);
     downloadReport(
-      `/reports/leave/pdf?start_date=${start}&end_date=${end}`,
+      `/reports/leave/pdf?start_date=${customStart}&end_date=${customEnd}`,
       "leave_report.pdf"
     );
   };
@@ -281,48 +257,56 @@ export default function ReportsPage() {
     <div>
       <LeaveTabs />
 
-          <section className="mt-6">
-            <h1 className="text-2xl font-semibold text-gray-900 md:text-[24px]">
-              Employee Leave Summary
-            </h1>
-            <p className="mt-1 md:text-[16px] text-base text-gray-500 md:text-lg">
-              Comprehensive leave report for all employees
-            </p>
-          </section>
+      <section className="mt-6">
+        <h1 className="text-2xl font-semibold text-gray-900 md:text-[24px]">
+          Employee Leave Summary
+        </h1>
+        <p className="mt-1 md:text-[16px] text-base text-gray-500 md:text-lg">
+          Comprehensive leave report for all employees
+        </p>
+      </section>
 
-          {loading && (
-            <div className="mt-6 rounded-2xl bg-white p-6 text-gray-500 shadow-sm">
-              Loading report data...
-            </div>
-          )}
+      {!reportData && loading && (
+        <div className="mt-6 rounded-2xl bg-white p-6 text-gray-500 shadow-sm">
+          Loading report data...
+        </div>
+      )}
 
-          {error && (
-            <div className="mt-6 rounded-2xl bg-red-50 p-6 text-red-600 shadow-sm">
-              {error}
-            </div>
-          )}
+      {error && (
+        <div className="mt-6 rounded-2xl bg-red-50 p-6 text-red-600 shadow-sm">
+          {error}
+        </div>
+      )}
 
-          {!loading && !error && (
-            <>
-              <ReportSummaryCards cards={summaryCards} />
+      {reportData && !error && (
+        <>
+          <ReportSummaryCards cards={summaryCards} />
 
-              <div className="mt-6 rounded-3xl border border-gray-200 bg-white p-5 shadow-[0_1px_3px_rgba(16,24,40,0.06)] md:p-6">
-                <ReportFilterBar
-                  period={period}
-                  setPeriod={setPeriod}
-                  search={search}
-                  setSearch={setSearch}
-                  department={department}
-                  setDepartment={setDepartment}
-                  departments={departmentOptions}
-                  onExportCsv={handleDownloadCsv}
-                  onExportPdf={handleDownloadPdf}
-                />
-
-                <EmployeeReportTable rows={filteredRows} />
+          <div className="mt-6 rounded-3xl border border-gray-200 bg-white p-5 shadow-[0_1px_3px_rgba(16,24,40,0.06)] md:p-6 relative">
+            {loading && (
+              <div className="absolute inset-0 bg-white/50 backdrop-blur-[1px] z-10 flex items-center justify-center rounded-3xl">
+                <span className="text-gray-500 font-medium">Refreshing...</span>
               </div>
-            </>
-          )}
+            )}
+
+            <ReportFilterBar
+              search={search}
+              setSearch={setSearch}
+              department={department}
+              setDepartment={setDepartment}
+              departments={departmentOptions}
+              onExportCsv={handleDownloadCsv}
+              onExportPdf={handleDownloadPdf}
+              customStart={customStart}
+              setCustomStart={setCustomStart}
+              customEnd={customEnd}
+              setCustomEnd={setCustomEnd}
+            />
+
+            <EmployeeReportTable rows={filteredRows} />
+          </div>
+        </>
+      )}
     </div>
   );
 }

@@ -136,7 +136,8 @@ export default function PendingConversions() {
               {Array.isArray(c.attachment_urls) && c.attachment_urls.length > 0 && (
                 <div className="mt-2 flex flex-col gap-1">
                   {c.attachment_urls.map((url, i) => {
-                    const full = url.startsWith('http') ? url : `${API_BASE_URL}${url}`;
+                    const token = typeof window !== 'undefined' ? sessionStorage.getItem('access_token') : '';
+                    const full = (url.startsWith('http') ? url : `${API_BASE_URL}${url}`) + (token ? `?token=${token}` : '');
                     const name = url.split('/').pop() || `file-${i + 1}`;
                     return (
                       <a

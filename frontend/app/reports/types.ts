@@ -1,4 +1,4 @@
-export type ReportPeriod = "weekly" | "monthly" | "annually";
+export type ReportPeriod = "weekly" | "monthly" | "annually" | "custom";
 export type DetailTab = "attendance" | "leave" | "violations";
 
 export interface EmployeeDetail {
@@ -46,6 +46,7 @@ export interface LeaveHistoryRecord {
   days: number;
   reason: string;
   status: string;
+  created_at?: string;
 }
 
 export interface SummaryCardItem {

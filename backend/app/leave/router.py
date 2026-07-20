@@ -44,6 +44,7 @@ from app.leave.service import (
     update_status,
     get_leave_types,
     create_leave_type,
+    delete_leave_type,
     get_leave_history,
     get_leave_request_by_id,
     approve_leave_request,
@@ -155,6 +156,12 @@ def assign_leave(
     current_user: dict = Depends(leave_actor("leave:assign")),
     db: Session = Depends(get_db),
 ):
+    if payload.employee_id == current_user["id"]:
+        raise HTTPException(
+            status_code=403, 
+            detail="You cannot assign leave to yourself. Please use the 'Request Leave' feature instead."
+        )
+
     try:
         # HR assigns on the employee's behalf → creates a PENDING request that
         # must still be approved by HR/Admin (never the assigner, never a Manager).
@@ -280,6 +287,7 @@ def approve_request(
     if req.employee_id == current_user["id"]:
         raise HTTPException(status_code=403, detail="Cannot approve your own request")
 
+    _guard_self_approve(req, current_user)
 
     try:
         return approve_leave_request(
@@ -311,12 +319,15 @@ def reject_request(
     if req.employee_id == current_user["id"]:
         raise HTTPException(status_code=403, detail="Cannot reject your own request")
 
-    return reject_leave_request(
-        db,
-        request_id,
-        approved_by=current_user["id"],
-        rejection_reason=payload.rejection_reason,
-    )
+    try:
+        return reject_leave_request(
+            db,
+            request_id,
+            approved_by=current_user["id"],
+            rejection_reason=payload.rejection_reason,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 # -----------------------------
@@ -337,12 +348,15 @@ def request_info(
     if req.employee_id == current_user["id"]:
         raise HTTPException(status_code=403, detail="Cannot request info for own request")
 
-    return request_info_leave_request(
-        db,
-        request_id,
-        approved_by=current_user["id"],
-        manager_comment=payload.manager_comment,
-    )
+    try:
+        return request_info_leave_request(
+            db,
+            request_id,
+            approved_by=current_user["id"],
+            manager_comment=payload.manager_comment,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 # -----------------------------
@@ -355,6 +369,14 @@ def resubmit_request(
     current_user: dict = Depends(leave_actor("leave:request")),
     db: Session = Depends(get_db),
 ):
+    req = get_leave_request_by_id(db, request_id)
+    
+    if not req:
+        raise HTTPException(status_code=404, detail="Leave request not found")
+        
+    if req.employee_id != current_user["id"]:
+        raise HTTPException(status_code=403, detail="Cannot resubmit another employee's request")
+
     try:
         return resubmit_leave_request(
             db=db,
@@ -500,7 +522,22 @@ def add_leave_type(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("leave:type_manage")),
 ):
-    return create_leave_type(db, payload.name, payload.description, payload.directly_requestable)
+    try:
+        return create_leave_type(db, payload.name, payload.description, payload.default_days, payload.directly_requestable)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.delete("/types/{type_id}")
+def remove_leave_type(
+    type_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("leave:type_manage")),
+):
+    try:
+        delete_leave_type(db, type_id)
+        return {"message": "Leave type deleted successfully"}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 # -----------------------------
@@ -561,9 +598,14 @@ def get_my_leave_history_api(
     page_size: int = 20,
     db: Session = Depends(get_db),
 ):
+    # Force role to employee so the service only returns THIS user's history, 
+    # even if they have HR/manager permissions.
+    user_context = dict(current_user)
+    user_context["role"] = "employee"
+
     return get_leave_history(
         db=db,
-        user=current_user,
+        user=user_context,
         search=search,
         leave_type_id=leave_type_id,
         status=status,

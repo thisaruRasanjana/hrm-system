@@ -2,11 +2,8 @@
 
 import React from "react";
 import { Search, FileText, Download } from "lucide-react";
-import { ReportPeriod } from "@/app/reports/types";
 
 interface Props {
-  period: ReportPeriod;
-  setPeriod: (value: ReportPeriod) => void;
   search: string;
   setSearch: (value: string) => void;
   department: string;
@@ -14,11 +11,13 @@ interface Props {
   departments: string[];
   onExportPdf?: () => void;
   onExportCsv?: () => void;
+  customStart?: string;
+  setCustomStart?: (val: string) => void;
+  customEnd?: string;
+  setCustomEnd?: (val: string) => void;
 }
 
 export default function ReportFilterBar({
-  period,
-  setPeriod,
   search,
   setSearch,
   department,
@@ -26,28 +25,34 @@ export default function ReportFilterBar({
   departments,
   onExportPdf,
   onExportCsv,
+  customStart,
+  setCustomStart,
+  customEnd,
+  setCustomEnd,
 }: Props) {
-  const periodButton = (value: ReportPeriod) =>
-    `relative text-sm px-1 pb-2 font-medium transition-colors duration-200 ${
-      period === value
-        ? "text-[#F2924E] after:absolute after:bottom-0 after:left-0 after:w-full after:h-0.5 after:bg-[#F2924E] after:rounded-full"
-        : "text-gray-500 hover:text-gray-700"
-    }`;
-
   return (
     <div className="flex flex-col gap-4">
-      {/* Top row: period tabs + export buttons */}
+      {/* Top row: date filters + export buttons */}
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-gray-100 pb-3">
-        <div className="flex items-center gap-8">
-          <button onClick={() => setPeriod("weekly")} className={periodButton("weekly")}>
-            Weekly
-          </button>
-          <button onClick={() => setPeriod("monthly")} className={periodButton("monthly")}>
-            Monthly
-          </button>
-          <button onClick={() => setPeriod("annually")} className={periodButton("annually")}>
-            Annually
-          </button>
+        <div className="flex flex-col sm:flex-row items-center gap-2">
+          {setCustomStart && setCustomEnd && (
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-gray-600 font-medium whitespace-nowrap">Date Range:</span>
+              <input 
+                type="date" 
+                value={customStart || ""} 
+                onChange={(e) => setCustomStart(e.target.value)} 
+                className="rounded-xl border border-gray-200 px-3 py-2 outline-none focus:border-orange-300 transition-colors"
+              />
+              <span className="text-gray-400">to</span>
+              <input 
+                type="date" 
+                value={customEnd || ""} 
+                onChange={(e) => setCustomEnd(e.target.value)} 
+                className="rounded-xl border border-gray-200 px-3 py-2 outline-none focus:border-orange-300 transition-colors"
+              />
+            </div>
+          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-3">

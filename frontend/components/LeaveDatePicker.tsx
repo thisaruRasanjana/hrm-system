@@ -252,6 +252,7 @@ export default function LeaveDatePicker({ onChange, value, holidays: initialHoli
             </div>
             <div className="flex gap-2">
               <button
+                type="button"
                 onClick={prevMonth}
                 className="text-[#F2924E] hover:text-orange-600 p-1 rounded transition-colors"
               >
@@ -260,6 +261,7 @@ export default function LeaveDatePicker({ onChange, value, holidays: initialHoli
                 </svg>
               </button>
               <button
+                type="button"
                 onClick={nextMonth}
                 className="text-[#F2924E] hover:text-orange-600 p-1 rounded transition-colors"
               >

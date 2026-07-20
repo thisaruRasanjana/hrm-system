@@ -7,26 +7,21 @@ import { apiFetch } from "@/lib/api";
 
 interface Props {
   employee: EmployeeDetail;
-  period: ReportPeriod;
-  setPeriod: (value: ReportPeriod) => void;
+  customStart?: string;
+  customEnd?: string;
 }
 
 export default function EmployeeReportHeader({
   employee,
-  period,
-  setPeriod,
+  customStart,
+  customEnd,
 }: Props) {
   const handleDownload = async () => {
-    const today = new Date();
-    const startDate = new Date();
+    let today = new Date();
+    let startDate = new Date();
 
-    if (period === "weekly") {
-      startDate.setDate(today.getDate() - 7);
-    } else if (period === "monthly") {
-      startDate.setMonth(today.getMonth() - 1);
-    } else if (period === "annually") {
-      startDate.setFullYear(today.getFullYear() - 1);
-    }
+    if (customStart) startDate = new Date(customStart);
+    if (customEnd) today = new Date(customEnd);
 
     const startStr = startDate.toISOString().split("T")[0];
     const endStr = today.toISOString().split("T")[0];
@@ -105,21 +100,7 @@ export default function EmployeeReportHeader({
           <div className="min-w-[140px]">
             <p className="text-[14px] text-gray-500">Position</p>
             <p className="text-[15px] font-medium text-gray-800">
-              Senior Developer
-            </p>
-          </div>
-
-          <div className="min-w-[110px]">
-            <p className="text-[14px] text-gray-500">Manager</p>
-            <p className="text-[15px] font-medium text-gray-800">
-              {employee.manager}
-            </p>
-          </div>
-
-          <div className="min-w-[120px]">
-            <p className="text-[14px] text-gray-500">Join Date</p>
-            <p className="text-[15px] font-medium text-gray-800">
-              {employee.joinDate}
+              {employee.position}
             </p>
           </div>
         </div>

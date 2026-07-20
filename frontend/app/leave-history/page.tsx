@@ -6,8 +6,10 @@ import LeaveResubmitModal from '@/components/LeaveResubmitModal';
 import EditLeaveModal from '@/components/EditLeaveModal';
 import MedicalConversionModal from '@/components/MedicalConversionModal';
 import LeaveTypeBadge from '@/components/LeaveTypeBadge';
+import ConfirmDeleteModal from '@/components/ConfirmDeleteModal';
 import { Search, Pencil, Trash2, Stethoscope, XCircle } from "lucide-react";
 import { apiFetch } from '@/lib/api';
+import toast from 'react-hot-toast';
 
 interface LeaveType {
   id: number;
@@ -33,6 +35,7 @@ interface LeaveRequest {
   approved_date?: string | null;
   parent_request_id?: number | null;
   approved_by_name?: string | null;
+  created_at?: string | null;
 }
 
 
@@ -77,6 +80,7 @@ export default function LeaveHistoryPage() {
   const [selectedRequestForInfo, setSelectedRequestForInfo] = useState<LeaveRequest | null>(null);
   const [selectedRequestForEdit, setSelectedRequestForEdit] = useState<LeaveRequest | null>(null);
   const [selectedRequestForConversion, setSelectedRequestForConversion] = useState<LeaveRequest | null>(null);
+  const [requestToDelete, setRequestToDelete] = useState<number | null>(null);
 
   const fetchLeaveHistory = React.useCallback(async () => {
     setLoading(true);
@@ -175,20 +179,25 @@ export default function LeaveHistoryPage() {
   };
 
 
-  const handleDelete = async (requestId: number) => {
-    if (window.confirm("Are you sure you want to cancel and delete this pending request?")) {
-      try {
-        const res = await apiFetch(`/leave/requests/${requestId}`, {
-          method: 'DELETE',
-        });
-        if (!res.ok) throw new Error("Failed to delete leave request");
-        setSelectedRequestForEdit(null); // safely close the modal if open
-        fetchLeaveHistory();
-      } catch (err) {
-        console.error("Error deleting request", err);
-        alert("Could not delete request. Please try again.");
-      }
+  const confirmDelete = async () => {
+    if (!requestToDelete) return;
+    try {
+      const res = await apiFetch(`/leave/requests/${requestToDelete}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) throw new Error("Failed to delete leave request");
+      setSelectedRequestForEdit(null);
+      setRequestToDelete(null);
+      toast.success("Leave request deleted successfully.");
+      fetchLeaveHistory();
+    } catch (err) {
+      console.error("Error deleting request", err);
+      toast.error("Could not delete request. Please try again.");
     }
+  };
+
+  const handleDelete = (requestId: number) => {
+    setRequestToDelete(requestId);
   };
 
 
@@ -272,6 +281,9 @@ export default function LeaveHistoryPage() {
                         LEAVE TYPE
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                        REQUEST DATE
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                         DATE RANGE
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
@@ -288,13 +300,13 @@ export default function LeaveHistoryPage() {
                   <tbody className="divide-y divide-gray-200">
                     {loading ? (
                       <tr>
-                        <td colSpan={6} className="px-6 py-8 text-center text-sm text-gray-500">
+                        <td colSpan={7} className="px-6 py-8 text-center text-sm text-gray-500">
                           Loading leave history...
                         </td>
                       </tr>
                     ) : leaveRequests.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="px-6 py-8 text-center text-sm text-gray-500">
+                        <td colSpan={7} className="px-6 py-8 text-center text-sm text-gray-500">
                           No leave history found
                         </td>
                       </tr>
@@ -313,6 +325,9 @@ export default function LeaveHistoryPage() {
                                 </span>
                               )}
                             </div>
+                          </td>
+                          <td className="px-6 py-4 text-xs text-gray-500 whitespace-nowrap">
+                            {request.created_at ? new Date(request.created_at).toLocaleString('en-US', { month: 'short', day: '2-digit', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : '--'}
                           </td>
                           <td className="px-6 py-4 text-sm text-gray-700">
                             {formatDate(request.start_date)} - {formatDate(request.end_date)}
@@ -425,6 +440,13 @@ export default function LeaveHistoryPage() {
             setSelectedRequestForConversion(null);
             fetchLeaveHistory();
           }}
+        />
+      )}
+
+      {requestToDelete !== null && (
+        <ConfirmDeleteModal
+          onClose={() => setRequestToDelete(null)}
+          onConfirm={confirmDelete}
         />
       )}
     </div>

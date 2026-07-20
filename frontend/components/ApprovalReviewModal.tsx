@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { X, CircleUserRound, Building2, Check, Info, Paperclip, ExternalLink, FileText, Image } from 'lucide-react';
+import { X, CircleUserRound, Building2, Check, Info, Paperclip, ExternalLink, FileText, Image, Clock, ChevronRight } from 'lucide-react';
 import { ApprovalRequest } from './ApprovalRequestCard';
 import { API_BASE_URL } from '@/lib/constants';
+import { apiFetch } from '@/lib/api';
 
 export type ModalMode = 'review' | 'approve' | 'reject' | 'info';
 
@@ -9,6 +10,17 @@ export interface ApprovalLeaveType {
   id: number;
   name: string;
   directly_requestable: boolean;
+}
+
+interface AuditLog {
+  id: number;
+  leave_request_id: number;
+  changed_by_employee_id: number | null;
+  changer_name: string | null;
+  old_status: string | null;
+  new_status: string;
+  note: string | null;
+  changed_at: string;
 }
 
 interface Props {
@@ -47,6 +59,9 @@ export default function ApprovalReviewModal({
   const [rejectReason, setRejectReason] = useState('');
   const [infoMessage, setInfoMessage] = useState('');
   const [validationError, setValidationError] = useState('');
+  
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [loadingAudit, setLoadingAudit] = useState(false);
 
   useEffect(() => {
     setApproveComment('');
@@ -54,6 +69,25 @@ export default function ApprovalReviewModal({
     setRejectReason('');
     setInfoMessage('');
     setValidationError('');
+    
+    // Fetch Audit Trail
+    let mounted = true;
+    setLoadingAudit(true);
+    apiFetch(`/leave/requests/${request.id}/audit-trail`)
+      .then(res => res.json())
+      .then(data => {
+        if (mounted && Array.isArray(data)) {
+          setAuditLogs(data);
+        }
+      })
+      .catch(err => console.error("Failed to fetch audit logs", err))
+      .finally(() => {
+        if (mounted) setLoadingAudit(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
   }, [mode, request]);
 
   const selectedType = leaveTypes.find((t) => t.id === approvedTypeId);
@@ -187,9 +221,10 @@ export default function ApprovalReviewModal({
                   </p>
                   <div className="flex flex-col gap-2">
                     {request.attachmentUrls.map((url, idx) => {
-                      const fullUrl = url.startsWith('http')
+                      const token = typeof window !== 'undefined' ? sessionStorage.getItem('access_token') : '';
+                      const fullUrl = (url.startsWith('http')
                         ? url
-                        : `${API_BASE_URL}${url}`;
+                        : `${API_BASE_URL}${url}`) + (token ? `?token=${token}` : '');
                       const filename = url.split('/').pop() || `file-${idx + 1}`;
                       const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(filename);
                       const isPdf = /\.pdf$/i.test(filename);
@@ -238,6 +273,53 @@ export default function ApprovalReviewModal({
               )}
             </div>
           </div>
+
+          {/* Audit Trail Timeline - Only show if there's history beyond the initial submission */}
+          {auditLogs.length > 1 && (
+            <div className="mt-8 pt-6 border-t border-[#F2F4F7]">
+              <h4 className="text-[16px] font-bold text-[#1F2937] mb-5 flex items-center gap-2">
+                <Clock size={18} className="text-[#667085]" />
+                Audit Trail History
+              </h4>
+              <div className="relative pl-3 border-l-2 border-gray-100 space-y-6 ml-2">
+                {auditLogs.map((log) => (
+                  <div key={log.id} className="relative">
+                    {/* Timeline dot */}
+                    <div className="absolute -left-[18px] top-1 h-2.5 w-2.5 rounded-full border-2 border-white bg-blue-500 shadow-sm" />
+                    
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold text-[14px] text-gray-900">
+                          {log.changer_name || (log.changed_by_employee_id ? `Employee #${log.changed_by_employee_id}` : 'System')}
+                        </span>
+                        <span className="text-[13px] text-gray-500">changed status to</span>
+                        <span className={`inline-flex px-2 py-0.5 rounded text-[11px] font-bold ${
+                          log.new_status === 'APPROVED' ? 'bg-green-100 text-green-700' :
+                          log.new_status === 'REJECTED' ? 'bg-red-100 text-red-700' :
+                          log.new_status === 'REQ_INFO' ? 'bg-purple-100 text-purple-700' :
+                          log.new_status === 'CANCELLED' ? 'bg-gray-100 text-gray-700' :
+                          'bg-yellow-100 text-yellow-800'
+                        }`}>
+                          {log.new_status.replace('_', ' ')}
+                        </span>
+                        <span className="text-[12px] text-gray-400 ml-auto whitespace-nowrap">
+                          {new Date(log.changed_at).toLocaleString('en-US', {
+                            month: 'short', day: '2-digit', hour: 'numeric', minute: '2-digit', hour12: true
+                          })}
+                        </span>
+                      </div>
+                      
+                      {log.note && (
+                        <div className="mt-1 bg-gray-50 border border-gray-100 rounded-md p-2.5 text-[13px] text-gray-700 italic">
+                          "{log.note}"
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Conditional action textareas */}
           {mode === 'approve' && (
