@@ -422,7 +422,7 @@ export default function PublicJobPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">First Name *</label>
                 <input
                   type="text"
-                  placeholder="John"
+                  placeholder="e.g. Amara"
                   value={firstName}
                   onChange={(e) => { setFirstName(e.target.value); setFirstNameError(""); }}
                   className={`w-full border rounded-xl px-4 py-3 text-sm text-gray-700 placeholder-gray-400 bg-white focus:outline-none focus:ring-2 transition ${
@@ -436,7 +436,7 @@ export default function PublicJobPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Last Name *</label>
                 <input
                   type="text"
-                  placeholder="Doe"
+                  placeholder="e.g. Silva"
                   value={lastName}
                   onChange={(e) => { setLastName(e.target.value); setLastNameError(""); }}
                   className={`w-full border rounded-xl px-4 py-3 text-sm text-gray-700 placeholder-gray-400 bg-white focus:outline-none focus:ring-2 transition ${
@@ -453,7 +453,7 @@ export default function PublicJobPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Email Address *</label>
                 <input
                   type="email"
-                  placeholder="you@example.com"
+                  placeholder="amara.silva@email.com"
                   value={email}
                   onChange={(e) => { setEmail(e.target.value); setEmailError(""); }}
                   className={`w-full border rounded-xl px-4 py-3 text-sm text-gray-700 placeholder-gray-400 bg-white focus:outline-none focus:ring-2 transition ${
@@ -467,7 +467,7 @@ export default function PublicJobPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Mobile Number <span className="text-gray-400 font-normal">(optional)</span></label>
                 <input
                   type="text"
-                  placeholder="+1 (555) 000-0000"
+                  placeholder="e.g. +94 77 123 4567"
                   value={mobile}
                   onChange={(e) => { setMobile(e.target.value); setMobileError(""); }}
                   className={`w-full border rounded-xl px-4 py-3 text-sm text-gray-700 placeholder-gray-400 bg-white focus:outline-none focus:ring-2 transition ${

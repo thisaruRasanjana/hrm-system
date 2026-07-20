@@ -72,6 +72,12 @@ def authenticate_user(db: Session, identifier: str, password: str) -> Optional[d
     if not verify_password(password, user.password_hash):
         return None
 
+    # Reject deactivated accounts. Return the SAME generic failure as a wrong
+    # password (caller raises 401 "Invalid credentials") so we never disclose
+    # that the account merely exists-but-is-disabled (prevents enumeration).
+    if user.is_active is False:
+        return None
+
     access_token = create_access_token({"sub": str(user.id)})
     refresh_token = create_refresh_token({"sub": str(user.id)})
 

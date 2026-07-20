@@ -268,7 +268,7 @@ def generate_leave_report_pdf(data):
 
     # Table
     table_data = [
-        ["Employee", "Department", "Leave Type", "Days", "Status"]
+        ["Employee", "Department", "Leave Type", "Start Date", "End Date", "Days", "Status"]
     ]
 
     for r in data["records"]:
@@ -278,6 +278,8 @@ def generate_leave_report_pdf(data):
             str(r.get("employee_name") or "N/A"),
             str(r.get("department") or "N/A"),
             str(r.get("leave_type_name") or "N/A"),
+            str(r.get("start_date") or "N/A"),
+            str(r.get("end_date") or "N/A"),
             str(r.get("total_days") if r.get("total_days") is not None else 0),
             str(r.get("status") or "N/A"),
         ])

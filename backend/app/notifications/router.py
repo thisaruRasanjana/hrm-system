@@ -37,6 +37,28 @@ def _owned(db: Session, user_id: int, ids: List[int]) -> List[Notification]:
     )
 
 
+def _targets_for_bulk(db: Session, user_id: int, ids: List[int]) -> List[Notification]:
+    """
+    Resolve the caller's own notifications for a bulk action, distinguishing
+    the two "nothing to do" cases so the response is never misleading:
+
+    - Empty id list → return [] so the endpoint is a clean no-op (200,
+      ``updated: 0``) instead of a noisy 422 (TC-NOT-014).
+    - Non-empty list but the caller owns none of the ids → 404. The ids are
+      foreign, non-existent, or already purged; a blanket 200 would look like
+      success the caller never earned (TC-NOT-013 cross-user read, TC-NOT-026
+      restore-after-purge).
+    - Otherwise → the owned rows. Foreign ids inside a mixed selection are still
+      silently dropped so a partially-stale client selection keeps working.
+    """
+    if not ids:
+        return []
+    items = _owned(db, user_id, ids)
+    if not items:
+        raise HTTPException(status_code=404, detail="Notification(s) not found")
+    return items
+
+
 # ── GET my notifications ───────────────────────────────────────────────────────
 @router.get("/", response_model=List[NotificationResponse])
 def list_notifications(
@@ -193,7 +215,7 @@ def bulk_mark_read(
     current_user: User = Depends(get_current_user),
 ):
     """Mark the selected notifications as read."""
-    items = _owned(db, current_user.id, data.ids)
+    items = _targets_for_bulk(db, current_user.id, data.ids)
     for n in items:
         n.is_read = True
     db.commit()
@@ -207,7 +229,7 @@ def bulk_mark_unread(
     current_user: User = Depends(get_current_user),
 ):
     """Mark the selected notifications as unread."""
-    items = _owned(db, current_user.id, data.ids)
+    items = _targets_for_bulk(db, current_user.id, data.ids)
     for n in items:
         n.is_read = False
     db.commit()
@@ -226,7 +248,7 @@ def bulk_archive(
     Archiving also marks them read: an archived item is one the user has
     consciously filed away, so leaving it bolded in the badge would be wrong.
     """
-    items = _owned(db, current_user.id, data.ids)
+    items = _targets_for_bulk(db, current_user.id, data.ids)
     now = datetime.utcnow()
     for n in items:
         n.is_archived = True
@@ -243,7 +265,7 @@ def bulk_unarchive(
     current_user: User = Depends(get_current_user),
 ):
     """Move the selected notifications from Archived back to Inbox."""
-    items = _owned(db, current_user.id, data.ids)
+    items = _targets_for_bulk(db, current_user.id, data.ids)
     for n in items:
         n.is_archived = False
         n.archived_at = None
@@ -263,7 +285,7 @@ def bulk_delete(
     Rows are kept so the user can restore them; the retention purge is what
     removes them for good.
     """
-    items = _owned(db, current_user.id, data.ids)
+    items = _targets_for_bulk(db, current_user.id, data.ids)
     now = datetime.utcnow()
     for n in items:
         n.is_deleted = True
@@ -284,7 +306,7 @@ def bulk_restore(
     Restores to Inbox rather than back to Archived — the user is pulling the
     item back to act on it, so surfacing it is the useful behaviour.
     """
-    items = _owned(db, current_user.id, data.ids)
+    items = _targets_for_bulk(db, current_user.id, data.ids)
     for n in items:
         n.is_deleted = False
         n.deleted_at = None
@@ -306,7 +328,7 @@ def bulk_purge(
     Only items already in Trash can be purged, so a stray call can never
     destroy something the user hasn't first deleted.
     """
-    items = _owned(db, current_user.id, data.ids)
+    items = _targets_for_bulk(db, current_user.id, data.ids)
     purged = 0
     for n in items:
         if n.is_deleted:

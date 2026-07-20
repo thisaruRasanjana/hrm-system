@@ -251,7 +251,7 @@ def submit_evaluation(
     db: Session = Depends(get_db),
     current_user: User = Depends(can_evaluate),
 ):
-    return service.create_evaluation(db, application_id, data)
+    return service.create_evaluation(db, application_id, data, current_user=current_user)
 
 
 @router.get("/applications/{application_id}/evaluations", response_model=list[schemas.EvaluationResponse])
@@ -274,7 +274,7 @@ async def submit_final_decision(
     db: Session = Depends(get_db),
     current_user: User = Depends(can_evaluate),
 ):
-    return await service.submit_final_decision(db, application_id, data, background_tasks)
+    return await service.submit_final_decision(db, application_id, data, background_tasks, current_user=current_user)
 
 
 @router.post("/applications/{application_id}/next-round")
@@ -284,7 +284,7 @@ def trigger_next_round(
     current_user: User = Depends(can_evaluate),
 ):
     """Panel head triggers another interview round. Increments round_number for future evaluations."""
-    return service.trigger_next_round(db, application_id)
+    return service.trigger_next_round(db, application_id, current_user=current_user)
 
 
 @router.get("/vacancies/{vacancy_id}/evaluated-candidates")

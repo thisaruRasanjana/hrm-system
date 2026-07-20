@@ -14,6 +14,7 @@ import PendingConversions from '../../components/PendingConversions';
 import { Search, ChevronDown, CheckCircle2, XCircle } from 'lucide-react';
 import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/context/auth-context';
+import toast from 'react-hot-toast';
 
 type BackendLeaveRequest = {
   leave_request_id: number;
@@ -64,6 +65,20 @@ function formatDate(dateString: string) {
   });
 }
 
+function formatDateTime(dateString: string | null | undefined) {
+  if (!dateString) return '--';
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return '--';
+  return date.toLocaleString('en-US', {
+    month: 'short',
+    day: '2-digit',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true
+  });
+}
+
 function mapBackendToFrontend(item: BackendLeaveRequest): ApprovalRequest {
   const urls = Array.isArray(item.attachment_urls) ? item.attachment_urls : [];
   return {
@@ -79,7 +94,7 @@ function mapBackendToFrontend(item: BackendLeaveRequest): ApprovalRequest {
     durationText: item.half_day ? '0.5 Days' : `${item.total_days} Days`,
     hasAttachment: urls.length > 0,
     attachmentUrls: urls,
-    appliedOn: item.created_at || item.start_date,
+    appliedOn: formatDateTime(item.created_at || item.start_date),
     reason: item.reason || 'No reason provided',
     balances: [],
     status: item.status,
@@ -125,8 +140,6 @@ export default function ApprovalPage() {
   const [selectedRequest, setSelectedRequest] = useState<ApprovalRequest | null>(null);
   const [modalMode, setModalMode] = useState<ModalMode>('review');
 
-  const [actionMessage, setActionMessage] = useState('');
-  const [messageType, setMessageType] = useState<'success' | 'error' | ''>('');
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [leaveTypes, setLeaveTypes] = useState<ApprovalLeaveType[]>([]);
@@ -144,8 +157,6 @@ export default function ApprovalPage() {
   const loadPendingRequests = useCallback(async () => {
     try {
       setLoading(true);
-      setActionMessage('');
-      setMessageType('');
 
       const response = await apiFetch(`/leave/requests/pending`, {
         method: 'GET',
@@ -163,12 +174,11 @@ export default function ApprovalPage() {
     } catch (error) {
       console.error('loadPendingRequests error:', error);
       setRequests([]);
-      setActionMessage(
+      toast.error(
         error instanceof Error
           ? error.message
           : 'Failed to load pending leave requests.'
       );
-      setMessageType('error');
     } finally {
       setLoading(false);
     }
@@ -189,16 +199,6 @@ export default function ApprovalPage() {
       .catch(() => setLeaveTypes([]));
   }, [canApprove]);
 
-  useEffect(() => {
-    if (!actionMessage) return;
-
-    const timer = setTimeout(() => {
-      setActionMessage('');
-      setMessageType('');
-    }, 3000);
-
-    return () => clearTimeout(timer);
-  }, [actionMessage]);
 
   const filteredRequests = useMemo(() => {
     let data = [...requests];
@@ -274,12 +274,11 @@ export default function ApprovalPage() {
       setModalMode('review');
     } catch (error) {
       console.error('openReview error:', error);
-      setActionMessage(
+      toast.error(
         error instanceof Error
           ? error.message
           : 'Failed to load leave request details.'
       );
-      setMessageType('error');
     }
   };
 
@@ -310,16 +309,14 @@ export default function ApprovalPage() {
         throw new Error(errorMessage || 'Failed to approve leave request');
       }
 
-      setActionMessage('Leave request approved successfully.');
-      setMessageType('success');
+      toast.success('Leave request approved successfully.');
       closeModal();
       await loadPendingRequests();
     } catch (error) {
       console.error('handleApprove error:', error);
-      setActionMessage(
+      toast.error(
         error instanceof Error ? error.message : 'Failed to approve leave request.'
       );
-      setMessageType('error');
     } finally {
       setActionLoading(false);
     }
@@ -346,16 +343,14 @@ export default function ApprovalPage() {
         throw new Error(errorMessage || 'Failed to reject leave request');
       }
 
-      setActionMessage('Leave request rejected successfully.');
-      setMessageType('success');
+      toast.success('Leave request rejected successfully.');
       closeModal();
       await loadPendingRequests();
     } catch (error) {
       console.error('handleReject error:', error);
-      setActionMessage(
+      toast.error(
         error instanceof Error ? error.message : 'Failed to reject leave request.'
       );
-      setMessageType('error');
     } finally {
       setActionLoading(false);
     }
@@ -382,16 +377,14 @@ export default function ApprovalPage() {
         throw new Error(errorMessage || 'Failed to send info request');
       }
 
-      setActionMessage('Additional information request sent successfully.');
-      setMessageType('success');
+      toast.success('Additional information request sent successfully.');
       closeModal();
       await loadPendingRequests();
     } catch (error) {
       console.error('handleRequestInfo error:', error);
-      setActionMessage(
+      toast.error(
         error instanceof Error ? error.message : 'Failed to send info request.'
       );
-      setMessageType('error');
     } finally {
       setActionLoading(false);
     }
@@ -418,16 +411,14 @@ export default function ApprovalPage() {
         throw new Error(errorMessage || 'Failed to request medical reports');
       }
 
-      setActionMessage('Medical documentation request sent successfully.');
-      setMessageType('success');
+      toast.success('Medical documentation request sent successfully.');
       closeModal();
       await loadPendingRequests();
     } catch (error) {
       console.error('handleRequestMedical error:', error);
-      setActionMessage(
+      toast.error(
         error instanceof Error ? error.message : 'Failed to request medical reports.'
       );
-      setMessageType('error');
     } finally {
       setActionLoading(false);
     }
@@ -531,19 +522,6 @@ export default function ApprovalPage() {
               />
             </div>
           </div>
-
-          {actionMessage && (
-            <div
-              className={`mt-5 flex items-center gap-3 rounded-[14px] border px-4 py-3 text-[15px] font-medium ${
-                messageType === 'success'
-                  ? 'border-green-200 bg-green-50 text-green-700'
-                  : 'border-red-200 bg-red-50 text-red-700'
-              }`}
-            >
-              {messageType === 'success' ? <CheckCircle2 size={18} /> : <XCircle size={18} />}
-              <span>{actionMessage}</span>
-            </div>
-          )}
 
           {loading ? (
             <div className="mt-8 rounded-[14px] bg-white p-6 text-[16px] text-[#667085] shadow-sm">

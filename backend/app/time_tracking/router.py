@@ -207,6 +207,24 @@ def clock_in(
             detail="Already clocked in today. Use pause/resume or end your current session first."
         )
 
+    # One clock-in cycle per day: once the day has been ended (status
+    # 'completed'), Start must be refused rather than opening a second day-entry.
+    # Pause/resume is the way to take breaks within the single start…end cycle.
+    completed_today = (
+        db.query(TimeEntry)
+        .filter(
+            TimeEntry.user_id == current_user.id,
+            TimeEntry.date == datetime.utcnow().date(),
+            TimeEntry.status == "completed",
+        )
+        .first()
+    )
+    if completed_today:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Already clocked in today. Your work day has already ended."
+        )
+
     # Also check for any open pair from a previous day (safety guard)
     stale_pair = _open_pair(db, current_user.id)
     if stale_pair:

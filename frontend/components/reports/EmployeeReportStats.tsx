@@ -5,11 +5,13 @@ import { EmployeeDetail } from "@/app/reports/types";
 interface Props {
   employee: EmployeeDetail;
   activeTab: "attendance" | "leave" | "violations";
-  period: "weekly" | "monthly" | "annually";
-  setPeriod: (value: "weekly" | "monthly" | "annually") => void;
+  customStart?: string;
+  setCustomStart?: (value: string) => void;
+  customEnd?: string;
+  setCustomEnd?: (value: string) => void;
 }
 
-export default function EmployeeReportStats({ employee, period, setPeriod }: Props) {
+export default function EmployeeReportStats({ employee, customStart, setCustomStart, customEnd, setCustomEnd }: Props) {
   const cards = [
     {
       label: "Attendance Rate",
@@ -49,37 +51,27 @@ export default function EmployeeReportStats({ employee, period, setPeriod }: Pro
   return (
     <div className="mt-4">
       {/* Report Tabs */}
-      <div className="flex gap-6 border-b border-gray-200 pb-0">
-        <button
-          onClick={() => setPeriod("weekly")}
-          className={`pb-3 text-sm font-medium transition-colors ${
-            period === "weekly"
-              ? "border-b-2 border-[#F2924E] text-gray-900"
-              : "text-gray-600 hover:text-gray-900"
-          }`}
-        >
-          Weekly Report
-        </button>
-        <button
-          onClick={() => setPeriod("monthly")}
-          className={`pb-3 text-sm font-medium transition-colors ${
-            period === "monthly"
-              ? "border-b-2 border-[#F2924E] text-gray-900"
-              : "text-gray-600 hover:text-gray-900"
-          }`}
-        >
-          Monthly Report
-        </button>
-        <button
-          onClick={() => setPeriod("annually")}
-          className={`pb-3 text-sm font-medium transition-colors ${
-            period === "annually"
-              ? "border-b-2 border-[#F2924E] text-gray-900"
-              : "text-gray-600 hover:text-gray-900"
-          }`}
-        >
-          Annual Report
-        </button>
+      <div className="flex items-center justify-between border-b border-gray-200 pb-2">
+        <div className="flex items-center gap-2 text-sm ml-auto">
+          {setCustomStart && setCustomEnd && (
+            <>
+              <span className="text-gray-600 font-medium whitespace-nowrap">Date Range:</span>
+              <input 
+                type="date" 
+                value={customStart || ""} 
+                onChange={(e) => setCustomStart(e.target.value)} 
+                className="rounded-xl border border-gray-200 px-3 py-2 outline-none focus:border-orange-300 transition-colors"
+              />
+              <span className="text-gray-400">to</span>
+              <input 
+                type="date" 
+                value={customEnd || ""} 
+                onChange={(e) => setCustomEnd(e.target.value)} 
+                className="rounded-xl border border-gray-200 px-3 py-2 outline-none focus:border-orange-300 transition-colors"
+              />
+            </>
+          )}
+        </div>
       </div>
 
       {/* Stats Cards */}
