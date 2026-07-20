@@ -189,6 +189,15 @@ def create_event(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("widget.upcoming_events.manage")),
 ):
+    # Reject past-dated events on creation. Otherwise the event saves but is
+    # hidden from the "upcoming" list (which filters event_date >= now) — a
+    # confusing saved-and-invisible state (BUG-22 / TC-EVT-008).
+    if data.event_date.date() < datetime.utcnow().date():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Event date cannot be in the past.",
+        )
+
     event = Event(
         title=data.title,
         description=data.description,

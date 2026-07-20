@@ -161,11 +161,80 @@ _DESIGNATION_EXPIRY_JOB = "check_expiring_designations"
 _DESIGNATION_EXPIRY_KEY = _pg_lock_key(_DESIGNATION_EXPIRY_JOB)
 
 
+def run_designation_expiry_check(db) -> int:
+    """Find active employees whose designation period ends today or in exactly 3
+    days and warn every HR user holding 'employee:update'.
+
+    Synchronous and self-contained so it can be unit-tested directly (seed an
+    expiring designation → call this → assert the notification) and triggered
+    on demand, independent of the nightly async wrapper. Soft-deleted employees
+    are excluded automatically by the global soft-delete filter.
+
+    Returns the number of expiring designations that were alerted on.
+    """
+    today = date.today()
+    in_3_days = today + timedelta(days=3)
+
+    expiring = (
+        db.query(Employee, EmployeeDesignationHistory)
+        .join(
+            EmployeeDesignationHistory,
+            Employee.id == EmployeeDesignationHistory.employee_id,
+        )
+        .filter(
+            Employee.status == "active",
+            EmployeeDesignationHistory.end_date.in_([today, in_3_days]),
+        )
+        .all()
+    )
+
+    if not expiring:
+        logger.info("[Scheduler] %s: no expiring designations found.", _DESIGNATION_EXPIRY_JOB)
+        return 0
+
+    hr_user_ids = get_user_ids_with_permission(db, "employee:update")
+    if not hr_user_ids:
+        logger.warning(
+            "[Scheduler] %s: expiring designations found but no HR users to notify.",
+            _DESIGNATION_EXPIRY_JOB,
+        )
+        return 0
+
+    alerted = 0
+    for emp, hist in expiring:
+        days_left = (hist.end_date - today).days
+        when = "today" if days_left == 0 else f"in {days_left} days"
+        message = (
+            f"Reminder: {emp.first_name} {emp.last_name}'s "
+            f"designation period ({hist.designation_name}) ends {when}. "
+            f"Please review their profile."
+        )
+        notify_users(
+            db,
+            hr_user_ids,
+            message,
+            category="system",
+            type="warning",
+            link=f"/dashboard/EmployeeManagement/edit?id={emp.id}",
+            entity_type="employee",
+            entity_id=str(emp.id),
+        )
+        alerted += 1
+        logger.info(
+            "[Scheduler] Notified HR about %s %s (designation ends %s).",
+            emp.first_name,
+            emp.last_name,
+            when,
+        )
+
+    db.commit()
+    return alerted
+
+
 async def check_expiring_designations() -> None:
     """
-    Nightly job: find employees whose active designation period ends today or in
-    exactly 3 days, and send a warning notification to all HR users who have the
-    'employee:update' permission.
+    Nightly job: warn HR about employees whose designation period ends today or
+    in exactly 3 days (see :func:`run_designation_expiry_check`).
 
     Protected by a PostgreSQL advisory lock so only one worker runs this even
     when the application is deployed with multiple processes.
@@ -186,65 +255,10 @@ async def check_expiring_designations() -> None:
 
         # ── Step 2: Do the work ───────────────────────────────────────────────
         try:
-            today = date.today()
-            in_3_days = today + timedelta(days=3)
-
-            expiring = (
-                db.query(Employee, EmployeeDesignationHistory)
-                .join(
-                    EmployeeDesignationHistory,
-                    Employee.id == EmployeeDesignationHistory.employee_id,
-                )
-                .filter(
-                    Employee.status == "active",
-                    EmployeeDesignationHistory.end_date.in_([today, in_3_days]),
-                )
-                .all()
-            )
-
-            if not expiring:
-                logger.info("[Scheduler] %s: no expiring designations found.", _DESIGNATION_EXPIRY_JOB)
-                return
-
-            hr_user_ids = get_user_ids_with_permission(db, "employee:update")
-            if not hr_user_ids:
-                logger.warning(
-                    "[Scheduler] %s: expiring designations found but no HR users to notify.",
-                    _DESIGNATION_EXPIRY_JOB,
-                )
-                return
-
-            for emp, hist in expiring:
-                days_left = (hist.end_date - today).days
-                when = "today" if days_left == 0 else f"in {days_left} days"
-                message = (
-                    f"Reminder: {emp.first_name} {emp.last_name}'s "
-                    f"designation period ({hist.designation_name}) ends {when}. "
-                    f"Please review their profile."
-                )
-                notify_users(
-                    db,
-                    hr_user_ids,
-                    message,
-                    category="system",
-                    type="warning",
-                    link=f"/dashboard/EmployeeManagement/edit?id={emp.id}",
-                    entity_type="employee",
-                    entity_id=str(emp.id),
-                )
-                logger.info(
-                    "[Scheduler] Notified HR about %s %s (designation ends %s).",
-                    emp.first_name,
-                    emp.last_name,
-                    when,
-                )
-
-            db.commit()
-
+            run_designation_expiry_check(db)
         except Exception as exc:
             logger.error("[Scheduler] %s: job failed: %s", _DESIGNATION_EXPIRY_JOB, exc)
             db.rollback()
-
         finally:
             # ── Step 3: Always release the lock ──────────────────────────────
             _release_lock(db, _DESIGNATION_EXPIRY_KEY)

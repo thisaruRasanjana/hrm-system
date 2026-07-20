@@ -10,6 +10,7 @@ Responsibilities:
 - Sending notification emails to employees on rejection.
 """
 
+from datetime import datetime
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -142,6 +143,7 @@ def approve_document(db: Session, document_id: UUID, reviewer_id: int, current_u
     old_status_val = document.status.value
     document.status = DocumentStatus.APPROVED
     document.reviewed_by = reviewer_id
+    document.reviewed_at = datetime.utcnow()
 
     _write_audit_log(
         db=db,
@@ -213,6 +215,7 @@ def reject_document(db: Session, document_id: UUID, reviewer_id: int, reason: st
     old_status_val = document.status.value
     document.status = DocumentStatus.REJECTED
     document.reviewed_by = reviewer_id
+    document.reviewed_at = datetime.utcnow()
     document.rejection_reason = reason
 
     _write_audit_log(

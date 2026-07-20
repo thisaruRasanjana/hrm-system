@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, model_validator
+from pydantic import BaseModel, EmailStr, Field, model_validator
 from datetime import date
 from typing import Optional, Any, List
 from enum import Enum
@@ -9,29 +9,32 @@ class EmployeeStatus(str, Enum):
     inactive = "inactive"
 
 
+# max_length values mirror the employees-table column limits so an over-long
+# value is rejected with a clean 422 at the API boundary instead of surfacing
+# later as a DB "value too long for type" 500 (BUG-20 / TC-EMP-011).
 class EmployeeBase(BaseModel):
-    employee_id: Optional[str] = None
-    first_name: str
-    last_name: str
-    email: str
-    phone: Optional[str] = None
+    employee_id: Optional[str] = Field(default=None, max_length=50)
+    first_name: str = Field(..., max_length=100)
+    last_name: str = Field(..., max_length=100)
+    email: str = Field(..., max_length=255)
+    phone: Optional[str] = Field(default=None, max_length=20)
     address: Optional[str] = None
     department_id: Optional[int] = None
-    designation: Optional[str] = None
+    designation: Optional[str] = Field(default=None, max_length=100)
     joined_date: Optional[date] = None
     status: EmployeeStatus = EmployeeStatus.active
     date_of_birth: Optional[date] = None
-    gender: Optional[str] = None
-    marital_status: Optional[str] = None
-    nationality: Optional[str] = None
-    emergency_contact_name: Optional[str] = None
-    emergency_contact_phone: Optional[str] = None
-    emergency_contact_relation: Optional[str] = None
+    gender: Optional[str] = Field(default=None, max_length=20)
+    marital_status: Optional[str] = Field(default=None, max_length=20)
+    nationality: Optional[str] = Field(default=None, max_length=100)
+    emergency_contact_name: Optional[str] = Field(default=None, max_length=100)
+    emergency_contact_phone: Optional[str] = Field(default=None, max_length=20)
+    emergency_contact_relation: Optional[str] = Field(default=None, max_length=50)
     skills: Optional[str] = None
     qualifications: Optional[str] = None
-    bank_name: Optional[str] = None
-    bank_account_no: Optional[str] = None
-    bank_branch: Optional[str] = None
+    bank_name: Optional[str] = Field(default=None, max_length=100)
+    bank_account_no: Optional[str] = Field(default=None, max_length=50)
+    bank_branch: Optional[str] = Field(default=None, max_length=100)
 
 
 class EmployeeLeaveEntitlementCreate(BaseModel):
@@ -58,14 +61,14 @@ class EmployeeCreate(EmployeeBase):
 
 
 class EmployeeUpdate(BaseModel):
-    employee_id: Optional[str] = None
-    first_name: Optional[str] = None
-    last_name: Optional[str] = None
-    email: Optional[str] = None
-    phone: Optional[str] = None
+    employee_id: Optional[str] = Field(default=None, max_length=50)
+    first_name: Optional[str] = Field(default=None, max_length=100)
+    last_name: Optional[str] = Field(default=None, max_length=100)
+    email: Optional[str] = Field(default=None, max_length=255)
+    phone: Optional[str] = Field(default=None, max_length=20)
     address: Optional[str] = None
     department_id: Optional[int] = None
-    designation: Optional[str] = None
+    designation: Optional[str] = Field(default=None, max_length=100)
     designation_id: Optional[int] = None
     designation_start_date: Optional[date] = None
     designation_end_date: Optional[date] = None
@@ -74,17 +77,17 @@ class EmployeeUpdate(BaseModel):
     joined_date: Optional[date] = None
     status: Optional[EmployeeStatus] = None
     date_of_birth: Optional[date] = None
-    gender: Optional[str] = None
-    marital_status: Optional[str] = None
-    nationality: Optional[str] = None
-    emergency_contact_name: Optional[str] = None
-    emergency_contact_phone: Optional[str] = None
-    emergency_contact_relation: Optional[str] = None
+    gender: Optional[str] = Field(default=None, max_length=20)
+    marital_status: Optional[str] = Field(default=None, max_length=20)
+    nationality: Optional[str] = Field(default=None, max_length=100)
+    emergency_contact_name: Optional[str] = Field(default=None, max_length=100)
+    emergency_contact_phone: Optional[str] = Field(default=None, max_length=20)
+    emergency_contact_relation: Optional[str] = Field(default=None, max_length=50)
     skills: Optional[str] = None
     qualifications: Optional[str] = None
-    bank_name: Optional[str] = None
-    bank_account_no: Optional[str] = None
-    bank_branch: Optional[str] = None
+    bank_name: Optional[str] = Field(default=None, max_length=100)
+    bank_account_no: Optional[str] = Field(default=None, max_length=50)
+    bank_branch: Optional[str] = Field(default=None, max_length=100)
 
 
 class EmployeeRoleUpdate(BaseModel):

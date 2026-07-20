@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { User, Upload, Mail, Hash, Briefcase, Edit2, X, Phone, MapPin, Calendar, CreditCard, Award, HeartPulse } from "lucide-react";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, fileUrl } from "@/lib/api";
 
 const InfoItem = ({ label, value, icon: Icon }: { label: string, value: string, icon?: any }) => (
   <div className="flex flex-col p-4 bg-gray-50/50 rounded-xl border border-gray-100 h-full">
@@ -213,7 +213,7 @@ export default function ProfileSettingsPage() {
           <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex flex-col sm:flex-row sm:items-center gap-6">
             <div className="h-28 w-28 bg-gray-50 rounded-full flex items-center justify-center text-gray-300 shadow-inner overflow-hidden border border-gray-100 shrink-0 relative group">
               {formData.profile_image_url ? (
-                <img src={formData.profile_image_url} alt="Profile" className="w-full h-full object-cover" />
+                <img src={fileUrl(formData.profile_image_url)} alt="Profile" className="w-full h-full object-cover" />
               ) : (
                 <User size={48} className="mt-2 text-gray-300" />
               )}

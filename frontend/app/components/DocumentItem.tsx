@@ -10,21 +10,48 @@ interface Props {
   description: string;
   status: "APPROVED" | "PENDING_REVIEW" | "REJECTED" | "NOT_UPLOADED";
   isMandatory: boolean;
+  fileName?: string | null;
+  reviewedByName?: string | null;
+  reviewedAt?: string | null;
   rejectionReason?: string;
 }
 
 export default function DocumentItem({
+  id,
   documentTypeId,
   name,
   description,
   status,
   isMandatory,
+  fileName,
+  reviewedByName,
+  reviewedAt,
   rejectionReason,
 }: Props) {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+
+  // Download the employee's own uploaded document via the authenticated
+  // endpoint (handles both local serving and the S3 presigned-URL redirect).
+  const handleDownload = async () => {
+    if (!id) return;
+    try {
+      const res = await apiFetch(`/documents/download/${id}`);
+      if (!res.ok) throw new Error(`Download failed (${res.status})`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fileName || name || "document";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Error downloading document:", err);
+      setError("Download failed. Please try again.");
+    }
+  };
 
   const badgeStyles = {
     APPROVED: "bg-green-100 text-green-600",
@@ -83,6 +110,21 @@ export default function DocumentItem({
         <h4 className="font-medium">{name}</h4>
         <p className="text-xs text-gray-400">{description}</p>
 
+        {/* Uploaded filename */}
+        {status !== "NOT_UPLOADED" && fileName && (
+          <p className="text-xs text-gray-500 mt-1 break-all">
+            File: {fileName}
+          </p>
+        )}
+
+        {/* Reviewer + review date (shown once reviewed) */}
+        {status === "APPROVED" && (reviewedByName || reviewedAt) && (
+          <p className="text-xs text-green-600 mt-1">
+            Approved{reviewedByName ? ` by ${reviewedByName}` : ""}
+            {reviewedAt ? ` on ${new Date(reviewedAt).toLocaleDateString()}` : ""}
+          </p>
+        )}
+
         {/* Reject reason */}
         {status === "REJECTED" && rejectionReason && (
           <p className="text-xs text-red-500 mt-1">
@@ -122,6 +164,16 @@ export default function DocumentItem({
           onChange={handleFileSelect}
           className="hidden"
         />
+
+        {/* Download Button — available for any uploaded document */}
+        {status !== "NOT_UPLOADED" && id && (
+          <button
+            onClick={handleDownload}
+            className="bg-gray-100 text-gray-700 px-4 py-1 rounded-md text-sm hover:bg-gray-200"
+          >
+            Download
+          </button>
+        )}
 
         {/* Upload Button */}
         {status === "NOT_UPLOADED" && (

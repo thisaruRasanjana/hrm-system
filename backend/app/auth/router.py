@@ -52,7 +52,10 @@ def login(data: LoginRequest, request: Request, response: Response, db: Session 
 
     client_ip = request.client.host if request.client else "Unknown"
 
-    identifier = data.email or data.username
+    # A missing OR whitespace-only identifier is a bad request (400), not a failed
+    # credential check (401) — checked before any lookup so the client gets a
+    # clear required-field message.
+    identifier = (data.email or data.username or "").strip()
     if not identifier:
         raise HTTPException(status_code=400, detail="Email or username required")
 
@@ -118,7 +121,15 @@ def login_2fa(data: dict, request: Request, response: Response, db: Session = De
 
     user = db.query(User).filter(User.id == int(user_id)).first()
     import pyotp
-    if not user or not user.totp_secret:
+    # Deactivated / soft-deleted accounts must not be able to complete step 2
+    # even if they somehow hold a valid temp_token. Use the same generic 401 as
+    # the primary login path so we don't disclose that the account is disabled.
+    if not user or user.is_active is False or getattr(user, "is_deleted", False):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid credentials",
+        )
+    if not user.totp_secret:
         raise HTTPException(400, "2FA not configured")
 
     if not pyotp.TOTP(user.totp_secret).verify(code):
@@ -301,6 +312,10 @@ def reset_password(data: dict, request: Request, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="User not found")
 
     user.password_hash = hash_password(new_password)
+    # Invalidate all other active sessions after a password reset: clearing the
+    # stored refresh_token forces every other browser to re-authenticate on its
+    # next /refresh (aligns with logout, which also nulls refresh_token).
+    user.refresh_token = None
     db.delete(record) # Delete after use
     db.commit()
     return {"message": "Password updated successfully"}
@@ -414,11 +429,21 @@ def upload_profile_image(
     Upload a new profile image for the current user.
     """
     from app.core.storage_service import storage as _storage, resolve_public_url
+    from app.core.file_validation import validate_upload, IMAGE_TYPES
 
-    ext = file.filename.split(".")[-1] if "." in file.filename else "jpg"
+    # Validate by magic bytes and derive the extension from the DETECTED type.
+    # This blocks non-images (.exe) and — critically — HTML/SVG carrying inline
+    # JavaScript, which StaticFiles would otherwise serve as active content
+    # (stored XSS). Never trust the client-supplied extension.
+    content, _detected, detected_ext = validate_upload(
+        file,
+        IMAGE_TYPES,
+        max_size_bytes=5 * 1024 * 1024,
+        reject_message="Only JPEG, PNG, or WEBP images are allowed",
+    )
+    ext = detected_ext.lstrip(".")
     key = f"profiles/{current_user.id}.{ext}"
 
-    content = file.file.read()
     _storage.upload(content, key)
 
     # Persist the storage KEY (not a fully-formed URL) so we can mint a fresh URL
