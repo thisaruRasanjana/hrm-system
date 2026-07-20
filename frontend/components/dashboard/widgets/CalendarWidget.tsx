@@ -33,13 +33,23 @@ export default function CalendarWidget({ permissions }: Props) {
 
   const load = async () => {
     try {
-      const [hr, er] = await Promise.all([apiFetch("/holidays"), apiFetch("/events/all")]);
+      // Only show events THIS user added to their calendar (via the "Add to
+      // Calendar" button on the Upcoming Events widget), not every event in the
+      // system. Holidays remain global.
+      const [hr, er] = await Promise.all([apiFetch("/holidays"), apiFetch("/events/my-calendar")]);
       if (hr.ok) setHolidays(await hr.json());
       if (er.ok) setEvents(await er.json());
     } catch (e) { console.error(e); }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    // Reload when an event is saved/removed elsewhere (Upcoming Events widget)
+    // so the calendar reflects the change without a full page refresh.
+    const onChange = () => load();
+    window.addEventListener("calendar:changed", onChange);
+    return () => window.removeEventListener("calendar:changed", onChange);
+  }, []);
   useEffect(() => {
     const close = () => setTooltip(null);
     window.addEventListener("click", close);

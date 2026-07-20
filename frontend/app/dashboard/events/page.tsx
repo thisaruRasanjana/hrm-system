@@ -80,6 +80,7 @@ export default function EventsPage() {
       const res = await apiFetch(`/events/${ev.id}/save`, { method });
       if (res.ok) {
         setEvents(prev => prev.map(e => e.id === ev.id ? { ...e, is_saved: !ev.is_saved } : e));
+        window.dispatchEvent(new Event("calendar:changed"));
       }
     } catch (e) { console.error(e); }
   };

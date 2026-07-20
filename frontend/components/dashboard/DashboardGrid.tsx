@@ -5,6 +5,7 @@ import { useState, useEffect } from "react";
 import { widgetRegistry } from "./widgetRegistry";
 import { LayoutGrid, RotateCcw, Save, X, Check } from "lucide-react";
 import { WIDGET_META } from "@/lib/permissions";
+import { apiFetch } from "@/lib/api";
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
 
@@ -51,13 +52,62 @@ export default function DashboardGrid({ editMode, onSave, permissions }: Props) 
   const [modalOpen, setModalOpen] = useState(false);
   const [draftVisible, setDraftVisible] = useState<Record<string, boolean>>(initialVisible);
 
-  // Re-sync when permissions load (e.g. after login)
+  // Load the user's persisted layout on mount / when permissions resolve, so a
+  // saved arrangement (and removed widgets) survive refresh AND re-login. The
+  // backend returns the default arrangement when the user has never saved, so a
+  // first-time dashboard still shows every allowed widget.
   useEffect(() => {
+    let cancelled = false;
     const fresh = Object.fromEntries(effectiveAllowed.map((w) => [w.key, true]));
-    setVisible(fresh);
-    setDraftVisible(fresh);
+    const allowedKeys = new Set(effectiveAllowed.map((w) => w.key));
+
+    (async () => {
+      try {
+        const res = await apiFetch("/dashboard/layout");
+        if (!res.ok) throw new Error(`layout load failed (${res.status})`);
+        const data = await res.json();
+        const saved = Array.isArray(data?.widgets) ? data.widgets : [];
+        // Keep only widgets the user may see AND the app can render.
+        const usable = saved.filter((w: any) => allowedKeys.has(w.i) && widgetRegistry[w.i]);
+        if (cancelled) return;
+        if (usable.length > 0) {
+          setLayout(usable.map((w: any) => ({ i: w.i, x: w.x, y: w.y, w: w.w, h: w.h })));
+          const savedKeys = new Set(usable.map((w: any) => w.i));
+          // A widget the user previously removed is absent from the saved set →
+          // stays hidden; everything else the user is allowed to see stays on.
+          const vis = Object.fromEntries(effectiveAllowed.map((w) => [w.key, savedKeys.has(w.key)]));
+          setVisible(vis);
+          setDraftVisible(vis);
+          return;
+        }
+      } catch (e) {
+        console.error(e);
+      }
+      if (!cancelled) {
+        setVisible(fresh);
+        setDraftVisible(fresh);
+      }
+    })();
+
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [permissions.join(",")]);
+
+  // Persist the current arrangement (only visible widgets) server-side, then
+  // hand control back to the parent so it can leave edit mode.
+  const handleSaveLayout = async () => {
+    const widgetsToSave = layout.filter((item) => visible[item.i]);
+    try {
+      await apiFetch("/dashboard/layout", {
+        method: "POST",
+        body: JSON.stringify({ widgets: widgetsToSave }),
+      });
+    } catch (e) {
+      console.error("Failed to save dashboard layout:", e);
+    } finally {
+      onSave();
+    }
+  };
 
   const openModal = () => {
     setDraftVisible({ ...visible });
@@ -98,7 +148,7 @@ export default function DashboardGrid({ editMode, onSave, permissions }: Props) 
             <button onClick={resetLayout} className="flex items-center gap-1.5 border border-gray-300 text-gray-700 hover:bg-gray-50 text-sm font-medium px-4 py-1.5 rounded-lg transition">
               <RotateCcw size={14} /> Reset
             </button>
-            <button onClick={onSave} className="flex items-center gap-1.5 bg-[#F2924E] hover:bg-orange-500 text-white text-sm font-medium px-4 py-1.5 rounded-lg transition">
+            <button onClick={handleSaveLayout} className="flex items-center gap-1.5 bg-[#F2924E] hover:bg-orange-500 text-white text-sm font-medium px-4 py-1.5 rounded-lg transition">
               <Save size={14} /> Save Layout
             </button>
           </div>
