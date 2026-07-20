@@ -101,7 +101,13 @@ def upload_employee_document(
     file.file.seek(0, 2)
     file_size = file.file.tell()
     file.file.seek(0)
-    
+
+    if file_size == 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File is empty"
+        )
+
     if file_size > MAX_FILE_SIZE_BYTES:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -164,19 +170,37 @@ def upload_employee_document(
 def get_employee_documents(db: Session, employee_id: int) -> list[EmployeeDocument]:
     """Retrieve all uploaded documents for a specific employee.
 
+    Each returned object gets a transient ``reviewed_by_name`` attribute resolved
+    from the reviewer's employee record, so the employee's documents view can show
+    *who* approved/rejected the document — not just the opaque reviewer id (BUG-17).
+
     Args:
         db: Active database session.
         employee_id: ID of the employee.
 
     Returns:
-        List of EmployeeDocument ORM objects.
+        List of EmployeeDocument ORM objects (with ``reviewed_by_name`` attached).
     """
-    return (
+    from app.employees.models import Employee
+
+    documents = (
         db.query(EmployeeDocument)
         .filter(EmployeeDocument.employee_id == employee_id)
         .order_by(EmployeeDocument.uploaded_at.desc())
         .all()
     )
+
+    # Resolve reviewer names in one query rather than per-row.
+    reviewer_ids = {d.reviewed_by for d in documents if d.reviewed_by is not None}
+    names: dict[int, str] = {}
+    if reviewer_ids:
+        for emp in db.query(Employee).filter(Employee.id.in_(reviewer_ids)).all():
+            names[emp.id] = f"{emp.first_name} {emp.last_name}".strip()
+
+    for d in documents:
+        d.reviewed_by_name = names.get(d.reviewed_by) if d.reviewed_by is not None else None
+
+    return documents
 
 
 def download_employee_document(

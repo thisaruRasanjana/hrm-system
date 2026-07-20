@@ -9,8 +9,11 @@ import DocumentTabsEmployee from "../../components/DocumentTabsEmployee";
 type UploadedDocument = {
   id: string;
   document_type: string;
+  file_name?: string | null;
   is_mandatory: boolean;
   status: string;
+  reviewed_by_name?: string | null;
+  reviewed_at?: string | null;
   rejection_reason?: string;
 };
 
@@ -19,8 +22,11 @@ type MergedDocument = {
   // Document type IDs are UUIDs on the backend
   document_type_id: string;
   name: string;
+  file_name?: string | null;
   is_mandatory: boolean;
   status: "NOT_UPLOADED" | "PENDING_REVIEW" | "APPROVED" | "REJECTED";
+  reviewed_by_name?: string | null;
+  reviewed_at?: string | null;
   rejection_reason?: string;
 };
 
@@ -48,19 +54,22 @@ export default function EmployeeDocumentsPage() {
   const mergedDocuments: MergedDocument[] = docTypes.map((type) => {
     const uploaded = uploadedDocs.find((doc) => doc.document_type === type.name);
     if (!uploaded) {
-      return { 
-        id: undefined, 
+      return {
+        id: undefined,
         document_type_id: type.id,
-        name: type.name, 
-        is_mandatory: type.is_mandatory, 
-        status: "NOT_UPLOADED" as const 
+        name: type.name,
+        is_mandatory: type.is_mandatory,
+        status: "NOT_UPLOADED" as const
       };
     }
     return {
       id: uploaded.id,
       document_type_id: type.id,
-      name: uploaded.document_type,
+      name: type.name,
+      file_name: uploaded.file_name,
       is_mandatory: type.is_mandatory,
+      reviewed_by_name: uploaded.reviewed_by_name,
+      reviewed_at: uploaded.reviewed_at,
       rejection_reason: uploaded.rejection_reason,
       status: (uploaded.status === "APPROVED" ? "APPROVED" : uploaded.status === "REJECTED" ? "REJECTED" : "PENDING_REVIEW") as MergedDocument["status"],
     };
@@ -113,6 +122,9 @@ export default function EmployeeDocumentsPage() {
                   description="Required document"
                   status={doc.status}
                   isMandatory={true}
+                  fileName={doc.file_name}
+                  reviewedByName={doc.reviewed_by_name}
+                  reviewedAt={doc.reviewed_at}
                   rejectionReason={doc.rejection_reason}
                 />
               ))}
@@ -131,6 +143,9 @@ export default function EmployeeDocumentsPage() {
                   description="Optional document"
                   status={doc.status}
                   isMandatory={false}
+                  fileName={doc.file_name}
+                  reviewedByName={doc.reviewed_by_name}
+                  reviewedAt={doc.reviewed_at}
                 />
               ))}
             </div>

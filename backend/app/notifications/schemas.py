@@ -37,9 +37,12 @@ class NotificationBulkAction(BaseModel):
 
     ``ids`` is capped so a single request can't be used to scan the table.
     Only the caller's own notifications are ever touched — enforced in the router.
+
+    An empty list is allowed and treated as a clean no-op by the router (rather
+    than a noisy 422), while foreign/unknown ids are handled there too.
     """
 
-    ids: List[int] = Field(..., min_length=1, max_length=500)
+    ids: List[int] = Field(default_factory=list, max_length=500)
 
 
 class NotificationCounts(BaseModel):

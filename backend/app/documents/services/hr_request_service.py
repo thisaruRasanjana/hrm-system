@@ -26,6 +26,31 @@ from app.core.storage_service import storage
 _notif_logger = logging.getLogger(__name__)
 
 
+# Allowed status transitions for a document request. A request moves forward
+# (PENDING → IN_PROGRESS → APPROVED → COMPLETED) or can be REJECTED from any
+# non-terminal state. COMPLETED and REJECTED are terminal — reopening them (e.g.
+# APPROVED/COMPLETED → PENDING) is an illegal transition and is refused, mirroring
+# the document-approval flow's state guard (BUG-19 / TC-REQ-012).
+_ALLOWED_TRANSITIONS = {
+    RequestStatus.PENDING: {RequestStatus.IN_PROGRESS, RequestStatus.APPROVED, RequestStatus.REJECTED},
+    RequestStatus.IN_PROGRESS: {RequestStatus.APPROVED, RequestStatus.REJECTED, RequestStatus.COMPLETED},
+    RequestStatus.APPROVED: {RequestStatus.COMPLETED, RequestStatus.REJECTED},
+    RequestStatus.COMPLETED: set(),
+    RequestStatus.REJECTED: set(),
+}
+
+
+def _ensure_valid_transition(current: RequestStatus, new: RequestStatus) -> None:
+    """Reject an illegal status transition with 400; a same-status update is a no-op."""
+    if current == new:
+        return
+    if new not in _ALLOWED_TRANSITIONS.get(current, set()):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot change request status from {current.value} to {new.value}.",
+        )
+
+
 def ensure_can_handle_request(db: Session, request: DocumentRequest, current_user_id: int) -> None:
     """Raise 403 if current_user is not allowed to act on this request
     (separation of duties — no self/peer handling; HR requests escalate to a super admin)."""
@@ -136,6 +161,10 @@ def update_request_status(
 
     if current_user_id is not None:
         ensure_can_handle_request(db, request, current_user_id)
+
+    # Guard the state machine: block illegal transitions (e.g. reopening an
+    # APPROVED/COMPLETED request back to PENDING) before mutating anything.
+    _ensure_valid_transition(request.status, new_status)
 
     if new_status == RequestStatus.REJECTED and not rejection_reason:
         raise HTTPException(

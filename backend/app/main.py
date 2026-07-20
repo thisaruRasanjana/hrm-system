@@ -445,12 +445,30 @@ app.include_router(employee_docs_router,    tags=["Employee Documents Browser"])
 
 # ── Static file uploads (Local Only) ───────────────────────────────────────────
 from app.core.config import STORAGE_BACKEND
+
+
+class SecureStaticFiles(StaticFiles):
+    """StaticFiles that never lets an upload execute as active content.
+
+    Upload validation already rejects HTML/SVG/executables, but this is a cheap
+    second layer: `nosniff` stops the browser MIME-sniffing a file into HTML,
+    and the sandbox CSP neutralizes scripts if such a file is ever navigated to
+    directly. Both are inert for images loaded via <img>, so avatars still show.
+    """
+
+    async def get_response(self, path, scope):
+        response = await super().get_response(path, scope)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Content-Security-Policy"] = "default-src 'none'; sandbox"
+        return response
+
+
 if STORAGE_BACKEND != "s3":
     os.makedirs("uploads/profiles", exist_ok=True)
     os.makedirs("uploads/documents", exist_ok=True)
     os.makedirs("uploads/templates", exist_ok=True)
     os.makedirs("uploads/generated_documents", exist_ok=True)
-    app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+    app.mount("/uploads", SecureStaticFiles(directory="uploads"), name="uploads")
 
 # ── Root ───────────────────────────────────────────────────────────────────────
 @app.get("/")

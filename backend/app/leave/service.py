@@ -596,12 +596,19 @@ def _attach_employee_info(db: Session, leave) -> None:
 
 
 def get_pending_requests(db: Session, user: dict):
+    from app.employees.models import Employee
+
     role = user.get("role", "").lower()
 
     query = (
         db.query(LeaveRequest, LeaveType.name.label("leave_type_name"))
         .join(LeaveType, LeaveRequest.leave_type_id == LeaveType.id)
+        # Join the requesting employee so soft-deleted employees drop out of the
+        # review queue — the LeaveRequest table isn't reached by the global
+        # soft-delete listener, so filter it explicitly here (BUG-11).
+        .join(Employee, Employee.id == LeaveRequest.employee_id)
         .filter(LeaveRequest.status.in_(["PENDING", "PENDING_MEDICAL"]))
+        .filter((Employee.is_deleted == False) | (Employee.is_deleted == None))  # noqa: E712, E711
     )
 
     # HR → see all except their own self-requested leaves
