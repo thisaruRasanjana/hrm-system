@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { X, UploadCloud, File as FileIcon, Loader2 } from 'lucide-react';
 import { apiFetch } from "@/lib/api";
+import toast from 'react-hot-toast';
 
 interface LeaveRequest {
   leave_request_id: number;
@@ -108,6 +109,7 @@ export default function MedicalConversionModal({
         throw new Error(errJson?.detail || 'Failed to submit reclassification request.');
       }
 
+      toast.success('Medical reclassification request submitted successfully.');
       onSuccess();
     } catch (err: any) {
       console.error(err);

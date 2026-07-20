@@ -298,6 +298,8 @@ const AssignLeaveForm: React.FC<Props> = ({ onSubmitted }) => {
     if (!toDate) errs.push("To date is required");
     if (fromDate && toDate && new Date(toDate) < new Date(fromDate))
       errs.push("To date cannot be earlier than From date");
+    if (days <= 0)
+      errs.push("Total leave days must be greater than 0. Check for weekends or holidays.");
     if (!reason.trim()) errs.push("Reason is required");
     setErrors(errs);
     return errs.length === 0;

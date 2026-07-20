@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { X, UploadCloud, File as FileIcon, Loader2 } from 'lucide-react';
 import { apiFetch } from "@/lib/api";
+import toast from 'react-hot-toast';
 import LeaveDatePicker from './LeaveDatePicker';
 
 
@@ -96,16 +97,17 @@ export default function LeaveResubmitModal({
         half_day: dateSelection.halfDay,
       };
 
-      const resubmitRes = await apiFetch(`/leave/requests/${requestId}/resubmit`, {
+      const res = await apiFetch(`/leave/requests/${requestId}/resubmit`, {
         method: 'PATCH',
         body: JSON.stringify(payload),
       });
 
-      if (!resubmitRes.ok) {
-        const errorText = await resubmitRes.text();
-        throw new Error(errorText || 'Failed to resubmit request');
+      if (!res.ok) {
+        const errJson = await res.json();
+        throw new Error(errJson?.detail || 'Failed to resubmit leave request.');
       }
 
+      toast.success('Leave request resubmitted successfully.');
       onSuccess();
     } catch (err: any) {
       console.error(err);

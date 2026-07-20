@@ -749,6 +749,9 @@ def create_leave(db: Session, employee_id: int, data: LeaveRequestCreate, auto_a
         raise HTTPException(status_code=400, detail="You already have a leave request for these dates")
 
     total_days = calculate_total_days(db, data.start_date, data.end_date, data.half_day)
+    
+    if total_days <= 0:
+        raise ValueError("Total leave days must be greater than 0. Check for weekends or holidays.")
 
     _enforce_balance(db, employee_id, leave_type, total_days, data.start_date)
 
@@ -785,7 +788,7 @@ def create_leave(db: Session, employee_id: int, data: LeaveRequestCreate, auto_a
     try:
         db.add(req)
         db.flush()
-        _audit_leave(db, req.leave_request_id, None, req.status, assigned_by)
+        _audit_leave(db, req.leave_request_id, None, req.status, assigned_by if assigned_by is not None else employee_id)
         db.commit()
         db.refresh(req)
 
@@ -1258,12 +1261,25 @@ def cancel_approved_leave(db: Session, request_id: int, employee_id: int, reason
 
 def get_leave_audit_log(db: Session, request_id: int):
     """Return all audit log entries for a specific leave request."""
-    return (
+    logs = (
         db.query(LeaveAuditLog)
         .filter(LeaveAuditLog.leave_request_id == request_id)
         .order_by(LeaveAuditLog.changed_at.asc())
         .all()
     )
+    
+    for log in logs:
+        if log.changed_by_employee_id:
+            from app.employees.models import Employee
+            emp = db.query(Employee).filter(Employee.id == log.changed_by_employee_id).first()
+            if emp:
+                log.changer_name = f"{emp.first_name} {emp.last_name}".strip()
+            else:
+                log.changer_name = "Unknown User"
+        else:
+            log.changer_name = "System"
+            
+    return logs
 
 
 def update_leave_request(db: Session, request_id: int, employee_id: int, payload: LeaveRequestCreate):
@@ -1296,6 +1312,9 @@ def update_leave_request(db: Session, request_id: int, employee_id: int, payload
         raise ValueError("You already have an overlapping leave request for these dates")
 
     total_days = calculate_total_days(db, payload.start_date, payload.end_date, payload.half_day)
+    
+    if total_days <= 0:
+        raise ValueError("Total leave days must be greater than 0. Check for weekends or holidays.")
 
     leave_type = db.query(LeaveType).filter(LeaveType.id == payload.leave_type_id).first()
     _enforce_balance(db, employee_id, leave_type, total_days, payload.start_date,
@@ -1322,16 +1341,30 @@ def get_leave_types(db: Session, requestable_only: bool = False):
     return query.order_by(LeaveType.id.asc()).all()
 
 
-def create_leave_type(db: Session, name: str, description: str | None = None, directly_requestable: bool = True):
+def create_leave_type(db: Session, name: str, description: str | None = None, default_days: float | None = None, directly_requestable: bool = True):
     existing = db.query(LeaveType).filter(LeaveType.name == name).first()
     if existing:
         raise ValueError("Leave type already exists")
 
-    leave_type = LeaveType(name=name, description=description, directly_requestable=directly_requestable)
+    leave_type = LeaveType(name=name, description=description, default_days=default_days, directly_requestable=directly_requestable)
     db.add(leave_type)
     db.commit()
     db.refresh(leave_type)
     return leave_type
+
+def delete_leave_type(db: Session, leave_type_id: int):
+    leave_type = db.query(LeaveType).filter(LeaveType.id == leave_type_id).first()
+    if not leave_type:
+        raise ValueError("Leave type not found")
+        
+    # Check if there are any leave requests using this type
+    from app.leave.models import LeaveRequest
+    has_requests = db.query(LeaveRequest).filter(LeaveRequest.leave_type_id == leave_type_id).first()
+    if has_requests:
+        raise ValueError("Cannot delete leave type because it is already used in leave requests")
+        
+    db.delete(leave_type)
+    db.commit()
 
 
 def get_my_leave_history(
@@ -1456,25 +1489,28 @@ def list_medical_conversions(db: Session, request_id: int):
 
 
 def get_pending_medical_conversions(db: Session, user: dict):
-    from app.leave.models import LeaveMedicalConversion
+    from app.leave.models import LeaveMedicalConversion, LeaveRequest
     from app.employees.models import Employee
+    
     role = user.get("role", "").lower()
     if role != "hr":
         return []
-    # A reclassification is reviewed by the SAME approver who approved the
-    # original leave — so only surface conversions whose original leave was
-    # approved by this reviewer.
-    convs = (
+        
+    query = (
         db.query(LeaveMedicalConversion)
         .join(LeaveRequest, LeaveMedicalConversion.leave_request_id == LeaveRequest.leave_request_id)
         .filter(
             LeaveMedicalConversion.status == "PENDING",
             LeaveMedicalConversion.employee_id != user["id"],
-            LeaveRequest.approved_by == user["id"],
         )
-        .order_by(LeaveMedicalConversion.id.desc())
-        .all()
     )
+    
+    # If not HR/Admin with can_assign, restrict to conversions for leaves they originally approved.
+    if not user.get("can_assign"):
+        query = query.filter(LeaveRequest.approved_by == user["id"])
+        
+    convs = query.order_by(LeaveMedicalConversion.id.desc()).all()
+
     # Attach the requesting employee's name so approvers see who it's for.
     for conv in convs:
         emp = db.query(Employee).filter(Employee.id == conv.employee_id).first()
@@ -1482,6 +1518,7 @@ def get_pending_medical_conversions(db: Session, user: dict):
             conv.employee_name = f"{emp.first_name or ''} {emp.last_name or ''}".strip() or f"Employee {conv.employee_id}"
         else:
             conv.employee_name = f"Employee {conv.employee_id}"
+            
     return convs
 
 

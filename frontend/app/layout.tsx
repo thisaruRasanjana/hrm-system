@@ -3,6 +3,7 @@ import { Arimo } from "next/font/google";
 import Sidebar from "@/components/Sidebar";
 import TopBar from "@/components/TopBar";
 import { AuthProvider } from "@/context/auth-context";
+import { Toaster } from "react-hot-toast";
 
 const arimo = Arimo({
   subsets: ["latin"],
@@ -28,6 +29,26 @@ export default function RootLayout({
               {children}
             </main>
           </div>
+          <Toaster 
+            position="bottom-right"
+            toastOptions={{
+              duration: 3000,
+              style: {
+                background: '#333',
+                color: '#fff',
+              },
+              success: {
+                style: {
+                  background: '#059669',
+                },
+              },
+              error: {
+                style: {
+                  background: '#DC2626',
+                },
+              }
+            }}
+          />
         </AuthProvider>
       </body>
     </html>

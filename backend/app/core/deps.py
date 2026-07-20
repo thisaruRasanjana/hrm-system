@@ -1,18 +1,19 @@
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from jose import jwt, JWTError
-from typing import List
+from typing import List, Optional
 
 from app.database.database import get_db
 from app.auth.models import User
 from app.core.jwt import SECRET_KEY, ALGORITHM
 
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
 
 
 def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    request: Request,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
     db: Session = Depends(get_db),
 ) -> User:
     """
@@ -21,7 +22,9 @@ def get_current_user(
     Raises 401 if token is invalid or user not found.
     """
     from sqlalchemy.orm import joinedload
-    token = credentials.credentials
+    token = credentials.credentials if credentials else request.query_params.get("token")
+    if not token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id = payload.get("sub")
