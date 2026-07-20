@@ -69,28 +69,10 @@ except ImportError:
     public_router = None
     logger.warning("Recruitment module not found — skipping.")
 
-from app.core.config import EMAIL_POLL_INTERVAL_SECONDS
-
-async def email_polling_loop():
-    from app.core.scheduler import advisory_lock
-    await asyncio.sleep(5)
-    while True:
-        try:
-            # Only one worker processes the inbox per cycle (advisory lock),
-            # otherwise every worker would poll and double-import the same emails.
-            with advisory_lock("email_poller") as got_lock:
-                if got_lock:
-                    from app.documents.services import email_service
-                    db = SessionLocal()
-                    try:
-                        result = await asyncio.to_thread(email_service.fetch_and_process_external_requests, db)
-                    finally:
-                        db.close()
-                    if isinstance(result, int) and result > 0:
-                        logger.info("[Email Poller] Synced %s new external email request(s).", result)
-        except Exception as e:
-            logger.error("[Email Poller] Loop Error: %s", e)
-        await asyncio.sleep(EMAIL_POLL_INTERVAL_SECONDS)
+# NOTE: the inbound email poller is no longer a hand-rolled sleep loop here. It
+# runs as an APScheduler job (`poll_email_inbox` in app/core/scheduler.py) so it
+# has a job registry, max_instances=1, and the same lifecycle as the other
+# scheduled jobs. Trigger one cycle on demand via POST /hr-document-requests/poll-inbox.
 
 
 async def holiday_reminder_loop():
@@ -378,8 +360,6 @@ async def lifespan(app: FastAPI):
     finally:
         db.close()
 
-    email_task = asyncio.create_task(email_polling_loop())
-    print(f"[Email Poller] Background email polling started (every {EMAIL_POLL_INTERVAL_SECONDS} seconds).")
     holiday_task = asyncio.create_task(holiday_reminder_loop())
     print("[Holiday Reminder] Background holiday reminder loop started (checks every hour).")
     digest_task = asyncio.create_task(daily_digest_loop())
@@ -395,7 +375,6 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    email_task.cancel()
     holiday_task.cancel()
     digest_task.cancel()
 
@@ -404,10 +383,6 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"[Scheduler] Failed to shutdown APScheduler: {e}")
     try:
-        await email_task
-    except asyncio.CancelledError:
-        pass
-    try:
         await holiday_task
     except asyncio.CancelledError:
         pass
@@ -415,7 +390,6 @@ async def lifespan(app: FastAPI):
         await digest_task
     except asyncio.CancelledError:
         pass
-    print("[Email Poller] Background email polling stopped.")
     print("[Holiday Reminder] Background holiday reminder loop stopped.")
     print("[Daily Digest] Background daily digest loop stopped.")
 

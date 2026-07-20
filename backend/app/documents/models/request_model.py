@@ -17,7 +17,7 @@ Design decisions:
 import enum
 import uuid
 
-from sqlalchemy import Column, DateTime, Enum, Integer, String, Text
+from sqlalchemy import Column, DateTime, Enum, Index, Integer, String, Text, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 
@@ -39,6 +39,17 @@ class DocumentRequest(Base):
 
     __tablename__ = "document_requests"
 
+    # Partial unique index: one DocumentRequest per inbound email. Partial because
+    # INTERNAL (portal) requests have no Message-ID, and those NULLs must not collide.
+    __table_args__ = (
+        Index(
+            "ix_document_requests_source_message_id",
+            "source_message_id",
+            unique=True,
+            postgresql_where=text("source_message_id IS NOT NULL"),
+        ),
+    )
+
     # UUID primary key — avoids sequential ID guessing on download URLs
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
 
@@ -50,6 +61,15 @@ class DocumentRequest(Base):
 
     # Email address of the person who sent an external email request
     requester_email = Column(String(255), nullable=True)
+
+    # RFC 5322 Message-ID of the inbound email this request was imported from.
+    # This — not the IMAP \Seen flag — is the authoritative "already imported"
+    # ledger. \Seen is shared mutable state: anyone opening the mailbox in a mail
+    # client clears it, which silently hid inbound requests from the poller.
+    # Uniqueness is enforced in the database (see __table_args__), not just by the
+    # poller's pre-check: that check is a read-then-write, so two pollers racing
+    # can both read "not imported" and both insert.
+    source_message_id = Column(String(255), nullable=True)
 
     # Full body of the inbound email (external requests only). Lets HR read the
     # actual context — e.g. which employee the letter is about — since the system
