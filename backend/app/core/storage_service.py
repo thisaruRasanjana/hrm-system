@@ -186,6 +186,14 @@ class _S3StorageBackend:
             from botocore.config import Config
             kwargs["endpoint_url"] = AWS_S3_ENDPOINT_URL
             kwargs["config"] = Config(s3={"addressing_style": "path"})
+        elif AWS_REGION:
+            # Force the regional endpoint for real AWS so that presigned URLs
+            # are signed AND served from the same regional domain
+            # (e.g. s3.ap-south-1.amazonaws.com instead of s3.amazonaws.com).
+            # Without this, boto3 defaults to the global endpoint but signs for
+            # the configured region, causing SignatureDoesNotMatch on buckets
+            # outside us-east-1.
+            kwargs["endpoint_url"] = f"https://s3.{AWS_REGION}.amazonaws.com"
 
         import boto3
         self._s3 = boto3.client("s3", **kwargs)
