@@ -1,12 +1,17 @@
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.orm import Session
 from typing import List
+from pydantic import BaseModel
 from app.database.database import get_db
 from app.employees import service, schemas
 from app.core.deps import get_current_user, require_permission
 from app.auth.models import User
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
+
+
+class AssignRolePayload(BaseModel):
+    role_id: int
 
 
 @router.get("/", response_model=List[schemas.EmployeeOut], dependencies=[Depends(require_permission("employee:view_all"))])
@@ -44,6 +49,21 @@ def get_accrual_rules(employee_id: int, db: Session = Depends(get_db)):
         }
         for r in rules
     ]
+
+
+@router.put("/{employee_id}/role", dependencies=[Depends(require_permission("role:assign"))])
+def assign_role_to_employee(employee_id: int, payload: AssignRolePayload, db: Session = Depends(get_db)):
+    """Assign a role to an employee by updating their linked user account."""
+    from app.roles.service import assign_roles_to_user
+    from app.roles.schemas import AssignRoleRequest
+
+    db_employee = service.get_employee_by_id(db, employee_id=employee_id)
+    if db_employee is None:
+        raise HTTPException(status_code=404, detail="Employee not found")
+    if not db_employee.user_id:
+        raise HTTPException(status_code=400, detail="This employee has no linked user account.")
+
+    return assign_roles_to_user(db, AssignRoleRequest(user_id=db_employee.user_id, role_ids=[payload.role_id]))
 
 
 @router.get("/{employee_id}", response_model=schemas.EmployeeOut, dependencies=[Depends(require_permission("employee:view_all"))])
