@@ -1059,6 +1059,12 @@ def get_final_decision_view(db: Session, application_id: int):
         .first()
     )
 
+    # Fetch the panel to resolve who the actual panel head is
+    panel = db.query(models.InterviewPanel).filter(
+        models.InterviewPanel.vacancy_id == application.vacancy_id
+    ).first()
+    panel_head_user_id = panel.panel_head_id if panel else None
+
     return {
         "candidate": {
             "id": candidate.id,
@@ -1079,6 +1085,9 @@ def get_final_decision_view(db: Session, application_id: int):
         "evaluator_count": len(current_evals),
         "final_decision": existing_decision,
         "application_id": application_id,
+        # The true panel head's user ID — used by the frontend to badge
+        # evaluations correctly regardless of submission order.
+        "panel_head_user_id": panel_head_user_id,
     }
 
 

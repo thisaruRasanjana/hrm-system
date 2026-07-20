@@ -18,6 +18,7 @@ type Evaluation = {
   overall_score: number;
   comments: string | null;
   evaluator_name: string | null;
+  evaluator_user_id: number | null;
 };
 
 type CategoryAverages = {
@@ -39,6 +40,7 @@ type FinalDecisionData = {
   evaluator_count: number;
   final_decision: { decision: string; notes: string | null } | null;
   application_id: number;
+  panel_head_user_id: number | null;  // the true panel head — use this, not array index
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -324,7 +326,12 @@ export default function FinalDecisionPage() {
               <div className="space-y-4">
                 {evaluations.map((ev, idx) => {
                   const label = ev.evaluator_name ?? `Evaluator ${idx + 1}`;
-                  const isHead = idx === 0;
+                  // Determine if this evaluator is the panel head by comparing their
+                  // user ID against the authoritative panel_head_user_id from the backend.
+                  // Never rely on array index — the order depends on submission time, not role.
+                  const isHead = data.panel_head_user_id != null
+                    ? ev.evaluator_user_id === data.panel_head_user_id
+                    : idx === 0; // fallback only if backend doesn't provide the value
                   return (
                     <div key={ev.id} className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
                       <div className="flex items-center justify-between mb-5">
