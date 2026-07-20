@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { X, UploadCloud, File as FileIcon, Loader2, Trash2 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { apiFetch } from "@/lib/api";
 import LeaveDatePicker from './LeaveDatePicker';
 
@@ -45,12 +46,8 @@ export default function EditLeaveModal({
     halfDay: request.half_day,
   });
   const [reason, setReason] = useState(request.reason || '');
-  const [existingUrls, setExistingUrls] = useState<string[]>(request.attachment_urls || []);
-  const [newAttachments, setNewAttachments] = useState<File[]>([]);
-  
   const [errors, setErrors] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
 
   // Derived values
   const fromDate = dateSelection.startDate;
@@ -63,7 +60,7 @@ export default function EditLeaveModal({
         const res = await apiFetch(`/leave/types`);
         if (res.ok) {
           const data = await res.json();
-          setLeaveTypes(data);
+          setLeaveTypes(data.filter((t: LeaveType) => t.name.toLowerCase() !== 'medical'));
         }
       } catch (err) {
         console.error("Failed to fetch leave types", err);
@@ -72,24 +69,8 @@ export default function EditLeaveModal({
     fetchLeaveTypes();
   }, []);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      setNewAttachments(prev => [...prev, ...Array.from(e.target.files!)]);
-      setErrors([]);
-    }
-  };
-
-  const removeNewFile = (index: number) => {
-    setNewAttachments(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const removeExistingFile = (index: number) => {
-    setExistingUrls(prev => prev.filter((_, i) => i !== index));
-  };
-
   const validate = () => {
     const errs: string[] = [];
-    const selectedLeaveType = leaveTypes.find(t => String(t.id) === leaveTypeId);
 
     if (!leaveTypeId) errs.push("Leave type is required");
     if (!fromDate) errs.push("From date is required");
@@ -98,13 +79,6 @@ export default function EditLeaveModal({
       errs.push("To date cannot be earlier than From date");
     }
     if (!reason.trim()) errs.push("Reason is required");
-
-    if (
-      selectedLeaveType?.name.toLowerCase().includes("medical") &&
-      existingUrls.length === 0 && newAttachments.length === 0
-    ) {
-      errs.push("Medical leave requires a supporting document");
-    }
 
     setErrors(errs);
     return errs.length === 0;
@@ -119,33 +93,13 @@ export default function EditLeaveModal({
     setIsSubmitting(true);
 
     try {
-      let uploadedFileUrls: string[] = [...existingUrls];
-
-      if (newAttachments.length > 0) {
-        for (const file of newAttachments) {
-          const formData = new FormData();
-          formData.append('file', file);
-
-          const uploadRes = await apiFetch(`/leave/upload`, {
-            method: 'POST',
-            body: formData,
-          });
-
-          if (!uploadRes.ok) {
-            throw new Error(`Failed to upload ${file.name}`);
-          }
-          const uploadData = await uploadRes.json();
-          uploadedFileUrls.push(uploadData.file_url);
-        }
-      }
-
       const payload = {
         leave_type_id: parseInt(leaveTypeId),
         start_date: fromDate,
         end_date: toDate,
         half_day: halfDay,
         reason: reason.trim(),
-        attachment_urls: uploadedFileUrls,
+        attachment_urls: request.attachment_urls || [],
       };
 
       const updateRes = await apiFetch(`/leave/requests/${request.leave_request_id}`, {
@@ -158,6 +112,7 @@ export default function EditLeaveModal({
         throw new Error(errorData.detail || 'Failed to update request');
       }
 
+      toast.success("Changes saved successfully!");
       onSuccess();
     } catch (err: any) {
       console.error(err);
@@ -219,62 +174,6 @@ export default function EditLeaveModal({
               />
             </div>
 
-            <div>
-              <label className="block text-sm text-slate-500 mb-2">Attachments</label>
-              
-              <div 
-                className={`border border-dashed rounded-md transition-colors cursor-pointer group relative mb-3 ${isDragging ? 'border-[#F2924E] bg-orange-50/50' : 'border-slate-300 bg-slate-50/50 hover:bg-slate-100/50'}`}
-                onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-                onDragLeave={() => setIsDragging(false)}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  setIsDragging(false);
-                  if (e.dataTransfer.files) {
-                    setNewAttachments(prev => [...prev, ...Array.from(e.dataTransfer.files)]);
-                  }
-                }}
-              >
-                <input
-                  type="file"
-                  multiple
-                  onChange={handleFileChange}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                />
-                <div className="py-8 px-4 text-center flex flex-col items-center">
-                  <div className="w-10 h-10 bg-white border border-slate-100 rounded-full shadow-sm flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
-                    <UploadCloud className="text-[#F2924E]" size={20} />
-                  </div>
-                  <p className="text-sm text-slate-600">Click or drag files to upload</p>
-                </div>
-              </div>
-
-              {(existingUrls.length > 0 || newAttachments.length > 0) && (
-                <div className="space-y-2">
-                  {existingUrls.map((url, i) => (
-                    <div key={`old-${i}`} className="flex items-center justify-between p-3 bg-white border border-gray-200 rounded-lg shadow-sm">
-                      <div className="flex items-center gap-3 overflow-hidden">
-                        <FileIcon size={16} className="text-orange-400 flex-shrink-0" />
-                        <span className="text-sm text-gray-600 truncate">{url.split('/').pop()} (previously uploaded)</span>
-                      </div>
-                      <button type="button" onClick={() => removeExistingFile(i)} className="text-gray-400 hover:text-red-500 p-1">
-                        <X size={16} />
-                      </button>
-                    </div>
-                  ))}
-                  {newAttachments.map((f, i) => (
-                    <div key={`new-${i}`} className="flex items-center justify-between p-3 bg-white border border-gray-200 rounded-lg shadow-sm">
-                      <div className="flex items-center gap-3 overflow-hidden">
-                        <FileIcon size={16} className="text-orange-500 flex-shrink-0" />
-                        <span className="text-sm text-gray-900 truncate">{f.name}</span>
-                      </div>
-                      <button type="button" onClick={() => removeNewFile(i)} className="text-gray-400 hover:text-red-500 p-1">
-                        <X size={16} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
           </div>
 
           {errors.length > 0 && (

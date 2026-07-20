@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useEffect, useState, useMemo } from 'react';
-import { Save, RotateCcw, Search, ChevronDown, Users, SlidersHorizontal } from 'lucide-react';
+import { Save, RotateCcw, Search, ChevronDown, Users, SlidersHorizontal, Plus, Trash2 } from 'lucide-react';
 import LeaveTabs from '@/components/LeaveTabs';
+import AddLeaveTypeModal from '@/components/AddLeaveTypeModal';
 import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/context/auth-context';
 
@@ -91,6 +92,8 @@ export default function LeaveSettingsPage() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState<'success' | 'error' | ''>('');
+  
+  const [isAddTypeModalOpen, setIsAddTypeModalOpen] = useState(false);
 
   const loadRoleEntitlements = async () => {
     setLoading(true);
@@ -107,6 +110,26 @@ export default function LeaveSettingsPage() {
     } catch (err) {
       console.error(err);
       setMessage('Failed to load leave entitlements.');
+      setMessageType('error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteLeaveType = async (id: number, name: string) => {
+    if (!window.confirm(`Are you sure you want to delete the "${name}" leave type?`)) return;
+    setLoading(true);
+    try {
+      const res = await apiFetch(`/leave/types/${id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        throw new Error(err?.detail || 'Failed to delete leave type');
+      }
+      setMessage(`Leave type "${name}" deleted.`);
+      setMessageType('success');
+      loadRoleEntitlements();
+    } catch (err: any) {
+      setMessage(err.message || 'Failed to delete leave type.');
       setMessageType('error');
     } finally {
       setLoading(false);
@@ -427,6 +450,14 @@ export default function LeaveSettingsPage() {
           </p>
         </div>
         <div className="flex items-center gap-3 flex-shrink-0">
+          {activeTab === 'role' && (
+            <button
+              onClick={() => setIsAddTypeModalOpen(true)}
+              className="flex items-center gap-1.5 border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 text-sm font-medium px-4 py-2.5 rounded-xl transition shadow-sm"
+            >
+              <Plus size={14} /> Add Leave Type
+            </button>
+          )}
           <button
             onClick={activeTab === 'role' ? handleResetRole : handleResetEmployee}
             disabled={loading || saving || (activeTab === 'employee' && !selectedEmployeeId)}
@@ -470,8 +501,17 @@ export default function LeaveSettingsPage() {
                   <tr className="border-b border-gray-100 bg-gray-50/70">
                     <th className="px-6 py-4 text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider">Role</th>
                     {matrix.leave_types.map((t) => (
-                      <th key={t.id} className="px-6 py-4 text-center text-[11px] font-bold text-gray-500 uppercase tracking-wider">
-                        {t.name}
+                      <th key={t.id} className="px-6 py-4 text-center text-[11px] font-bold text-gray-500 uppercase tracking-wider group relative">
+                        <div className="flex items-center justify-center gap-1.5">
+                          {t.name}
+                          <button
+                            onClick={() => handleDeleteLeaveType(t.id, t.name)}
+                            className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition"
+                            title="Delete Leave Type"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
                         <span className="block text-[10px] font-normal text-gray-400 normal-case mt-0.5">
                           default: {t.default_days ?? '∞'} days
                         </span>
@@ -796,6 +836,18 @@ export default function LeaveSettingsPage() {
             ) : null}
           </div>
         </div>
+      )}
+
+      {isAddTypeModalOpen && (
+        <AddLeaveTypeModal
+          onClose={() => setIsAddTypeModalOpen(false)}
+          onSuccess={() => {
+            setIsAddTypeModalOpen(false);
+            setMessage('Leave type added successfully.');
+            setMessageType('success');
+            loadRoleEntitlements();
+          }}
+        />
       )}
     </div>
   );
