@@ -6,10 +6,6 @@ interface Props {
 }
 
 export default function LeaveHistoryPanel({ records }: Props) {
-  const totalAllowed = 20;
-  const leaveUsed = 8;
-  const leaveRemaining = 12;
-
   const statusClasses = (status: LeaveHistoryRecord["status"]) => {
     if (status === "APPROVED") {
       return "bg-green-100 text-green-600";
@@ -22,26 +18,6 @@ export default function LeaveHistoryPanel({ records }: Props) {
 
   return (
     <div className="mt-4 rounded-2xl border border-gray-200 bg-white p-4 md:p-6">
-      <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
-        <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-          <p className="text-xs text-gray-400">Total Leave Allowed</p>
-          <h3 className="mt-2 text-3xl font-semibold text-gray-900">20 days</h3>
-        </div>
-
-        <div className="rounded-xl border border-orange-100 bg-orange-50 p-4">
-          <p className="text-xs text-gray-400">Leave Used</p>
-          <h3 className="mt-2 text-3xl font-semibold text-orange-500">
-            {leaveUsed} days
-          </h3>
-        </div>
-
-        <div className="rounded-xl border border-green-100 bg-green-50 p-4">
-          <p className="text-xs text-gray-400">Leave Remaining</p>
-          <h3 className="mt-2 text-3xl font-semibold text-green-600">
-            {leaveRemaining} days
-          </h3>
-        </div>
-      </div>
 
       <div className="overflow-x-auto">
         <table className="w-full min-w-[900px]">

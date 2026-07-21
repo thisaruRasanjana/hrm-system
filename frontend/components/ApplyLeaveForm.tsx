@@ -87,7 +87,7 @@ const ApplyLeaveForm: React.FC<Props> = ({ onSubmitted }) => {
     const fetchLeaveTypes = async () => {
       setLoadingTypes(true);
       try {
-        const res = await apiFetch(`/leave/types?requestable=true`);
+        const res = await apiFetch(`/leave/types?requestable=true&available=true`, { cache: 'no-store' });
         if (!res.ok) {
           throw new Error("Failed to load leave types");
         }

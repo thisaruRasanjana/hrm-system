@@ -16,6 +16,7 @@ class LeaveType(Base):
     # NULL = unlimited (no balance enforcement)
     default_days = Column(Float, nullable=True)
     directly_requestable = Column(Boolean, nullable=False, server_default="true", default=True)
+    is_active = Column(Boolean, nullable=False, server_default="true", default=True)
 
 
 class LeaveEntitlement(Base):

@@ -57,7 +57,7 @@ export default function EditLeaveModal({
   useEffect(() => {
     const fetchLeaveTypes = async () => {
       try {
-        const res = await apiFetch(`/leave/types`);
+        const res = await apiFetch(`/leave/types`, { cache: 'no-store' });
         if (res.ok) {
           const data = await res.json();
           setLeaveTypes(data.filter((t: LeaveType) => t.name.toLowerCase() !== 'medical'));

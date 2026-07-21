@@ -283,7 +283,7 @@ def get_leave_balances(db: Session, employee_id: int, year: int | None = None) -
     today = date.today()
     role_id = _employee_role_id(db, employee_id)
     balances = []
-    for lt in db.query(LeaveType).order_by(LeaveType.id).all():
+    for lt in db.query(LeaveType).filter(LeaveType.is_active == True).order_by(LeaveType.id).all():
         # --- Accrual mode: check for a monthly accrual rule first ---
         accrual = _get_accrual_balance(db, employee_id, lt.id, today=today)
         if accrual is not None:
@@ -378,7 +378,7 @@ def get_leave_entitlements(db: Session) -> dict:
         r for r in db.query(Role).order_by(Role.id).all()
         if not (r.description or "").startswith("LEGACY:")
     ]
-    types = db.query(LeaveType).order_by(LeaveType.id).all()
+    types = db.query(LeaveType).filter(LeaveType.is_active == True).order_by(LeaveType.id).all()
     overrides = {
         (e.role_id, e.leave_type_id): float(e.days)
         for e in db.query(LeaveEntitlement).all()
@@ -447,7 +447,7 @@ def get_employee_leave_entitlements(db: Session, employee_id: int) -> dict:
     if not emp:
         raise ValueError("Employee not found")
 
-    types = db.query(LeaveType).order_by(LeaveType.id).all()
+    types = db.query(LeaveType).filter(LeaveType.is_active == True).order_by(LeaveType.id).all()
     overrides = {
         e.leave_type_id: float(e.days)
         for e in db.query(EmployeeLeaveEntitlement).filter(EmployeeLeaveEntitlement.employee_id == employee_id).all()
@@ -1335,7 +1335,7 @@ def update_leave_request(db: Session, request_id: int, employee_id: int, payload
 
 
 def get_leave_types(db: Session, requestable_only: bool = False):
-    query = db.query(LeaveType)
+    query = db.query(LeaveType).filter(LeaveType.is_active == True)
     if requestable_only:
         query = query.filter(LeaveType.directly_requestable == True)
     return query.order_by(LeaveType.id.asc()).all()
@@ -1361,9 +1361,12 @@ def delete_leave_type(db: Session, leave_type_id: int):
     from app.leave.models import LeaveRequest
     has_requests = db.query(LeaveRequest).filter(LeaveRequest.leave_type_id == leave_type_id).first()
     if has_requests:
-        raise ValueError("Cannot delete leave type because it is already used in leave requests")
+        # Soft delete
+        leave_type.is_active = False
+    else:
+        # Hard delete
+        db.delete(leave_type)
         
-    db.delete(leave_type)
     db.commit()
 
 
