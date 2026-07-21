@@ -20,7 +20,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  
+
   const [show2FA, setShow2FA] = useState(false);
   const [tempToken, setTempToken] = useState("");
   const [otpCode, setOtpCode] = useState("");
@@ -150,7 +150,7 @@ export default function LoginPage() {
             text-[#1E293B] placeholder-[#D1D5DC]
             focus:outline-none focus:ring-2 focus:ring-[#F2924E]"
             value={email}
-            onChange={(e)=>setEmail(e.target.value)}
+            onChange={(e) => setEmail(e.target.value)}
             required
           />
 
@@ -166,7 +166,7 @@ export default function LoginPage() {
               text-[#1E293B] placeholder-[#D1D5DC]
               focus:outline-none focus:ring-2 focus:ring-[#F2924E]"
               value={password}
-              onChange={(e)=>setPassword(e.target.value)}
+              onChange={(e) => setPassword(e.target.value)}
               required
             />
             <button
@@ -180,7 +180,7 @@ export default function LoginPage() {
 
           <p
             className="text-right text-[14px] text-[#F2924E] cursor-pointer mb-6"
-            onClick={()=>router.push("/forgot-password")}
+            onClick={() => router.push("/forgot-password")}
           >
             Forgot Password?
           </p>
@@ -211,13 +211,13 @@ export default function LoginPage() {
             <h3 className="text-xl font-bold text-gray-900 mb-2">Two-Factor Authentication</h3>
             <p className="text-sm text-gray-500">Enter the 6-digit code from your authenticator app to continue.</p>
           </div>
-          
+
           {errorMsg && (
             <div className="bg-red-50 text-red-500 text-sm font-medium p-3 rounded-lg mb-4 text-center">
               {errorMsg}
             </div>
           )}
-          
+
           <label className="block text-[16px] font-medium text-[#364153] mb-2">
             Verification Code
           </label>
@@ -229,7 +229,7 @@ export default function LoginPage() {
             text-center text-2xl tracking-widest text-[#1E293B] placeholder-[#D1D5DC]
             focus:outline-none focus:ring-2 focus:ring-[#F2924E]"
             value={otpCode}
-            onChange={(e)=>setOtpCode(e.target.value)}
+            onChange={(e) => setOtpCode(e.target.value)}
             required
             maxLength={OTP_CODE_LENGTH}
           />
@@ -241,10 +241,10 @@ export default function LoginPage() {
           >
             {loading ? "Verifying..." : "Verify Code"}
           </button>
-          
+
           <p
             className="text-center text-[14px] text-gray-500 cursor-pointer mt-6 underline"
-            onClick={()=> setShow2FA(false)}
+            onClick={() => setShow2FA(false)}
           >
             Back to login
           </p>
