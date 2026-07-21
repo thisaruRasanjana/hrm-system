@@ -510,10 +510,25 @@ def update_employee_entitlements(
 @router.get("/types", response_model=list[LeaveTypeOut])
 def list_leave_types(
     requestable: bool = False,
+    available: bool = False,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return get_leave_types(db, requestable_only=requestable)
+    types = get_leave_types(db, requestable_only=requestable)
+    
+    if available:
+        emp = db.query(Employee).filter(Employee.user_id == current_user.id).first()
+        if not emp:
+            return []
+        balances = get_leave_balances(db, emp.id, None)
+        # We consider a leave type "available" if its entitlement is either unlimited (None) or > 0.
+        valid_type_ids = {
+            b["leave_type_id"] for b in balances 
+            if b["entitlement"] is None or b["entitlement"] > 0
+        }
+        types = [t for t in types if t.id in valid_type_ids]
+        
+    return types
 
 
 @router.post("/types", response_model=LeaveTypeOut)

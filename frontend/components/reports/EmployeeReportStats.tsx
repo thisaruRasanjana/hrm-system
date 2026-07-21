@@ -4,7 +4,6 @@ import { EmployeeDetail } from "@/app/reports/types";
 
 interface Props {
   employee: EmployeeDetail;
-  activeTab: "attendance" | "leave" | "violations";
   customStart?: string;
   setCustomStart?: (value: string) => void;
   customEnd?: string;
@@ -74,30 +73,6 @@ export default function EmployeeReportStats({ employee, customStart, setCustomSt
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-      {cards.map((card) => (
-        <div
-          key={card.label}
-          className="rounded-[20px] border border-gray-200 bg-white p-5 shadow-sm"
-        >
-          <div className="flex items-start justify-between gap-3">
-            <p className="text-sm font-semibold text-gray-600">
-              {card.label}
-            </p>
-            {card.icon ? (
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-red-50">
-                {card.icon}
-              </span>
-            ) : (
-              <span className="h-8 w-8" />
-            )}
-          </div>
-          <h3 className="mt-4 text-3xl font-bold text-gray-900">{card.value}</h3>
-          <p className={`mt-3 text-sm ${card.noteColor}`}>{card.note}</p>
-        </div>
-      ))}
-      </div>
     </div>
   );
 }

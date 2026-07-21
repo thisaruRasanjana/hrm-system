@@ -8,13 +8,9 @@ import LeaveTabs from "@/components/LeaveTabs";
 import { apiFetch } from "@/lib/api";
 import EmployeeReportHeader from "@/components/reports/EmployeeReportHeader";
 import EmployeeReportStats from "@/components/reports/EmployeeReportStats";
-import EmployeeDetailTabs from "@/components/reports/EmployeeDetailTabs";
-import AttendanceRecordsTable from "@/components/reports/AttendanceRecordsTable";
 import LeaveHistoryPanel from "@/components/reports/LeaveHistoryPanel";
-import ViolationsPanel from "@/components/reports/ViolationsPanel";
-import ManagerNotesCard from "@/components/reports/ManagerNotesCard";
 
-import { DetailTab, ReportPeriod } from "../types";
+import { ReportPeriod } from "../types";
 
 export default function EmployeeReportDetailPage() {
   const params = useParams();
@@ -27,10 +23,10 @@ export default function EmployeeReportDetailPage() {
 
   const [customStart, setCustomStart] = useState<string>(toYMD(initialStart));
   const [customEnd, setCustomEnd] = useState<string>(toYMD(initialEnd));
-  const [activeTab, setActiveTab] = useState<DetailTab>("attendance");
 
   const [employee, setEmployee] = useState<any>(null);
   const [leaveRecords, setLeaveRecords] = useState<any[]>([]);
+  const [balances, setBalances] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   // ✅ Fetch data from backend
@@ -87,23 +83,15 @@ export default function EmployeeReportDetailPage() {
       .catch(() => {
         notFound();
       });
+
+    // ✅ Fetch balances
+    apiFetch(`/leave/balance/${employeeId}`)
+      .then(res => res.json())
+      .then(data => setBalances(data || []))
+      .catch(console.error);
   }, [employeeId, customStart, customEnd]);
 
-  // ⚠️ Placeholder (until backend ready)
-  const attendanceRecords: any[] = [];
-  const violationRecords: any[] = [];
 
-  const content = useMemo(() => {
-    if (activeTab === "attendance") {
-      return <AttendanceRecordsTable records={attendanceRecords} />;
-    }
-
-    if (activeTab === "leave") {
-      return <LeaveHistoryPanel records={leaveRecords} />;
-    }
-
-    return <ViolationsPanel records={violationRecords} />;
-  }, [activeTab, attendanceRecords, leaveRecords, violationRecords]);
 
   // ✅ Loading state
   if (loading && !employee) {
@@ -142,22 +130,66 @@ export default function EmployeeReportDetailPage() {
 
           <EmployeeReportStats
             employee={employee}
-            activeTab={activeTab}
             customStart={customStart}
             setCustomStart={setCustomStart}
             customEnd={customEnd}
             setCustomEnd={setCustomEnd}
           />
 
-          <EmployeeDetailTabs
-            activeTab={activeTab}
-            setActiveTab={setActiveTab}
-            violationCount={violationRecords.length}
+          {balances.length > 0 && (
+            <div className="mt-6 mb-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-3">Leave Balances</h2>
+              <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
+                {balances.map((b) => (
+                  <div key={b.leave_type_id} className="flex flex-col justify-between rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                    <div>
+                      <p className="text-xs text-gray-400 uppercase tracking-wider">{b.leave_type_name}</p>
+                      <h3 className="mt-2 text-3xl font-semibold text-gray-900">
+                        {b.remaining ?? '∞'} <span className="text-sm font-medium text-gray-500">left</span>
+                      </h3>
+                    </div>
+                    {b.entitlement !== null && (
+                      <p className="mt-4 text-xs text-gray-400">Out of {b.entitlement}</p>
+                    )}
+                  </div>
+                ))}
+
+                <div className="flex flex-col justify-between rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                  <div>
+                    <p className="text-xs text-gray-400 uppercase tracking-wider">Total Allowed</p>
+                    <h3 className="mt-2 text-3xl font-semibold text-gray-900">
+                      {balances.reduce((acc, b) => acc + (b.entitlement || 0), 0)} <span className="text-sm font-medium text-gray-500">days</span>
+                    </h3>
+                  </div>
+                  <p className="mt-4 text-xs text-gray-400">All leave types</p>
+                </div>
+
+                <div className="flex flex-col justify-between rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                  <div>
+                    <p className="text-xs text-orange-400 uppercase tracking-wider">Leave Used</p>
+                    <h3 className="mt-2 text-3xl font-semibold text-orange-500">
+                      {balances.reduce((acc, b) => acc + (b.used_days || 0), 0)} <span className="text-sm font-medium text-orange-400">days</span>
+                    </h3>
+                  </div>
+                  <p className="mt-4 text-xs text-orange-300">Total consumed</p>
+                </div>
+
+                <div className="flex flex-col justify-between rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                  <div>
+                    <p className="text-xs text-green-600 uppercase tracking-wider">Remaining</p>
+                    <h3 className="mt-2 text-3xl font-semibold text-green-600">
+                      {balances.reduce((acc, b) => acc + (b.remaining || 0), 0)} <span className="text-sm font-medium text-green-500">days</span>
+                    </h3>
+                  </div>
+                  <p className="mt-4 text-xs text-green-400">Available balance</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <LeaveHistoryPanel 
+            records={leaveRecords} 
           />
-
-          {content}
-
-          <ManagerNotesCard />
     </div>
   );
 }

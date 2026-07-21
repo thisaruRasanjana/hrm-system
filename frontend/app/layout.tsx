@@ -21,8 +21,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body className={arimo.className}>
+    <html lang="en" suppressHydrationWarning>
+      <body className={arimo.className} suppressHydrationWarning>
         <AuthProvider>
           <div className="flex min-h-screen bg-[#F8F9FA] font-sans">
             <main className="flex-1 flex flex-col min-w-0 w-full">
