@@ -17,6 +17,7 @@ export default function TimeTrackingWidget(_: Props) {
   const [accumulatedSecs, setAccumulatedSecs] = useState(0); // from completed pairs
   const [clockInTime, setClockInTime] = useState<Date | null>(null);  // current open pair's check-in
   const [todayHours, setTodayHours] = useState<number | null>(null);
+  const [isCompleted, setIsCompleted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const tickRef = useRef<NodeJS.Timeout | null>(null);
@@ -65,6 +66,8 @@ export default function TimeTrackingWidget(_: Props) {
               setIsPaused(false);
               startTick(clockIn, accumulated);
             }
+          } else if (data.completed) {
+            setIsCompleted(true);
           }
         }
       } catch (e) {
@@ -179,6 +182,7 @@ export default function TimeTrackingWidget(_: Props) {
         setElapsed(0);
         setAccumulatedSecs(0);
         setClockInTime(null);
+        setIsCompleted(true);
         await loadTodayHours();
       } else {
         const err = await res.json();
@@ -234,15 +238,24 @@ export default function TimeTrackingWidget(_: Props) {
               {fmt(elapsed)}
             </h1>
             <p className="text-gray-400 text-sm mt-2">
-              {isPaused
-                ? "Work paused"
-                : isRunning
-                  ? `Clocked in at ${clockInDisplay}`
-                  : "Not clocked in"}
+              {isCompleted 
+                ? "Work day completed"
+                : isPaused
+                  ? "Work paused"
+                  : isRunning
+                    ? `Clocked in at ${clockInDisplay}`
+                    : "Not clocked in"}
             </p>
 
             {/* Buttons based on state */}
-            {!isRunning ? (
+            {isCompleted ? (
+              <button
+                disabled
+                className="mt-5 bg-gray-100 text-gray-500 px-8 py-2.5 rounded-xl flex items-center gap-2 text-sm font-medium w-full justify-center transition cursor-not-allowed"
+              >
+                Day Ended
+              </button>
+            ) : !isRunning ? (
               /* NOT CLOCKED IN → Start Work */
               <button
                 onClick={handleStart}

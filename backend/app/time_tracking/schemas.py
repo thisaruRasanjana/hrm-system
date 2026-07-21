@@ -46,6 +46,7 @@ class TimeEntryResponse(BaseModel):
 class ClockStatusResponse(BaseModel):
     active: bool
     paused: bool = False                       # True when day is active but no open pair
+    completed: bool = False                    # True when the work day has ended
     clock_in: Optional[datetime] = None        # UTC timestamp of the current open pair's check-in
     elapsed_seconds: int = 0                   # accumulated worked seconds from completed pairs
     entry_id: Optional[int] = None
@@ -57,7 +58,6 @@ class WeeklyStatsResponse(BaseModel):
     total_hours: float
     regular_hours: float                       # total - overtime
     overtime_hours: float
-    avg_clock_in: Optional[str] = None         # e.g. "08:54 AM"
     overtime_threshold: float = 8.0            # current effective threshold
     entries: List[DayEntryResponse] = []       # day-grouped
 

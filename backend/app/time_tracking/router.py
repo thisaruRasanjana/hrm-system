@@ -398,7 +398,16 @@ def get_current_session(
     """
     entry = _today_entry(db, current_user.id)
     if not entry:
-        return {"active": False, "paused": False, "elapsed_seconds": 0}
+        completed_today = (
+            db.query(TimeEntry)
+            .filter(
+                TimeEntry.user_id == current_user.id,
+                TimeEntry.date == datetime.utcnow().date(),
+                TimeEntry.status == "completed",
+            )
+            .first()
+        )
+        return {"active": False, "paused": False, "completed": bool(completed_today), "elapsed_seconds": 0}
 
     today = entry.date or datetime.utcnow().date()
     accumulated = _accumulated_seconds(db, current_user.id, today)
@@ -467,7 +476,7 @@ def get_weekly_stats(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Aggregated weekly stats: total_hours, regular_hours, overtime_hours, avg_clock_in.
+    Aggregated weekly stats: total_hours, regular_hours, overtime_hours.
     Now uses per-day totals and the configurable overtime threshold.
     """
     monday, sunday = _week_bounds(week)
@@ -511,33 +520,6 @@ def get_weekly_stats(
             ot_sum = round(ot_sum + live_ot, 2)
             regular = round(max(0.0, total - ot_sum), 2)
 
-    # Average clock-in time — use the earliest check_in from TimeCheckPair per day
-    avg_clock_in = None
-    from sqlalchemy import func as sa_func
-    first_checkins = (
-        db.query(
-            TimeCheckPair.date,
-            sa_func.min(TimeCheckPair.check_in).label("first_check_in"),
-        )
-        .filter(
-            TimeCheckPair.user_id == current_user.id,
-            TimeCheckPair.date >= monday.date(),
-            TimeCheckPair.date <= sunday.date(),
-        )
-        .group_by(TimeCheckPair.date)
-        .all()
-    )
-    if first_checkins:
-        total_mins = sum(fc.first_check_in.hour * 60 + fc.first_check_in.minute for fc in first_checkins)
-        avg_mins = total_mins // len(first_checkins)
-        h24 = avg_mins // 60
-        m = avg_mins % 60
-        period = "AM" if h24 < 12 else "PM"
-        h12 = h24 % 12
-        if h12 == 0:
-            h12 = 12
-        avg_clock_in = f"{h12}:{m:02d} {period}"
-
     current_threshold = _get_current_threshold(db)
 
     # Build day-grouped response
@@ -549,7 +531,6 @@ def get_weekly_stats(
         "total_hours": total,
         "regular_hours": regular,
         "overtime_hours": ot_sum,
-        "avg_clock_in": avg_clock_in,
         "overtime_threshold": current_threshold,
         "entries": day_responses,
     }

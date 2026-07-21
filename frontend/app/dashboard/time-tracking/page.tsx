@@ -33,7 +33,6 @@ interface WeeklyStats {
   total_hours: number;
   regular_hours: number;
   overtime_hours: number;
-  avg_clock_in: string | null;
   overtime_threshold: number;
   entries: DayEntry[];
 }
@@ -87,6 +86,7 @@ export default function TimeTrackingPage() {
   // Timer state (3-state: not clocked in / working / paused)
   const [isRunning, setIsRunning] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
+  const [isCompleted, setIsCompleted] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [accumulatedSecs, setAccumulatedSecs] = useState(0);
   const [clockInTime, setClockInTime] = useState<Date | null>(null);
@@ -150,6 +150,8 @@ export default function TimeTrackingPage() {
               setIsPaused(false);
               startTick(clockIn, accumulated);
             }
+          } else if (data.completed) {
+            setIsCompleted(true);
           }
         }
       } catch (e) { console.error(e); }
@@ -259,6 +261,7 @@ export default function TimeTrackingPage() {
         setElapsed(0);
         setAccumulatedSecs(0);
         setClockInTime(null);
+        setIsCompleted(true);
         fetchStats();
       } else {
         const err = await res.json();
@@ -309,13 +312,16 @@ export default function TimeTrackingPage() {
   const entries = stats?.entries ?? [];
 
   // Banner colors based on state
-  const bannerBg = isPaused ? "bg-amber-500" : "bg-[#F2924E]";
-  const bannerTitle = isPaused ? "Work Paused" : isRunning ? "Currently Working" : "Ready to Start";
-  const bannerSub = isPaused
-    ? "Click 'Resume Work' to continue your session"
-    : isRunning
-      ? `Clocked in at ${clockInDisplay}`
-      : "Click 'Start Work' to begin your session";
+  const bannerBg = isCompleted ? "bg-gray-500" : isPaused ? "bg-amber-500" : "bg-[#F2924E]";
+  const bannerIcon = isCompleted ? <CheckCircle2 size={48} className="text-white opacity-90" /> : isPaused ? <Pause size={48} className="text-amber-100 opacity-90" /> : <Play size={48} className="text-white opacity-90" />;
+  const bannerTitle = isCompleted ? "Day Ended" : isPaused ? "Work Paused" : isRunning ? "Currently Clocked In" : "Ready to Start?";
+  const bannerSub = isCompleted
+    ? "Your work day has been completed."
+    : isPaused
+      ? "Take your time. Click resume when you're back."
+      : isRunning
+        ? `You started working at ${clockInDisplay}`
+        : "Start your timer when you're ready to begin.";
 
   return (
     <div className="flex flex-col gap-6">
@@ -358,7 +364,14 @@ export default function TimeTrackingPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          {!isRunning ? (
+          {isCompleted ? (
+            <button
+              disabled
+              className="bg-white/50 text-white transition px-6 py-3 rounded-xl flex items-center gap-2 font-semibold text-sm shadow cursor-not-allowed border border-white/20"
+            >
+              <CheckCircle2 size={16} /> Day Ended
+            </button>
+          ) : !isRunning ? (
             /* NOT CLOCKED IN → Start */
             <button
               onClick={handleStart}
@@ -409,13 +422,13 @@ export default function TimeTrackingPage() {
 
       {/* Stats row */}
       {statsLoading ? (
-        <div className="grid grid-cols-4 gap-5">
-          {Array.from({ length: 4 }).map((_, i) => (
+        <div className="grid grid-cols-3 gap-5">
+          {Array.from({ length: 3 }).map((_, i) => (
             <div key={i} className="bg-white border border-gray-200 rounded-2xl p-5 animate-pulse h-28" />
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-4 gap-5">
+        <div className="grid grid-cols-3 gap-5">
           {[
             {
               label: "Total Hours",
@@ -441,14 +454,6 @@ export default function TimeTrackingPage() {
               iconColor: "text-orange-500",
               bg: "bg-orange-50",
               hasGear: true,
-            },
-            {
-              label: "Avg Check-In",
-              value: stats?.avg_clock_in ?? "—",
-              sub: "This week",
-              Icon: CalendarDays,
-              iconColor: "text-purple-500",
-              bg: "bg-purple-50",
             },
           ].map(({ label, value, sub, Icon, iconColor, bg, hasGear }) => (
             <div key={label} className="bg-white border border-gray-200 rounded-2xl p-5 relative">
