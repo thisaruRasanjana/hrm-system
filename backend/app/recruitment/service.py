@@ -950,8 +950,10 @@ def create_evaluation(db: Session, application_id: int, data: schemas.Evaluation
     # Advance application status based on the round number (spec §4 status progression)
     if data.round_number == 1:
         application.status = STATUS_FIRST_ROUND
-    else:
+    elif data.round_number == 2:
         application.status = STATUS_SECOND_ROUND
+    else:
+        application.status = f"Interview Round {data.round_number}"
 
     try:
         db.commit()

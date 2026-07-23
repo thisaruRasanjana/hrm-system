@@ -88,8 +88,14 @@ function StatusBadge({ status }: { status: string }) {
     [CANDIDATE_STATUS.JOB_OFFERED]: "bg-green-100 text-green-700",
     [CANDIDATE_STATUS.REJECTED]: "bg-red-100 text-red-600",
   };
+
+  let style = map[status];
+  if (!style && status.startsWith("Interview Round")) {
+    style = "bg-purple-100 text-purple-600";
+  }
+
   return (
-    <span className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap ${map[status] ?? "bg-gray-100 text-gray-500"}`}>
+    <span className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap ${style ?? "bg-gray-100 text-gray-500"}`}>
       {status}
     </span>
   );
@@ -321,6 +327,10 @@ export default function VacancyDetailPage() {
                   <option>Called</option>
                   <option>First Round</option>
                   <option>Second Round</option>
+                  {/* Dynamically add any higher rounds present in the data */}
+                  {Array.from(new Set(candidates.map(c => c.status)))
+                    .filter(s => s && s.startsWith("Interview Round"))
+                    .map(s => <option key={s}>{s}</option>)}
                   <option>Job Offered</option>
                   <option>Rejected</option>
                 </FilterSelect>

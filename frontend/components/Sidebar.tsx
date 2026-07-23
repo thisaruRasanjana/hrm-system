@@ -35,13 +35,15 @@ export default function Sidebar() {
   return (
     <aside className="w-56 shrink-0 bg-[#F5F5F5] border-r border-gray-200 flex flex-col h-full">
       {/* Logo */}
-      <div className="flex items-center gap-3 px-5 py-5">
-        <div className="w-10 h-10 bg-orange-400 rounded-lg flex items-center justify-center text-white font-bold text-sm tracking-wide select-none">
-          HR
+      <div className="flex items-center gap-3 px-5 py-5 mb-2">
+        <div className="w-10 h-10 bg-gradient-to-br from-[#F2924E] to-[#E37A32] text-white flex items-center justify-center rounded-xl shadow-sm border border-[#F2924E]/50">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M15 6v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3"/>
+          </svg>
         </div>
-        <div>
-          <div className="text-gray-900 font-bold text-base leading-tight">HRMS</div>
-          <div className="text-gray-400 text-xs">Management System</div>
+        <div className="flex flex-col">
+          <h2 className="font-bold text-[19px] text-gray-900 tracking-tight leading-none">CoreHR</h2>
+          <p className="text-[10px] text-[#F2924E] font-bold tracking-[0.15em] uppercase mt-1">Workspace</p>
         </div>
       </div>
 
