@@ -14,7 +14,7 @@ class Notification(Base):
     created_at = Column(DateTime, default=func.now())
 
     # ── Added for notification system ──────────────────────────────────────
-    category = Column(String, nullable=True)        # leave, document, recruitment, announcement, holiday, events, attendance, security, system
+    category = Column(String, nullable=True)        # leave, document, recruitment, announcement, holiday, events, celebration, security, system
     entity_type = Column(String, nullable=True)     # e.g. "leave_request", "document", "vacancy"
     entity_id = Column(String, nullable=True)       # ID of the related entity (string for UUID compat)
 

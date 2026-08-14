@@ -56,7 +56,6 @@ def send_otp_email(to_email: str, otp: str):
 # Shown as the email subject prefix so notification mail is filterable.
 _CATEGORY_SUBJECTS = {
     "leave": "Leave Update",
-    "attendance": "Attendance Reminder",
     "recruitment": "Recruitment Update",
     "announcement": "Company Announcement",
     "events": "Event Update",

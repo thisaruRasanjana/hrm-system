@@ -44,7 +44,6 @@ const Toggle = ({
 
 const NOTIFICATION_CATEGORIES = [
   { id: "leave", title: "Leave Request Updates", desc: "Notifications about your leave request status" },
-  { id: "attendance", title: "Attendance Reminders", desc: "Clock-in/out and timesheet reminders" },
   { id: "recruitment", title: "Recruitment Updates", desc: "Applicants, interviews and panel assignments" },
   { id: "announcement", title: "Company Announcements", desc: "Important company-wide announcements" },
   { id: "events", title: "Event Updates", desc: "New, updated and cancelled events, plus day-before reminders" },
