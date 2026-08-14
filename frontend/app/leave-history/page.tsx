@@ -9,6 +9,7 @@ import LeaveTypeBadge from '@/components/LeaveTypeBadge';
 import ConfirmDeleteModal from '@/components/ConfirmDeleteModal';
 import { Search, Pencil, Trash2, Stethoscope, XCircle } from "lucide-react";
 import { apiFetch } from '@/lib/api';
+import { useDialog } from '@/context/dialog-context';
 import toast from 'react-hot-toast';
 
 interface LeaveType {
@@ -67,6 +68,7 @@ const leaveTypeIdMap: Record<string, string> = {
 };
 
 export default function LeaveHistoryPage() {
+  const { showAlert, showPrompt } = useDialog();
   const [searchTerm, setSearchTerm] = useState('');
   const [leaveType, setLeaveType] = useState('All type');
   const [status, setStatus] = useState('All Status');
@@ -154,10 +156,20 @@ export default function LeaveHistoryPage() {
   }, [fetchLeaveHistory]);
 
   const handleCancel = async (requestId: number) => {
-    const reason = window.prompt("Reason for cancellation:");
+    const reason = await showPrompt("Tell us why you're cancelling this leave request.", {
+      title: "Cancel leave request",
+      tone: "warning",
+      placeholder: "Reason for cancellation",
+      required: true,
+      confirmText: "Cancel request",
+      cancelText: "Keep request",
+    });
     if (reason !== null) {
       if (!reason.trim()) {
-        alert("Cancellation reason is required.");
+        await showAlert("Cancellation reason is required.", {
+          title: "Reason required",
+          tone: "warning",
+        });
         return;
       }
       try {
@@ -173,7 +185,9 @@ export default function LeaveHistoryPage() {
         fetchLeaveHistory();
       } catch (err: any) {
         console.error("Error cancelling request", err);
-        alert(err.message || "Could not cancel request. Please try again.");
+        await showAlert(err.message || "Could not cancel request. Please try again.", {
+          title: "Cancellation failed",
+        });
       }
     }
   };

@@ -8,6 +8,7 @@ import EmployeeReportTable from "@/components/reports/EmployeeReportTable";
 import { ReportPeriod } from "./types";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/context/auth-context";
+import { useDialog } from "@/context/dialog-context";
 
 type BackendLeaveRecord = {
   leave_request_id: number;
@@ -53,6 +54,7 @@ const toYMD = (d: Date) => d.toISOString().split("T")[0];
 
 export default function ReportsPage() {
   const { loading: authLoading, hasPermission } = useAuth();
+  const { showAlert } = useDialog();
   const canViewReports = hasPermission("leave:report");
 
   const initialStart = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -211,7 +213,7 @@ export default function ReportsPage() {
       URL.revokeObjectURL(url);
     } catch (err) {
       console.error("Report download error:", err);
-      alert("Failed to download report.");
+      await showAlert("Failed to download report.", { title: "Download failed" });
     }
   };
 

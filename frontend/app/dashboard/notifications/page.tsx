@@ -21,6 +21,7 @@ import {
   X,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { useDialog } from "@/context/dialog-context";
 
 interface Notification {
   id: number;
@@ -88,6 +89,7 @@ function formatTime(dateStr: string): string {
 
 export default function NotificationsPage() {
   const router = useRouter();
+  const { showConfirm } = useDialog();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [counts, setCounts] = useState<FolderCounts>({ inbox: 0, unread: 0, archived: 0, trash: 0 });
   const [loading, setLoading] = useState(true);
@@ -140,7 +142,11 @@ export default function NotificationsPage() {
 
   const handleEmptyTrash = async () => {
     if (busy || !counts.trash) return;
-    if (!confirm("Permanently delete everything in Trash? This cannot be undone.")) return;
+    const ok = await showConfirm("Everything in Trash will be permanently deleted. This cannot be undone.", {
+      title: "Empty Trash?",
+      confirmText: "Delete permanently",
+    });
+    if (!ok) return;
     setBusy(true);
     try {
       await apiFetch("/notifications/trash/empty", { method: "POST" });
@@ -155,7 +161,11 @@ export default function NotificationsPage() {
 
   const handlePurgeSelected = async () => {
     if (!selected.size || busy) return;
-    if (!confirm(`Permanently delete ${selected.size} notification(s)? This cannot be undone.`)) return;
+    const ok = await showConfirm(
+      `${selected.size} notification(s) will be permanently deleted. This cannot be undone.`,
+      { title: "Delete selected notifications?", confirmText: "Delete permanently" }
+    );
+    if (!ok) return;
     await runBulk("purge");
   };
 

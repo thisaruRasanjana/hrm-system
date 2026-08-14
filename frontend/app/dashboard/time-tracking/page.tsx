@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/context/auth-context";
+import { useDialog } from "@/context/dialog-context";
 import { TIME_TRACKING_EDIT_OVERTIME_THRESHOLD } from "@/lib/permissions";
 
 // ── Types ────────────────────────────────────────────────────────────────────────
@@ -82,6 +83,7 @@ function fmtPairDuration(seconds: number | null): string {
 export default function TimeTrackingPage() {
   const router = useRouter();
   const { hasPermission } = useAuth();
+  const { showAlert } = useDialog();
 
   // Timer state (3-state: not clocked in / working / paused)
   const [isRunning, setIsRunning] = useState(false);
@@ -195,7 +197,7 @@ export default function TimeTrackingPage() {
         fetchStats();
       } else {
         const err = await res.json();
-        alert(err.detail || "Failed to start session");
+        await showAlert(err.detail || "Failed to start session", { title: "Couldn't start session" });
       }
     } catch (e) { console.error(e); }
     finally { setBusy(false); }
@@ -218,7 +220,7 @@ export default function TimeTrackingPage() {
         fetchStats();
       } else {
         const err = await res.json();
-        alert(err.detail || "Failed to pause");
+        await showAlert(err.detail || "Failed to pause", { title: "Couldn't pause session" });
       }
     } catch (e) { console.error(e); }
     finally { setBusy(false); }
@@ -242,7 +244,7 @@ export default function TimeTrackingPage() {
         fetchStats();
       } else {
         const err = await res.json();
-        alert(err.detail || "Failed to resume");
+        await showAlert(err.detail || "Failed to resume", { title: "Couldn't resume session" });
       }
     } catch (e) { console.error(e); }
     finally { setBusy(false); }
@@ -265,7 +267,7 @@ export default function TimeTrackingPage() {
         fetchStats();
       } else {
         const err = await res.json();
-        alert(err.detail || "Failed to end session");
+        await showAlert(err.detail || "Failed to end session", { title: "Couldn't end session" });
       }
     } catch (e) { console.error(e); }
     finally { setBusy(false); }
@@ -275,7 +277,10 @@ export default function TimeTrackingPage() {
   const handleSaveThreshold = async () => {
     const val = parseFloat(thresholdValue);
     if (isNaN(val) || val <= 0 || val > 24) {
-      alert("Please enter a valid number between 0 and 24.");
+      await showAlert("Please enter a valid number between 0 and 24.", {
+        title: "Invalid threshold",
+        tone: "warning",
+      });
       return;
     }
     setThresholdSaving(true);
@@ -289,7 +294,7 @@ export default function TimeTrackingPage() {
         fetchStats();
       } else {
         const err = await res.json();
-        alert(err.detail || "Failed to save threshold");
+        await showAlert(err.detail || "Failed to save threshold", { title: "Couldn't save threshold" });
       }
     } catch (e) { console.error(e); }
     finally { setThresholdSaving(false); }

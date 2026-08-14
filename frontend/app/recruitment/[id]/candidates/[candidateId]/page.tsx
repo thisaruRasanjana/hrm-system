@@ -7,6 +7,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { IconChevron } from "@/components/Icons";
 import { useAuth } from "@/context/auth-context";
+import { useDialog } from "@/context/dialog-context";
 
 type Candidate = {
   id: number;
@@ -38,6 +39,7 @@ export default function CandidateProfilePage() {
   const [loading, setLoading] = useState(true);
 
   const { user } = useAuth();
+  const { showAlert } = useDialog();
 
   const [panel, setPanel] = useState<any>(null);
   const [myPanelRole, setMyPanelRole] = useState<"head" | "member" | null>(null);
@@ -193,7 +195,7 @@ export default function CandidateProfilePage() {
 
     if (!res.ok) {
       const err = await res.json().catch(() => null);
-      alert(err?.detail || "Failed to save notes. Please try again.");
+      await showAlert(err?.detail || "Failed to save notes. Please try again.", { title: "Couldn't save notes" });
       return;
     }
 
@@ -214,13 +216,13 @@ export default function CandidateProfilePage() {
       });
       if (!res.ok) {
         const errData = await res.json().catch(() => null);
-        alert(errData?.detail || "Failed to send email");
+        await showAlert(errData?.detail || "Failed to send email", { title: "Couldn't send email" });
       } else {
         setLinkSent(true);
       }
     } catch (err) {
       console.error(err);
-      alert("Could not connect to server.");
+      await showAlert("Could not connect to server.", { title: "Network error" });
     }
     setSendingEmail(false);
   };
@@ -236,20 +238,20 @@ export default function CandidateProfilePage() {
         }
       );
       if (!res.ok) {
-        alert("Failed to save details. Please try again.");
+        await showAlert("Failed to save details. Please try again.", { title: "Couldn't save details" });
         return;
       }
       setCandidate(prev => prev ? { ...prev, full_name: editFullName, phone: editPhone, email: editEmail } : prev);
       setIsEditingDetails(false);
     } catch {
-      alert("Could not connect to server.");
+      await showAlert("Could not connect to server.", { title: "Network error" });
     }
     setSavingDetails(false);
   };
 
   const saveEmail = async () => {
     if (!manualEmail.includes("@")) {
-      alert("Please enter a valid email address.");
+      await showAlert("Please enter a valid email address.", { title: "Invalid email", tone: "warning" });
       return;
     }
     setSavingEmail(true);
@@ -262,13 +264,13 @@ export default function CandidateProfilePage() {
         }
       );
       if (!res.ok) {
-        alert("Failed to save email. Please try again.");
+        await showAlert("Failed to save email. Please try again.", { title: "Couldn't save email" });
         return;
       }
       // Update local candidate state so the send button appears immediately
       setCandidate(prev => prev ? { ...prev, email: manualEmail } : prev);
     } catch {
-      alert("Could not connect to server.");
+      await showAlert("Could not connect to server.", { title: "Network error" });
     }
     setSavingEmail(false);
   };

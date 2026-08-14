@@ -4,11 +4,13 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Clock, Play, StopCircle, Pause, RotateCcw } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { useDialog } from "@/context/dialog-context";
 
 interface Props { permissions: string[] }
 
 export default function TimeTrackingWidget(_: Props) {
   const router = useRouter();
+  const { showAlert } = useDialog();
 
   // State machine: NOT_CLOCKED_IN | WORKING | PAUSED
   const [isRunning, setIsRunning] = useState(false);
@@ -115,7 +117,7 @@ export default function TimeTrackingWidget(_: Props) {
         startTick(clockIn, 0);
       } else {
         const err = await res.json();
-        alert(err.detail || "Failed to start");
+        await showAlert(err.detail || "Failed to start", { title: "Couldn't start work" });
       }
     } catch (e) { console.error(e); }
     finally { setBusy(false); }
@@ -138,7 +140,7 @@ export default function TimeTrackingWidget(_: Props) {
         setIsPaused(true);
       } else {
         const err = await res.json();
-        alert(err.detail || "Failed to pause");
+        await showAlert(err.detail || "Failed to pause", { title: "Couldn't pause work" });
       }
     } catch (e) { console.error(e); }
     finally { setBusy(false); }
@@ -162,7 +164,7 @@ export default function TimeTrackingWidget(_: Props) {
         startTick(clockIn, accumulated);
       } else {
         const err = await res.json();
-        alert(err.detail || "Failed to resume");
+        await showAlert(err.detail || "Failed to resume", { title: "Couldn't resume work" });
       }
     } catch (e) { console.error(e); }
     finally { setBusy(false); }
@@ -186,7 +188,7 @@ export default function TimeTrackingWidget(_: Props) {
         await loadTodayHours();
       } else {
         const err = await res.json();
-        alert(err.detail || "Failed to end");
+        await showAlert(err.detail || "Failed to end", { title: "Couldn't end work" });
       }
     } catch (e) { console.error(e); }
     finally { setBusy(false); }

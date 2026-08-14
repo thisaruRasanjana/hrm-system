@@ -5,6 +5,7 @@ import { Bell, Plus, Pencil, Trash2, X, Check } from "lucide-react";
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import ModalPortal from "@/components/ModalPortal";
+import { useDialog } from "@/context/dialog-context";
 
 interface Announcement {
   id: number;
@@ -18,6 +19,7 @@ interface Props { permissions: string[] }
 export default function AnnouncementsWidget({ permissions }: Props) {
   const router = useRouter();
   const canManage = permissions.includes("widget.announcements.manage");
+  const { showAlert, showConfirm } = useDialog();
 
   const [items, setItems] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,7 +44,11 @@ export default function AnnouncementsWidget({ permissions }: Props) {
   const openEdit = (a: Announcement, e: React.MouseEvent) => { e.stopPropagation(); setEditItem(a); setFormTitle(a.title); setFormContent(a.content); setModalOpen(true); };
   const handleDelete = async (id: number, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm("Delete this announcement?")) return;
+    const ok = await showConfirm("This announcement will be permanently deleted.", {
+      title: "Delete this announcement?",
+      confirmText: "Delete",
+    });
+    if (!ok) return;
     await apiFetch(`/announcements/${id}`, { method: "DELETE" });
     load();
   };
@@ -63,11 +69,11 @@ export default function AnnouncementsWidget({ permissions }: Props) {
         load();
       } else {
         const err = await res.json();
-        alert(err.detail || "Failed to save announcement");
+        await showAlert(err.detail || "Failed to save announcement", { title: "Couldn't save announcement" });
       }
-    } catch (e) { 
+    } catch (e) {
       console.error(e);
-      alert("Network error: Could not connect to the server.");
+      await showAlert("Could not connect to the server.", { title: "Network error" });
     } finally { setSaving(false); }
   };
 

@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import DocumentTabsHR from "@/app/components/DocumentTabsHR";
 import { useAuth } from "@/context/auth-context";
 import { apiFetch, fileUrl } from "@/lib/api";
+import { useDialog } from "@/context/dialog-context";
 
 type Request = {
   id: string;
@@ -19,6 +20,7 @@ type Request = {
 
 export default function HRRequestDocumentPage() {
   const { user } = useAuth();
+  const { showAlert } = useDialog();
   const [documentType, setDocumentType] = useState("");
   const [purpose, setPurpose] = useState("");
   const [requests, setRequests] = useState<Request[]>([]);
@@ -68,7 +70,9 @@ export default function HRRequestDocumentPage() {
       window.URL.revokeObjectURL(url);
     } catch (err) {
       console.error("Download failed", err);
-      alert("Failed to download the document. The file may no longer be available — please contact HR.");
+      await showAlert("The file may no longer be available — please contact HR.", {
+        title: "Download failed",
+      });
     }
   };
 

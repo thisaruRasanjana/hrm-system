@@ -5,6 +5,7 @@ import { CalendarDays, Plus, Pencil, Trash2, X, Check, CalendarPlus } from "luci
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import ModalPortal from "@/components/ModalPortal";
+import { useDialog } from "@/context/dialog-context";
 
 interface Event {
   id: number;
@@ -21,6 +22,7 @@ interface Props { permissions: string[] }
 export default function UpcomingEventsWidget({ permissions }: Props) {
   const router = useRouter();
   const canManage = permissions.includes("widget.upcoming_events.manage");
+  const { showAlert, showConfirm } = useDialog();
 
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
@@ -56,7 +58,11 @@ export default function UpcomingEventsWidget({ permissions }: Props) {
 
   const handleDelete = async (id: number, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm("Delete this event?")) return;
+    const ok = await showConfirm("This event will be permanently deleted.", {
+      title: "Delete this event?",
+      confirmText: "Delete",
+    });
+    if (!ok) return;
     await apiFetch(`/events/${id}`, { method: "DELETE" });
     load();
   };
@@ -80,11 +86,11 @@ export default function UpcomingEventsWidget({ permissions }: Props) {
         load();
       } else {
         const err = await res.json();
-        alert(err.detail || "Failed to save event");
+        await showAlert(err.detail || "Failed to save event", { title: "Couldn't save event" });
       }
     } catch (e) {
       console.error(e);
-      alert("Network error: Could not connect to the server.");
+      await showAlert("Could not connect to the server.", { title: "Network error" });
     } finally { setSaving(false); }
   };
 

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ChevronRight, Bell, Plus, Pencil, Trash2, X, Check, Search } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/context/auth-context";
+import { useDialog } from "@/context/dialog-context";
 
 interface Announcement {
   id: number;
@@ -16,6 +17,7 @@ interface Announcement {
 export default function AnnouncementsPage() {
   const router = useRouter();
   const { user } = useAuth();
+  const { showConfirm } = useDialog();
   const canManage = user?.permissions?.includes("widget.announcements.manage") ?? false;
 
   const [items, setItems] = useState<Announcement[]>([]);
@@ -47,7 +49,11 @@ export default function AnnouncementsPage() {
   const openCreate = () => { setEditItem(null); setFormTitle(""); setFormContent(""); setModalOpen(true); };
   const openEdit = (a: Announcement) => { setEditItem(a); setFormTitle(a.title); setFormContent(a.content); setModalOpen(true); };
   const handleDelete = async (id: number) => {
-    if (!confirm("Delete this announcement?")) return;
+    const ok = await showConfirm("This announcement will be permanently deleted.", {
+      title: "Delete this announcement?",
+      confirmText: "Delete",
+    });
+    if (!ok) return;
     await apiFetch(`/announcements/${id}`, { method: "DELETE" });
     load();
   };

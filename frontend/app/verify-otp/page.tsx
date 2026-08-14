@@ -4,10 +4,12 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import AuthLayout from "@/components/auth/AuthLayout";
 import { api } from "@/lib/api";
+import { useDialog } from "@/context/dialog-context";
 
 export default function VerifyOTP() {
 
   const router = useRouter();
+  const { showAlert } = useDialog();
   const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -17,7 +19,10 @@ export default function VerifyOTP() {
     const email = sessionStorage.getItem("reset_email");
 
     if (!email) {
-      alert("Email missing. Please restart password reset.");
+      await showAlert("Email missing. Please restart password reset.", {
+        title: "Session expired",
+        tone: "warning",
+      });
       router.push("/forgot-password");
       return;
     }
@@ -28,7 +33,7 @@ export default function VerifyOTP() {
       await api.post("/auth/verify-otp", { email, otp });
       router.push("/reset-password");
     } catch (err: any) {
-      alert(err.message || "Invalid OTP");
+      await showAlert(err.message || "Invalid OTP", { title: "Verification failed" });
     }
 
     setLoading(false);

@@ -3,6 +3,7 @@ import { Arimo } from "next/font/google";
 import Sidebar from "@/components/Sidebar";
 import TopBar from "@/components/TopBar";
 import { AuthProvider } from "@/context/auth-context";
+import { DialogProvider } from "@/context/dialog-context";
 import { Toaster } from "react-hot-toast";
 
 const arimo = Arimo({
@@ -24,31 +25,33 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={arimo.className} suppressHydrationWarning>
         <AuthProvider>
-          <div className="flex min-h-screen bg-[#F8F9FA] font-sans">
-            <main className="flex-1 flex flex-col min-w-0 w-full">
-              {children}
-            </main>
-          </div>
-          <Toaster 
-            position="bottom-right"
-            toastOptions={{
-              duration: 3000,
-              style: {
-                background: '#333',
-                color: '#fff',
-              },
-              success: {
+          <DialogProvider>
+            <div className="flex min-h-screen bg-[#F8F9FA] font-sans">
+              <main className="flex-1 flex flex-col min-w-0 w-full">
+                {children}
+              </main>
+            </div>
+            <Toaster
+              position="bottom-right"
+              toastOptions={{
+                duration: 3000,
                 style: {
-                  background: '#059669',
+                  background: '#333',
+                  color: '#fff',
                 },
-              },
-              error: {
-                style: {
-                  background: '#DC2626',
+                success: {
+                  style: {
+                    background: '#059669',
+                  },
                 },
-              }
-            }}
-          />
+                error: {
+                  style: {
+                    background: '#DC2626',
+                  },
+                }
+              }}
+            />
+          </DialogProvider>
         </AuthProvider>
       </body>
     </html>

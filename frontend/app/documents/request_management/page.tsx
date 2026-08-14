@@ -6,6 +6,7 @@ import { Search, Clock, FileText, CheckCircle, XCircle, ArrowLeft, AlertCircle, 
 import GenerateDocumentModal from "../../components/GenerateDocumentModal";
 import RejectRequestModal from "../../components/RejectRequestModal";
 import { apiFetch, fileUrl } from "@/lib/api";
+import { useDialog } from "@/context/dialog-context";
 import { useAuth } from "@/context/auth-context";
 
 type RequestType = {
@@ -25,6 +26,7 @@ type RequestType = {
 
 export default function HRRequestManagementPage() {
   const { user } = useAuth();
+  const { showAlert } = useDialog();
   const [activeTab, setActiveTab] = useState<"ALL" | "NEW" | "IN_PROGRESS" | "COMPLETED">("NEW");
   const [requests, setRequests] = useState<RequestType[]>([]);
   const [loading, setLoading] = useState(true);
@@ -91,7 +93,7 @@ export default function HRRequestManagementPage() {
       await fetchRequests();
     } catch (err) {
       console.error("Failed to assign employee", err);
-      alert("Failed to assign employee to this request.");
+      await showAlert("Failed to assign employee to this request.", { title: "Assignment failed" });
     } finally {
       setAssigning(false);
     }
@@ -125,7 +127,7 @@ export default function HRRequestManagementPage() {
       window.URL.revokeObjectURL(url);
     } catch (err) {
       console.error("Download failed", err);
-      alert("Failed to download document.");
+      await showAlert("Failed to download document.", { title: "Download failed" });
     }
   };
 

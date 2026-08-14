@@ -4,6 +4,7 @@ import { CalendarDays, ChevronLeft, ChevronRight, Plus, Pencil, X, Check, Trash2
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import ModalPortal from "@/components/ModalPortal";
+import { useDialog } from "@/context/dialog-context";
 
 interface Holiday { id: number; name: string; date: string; is_mercantile: boolean }
 interface Event   { id: number; title: string; event_date: string }
@@ -14,6 +15,7 @@ const MONTH_NAMES  = ["January","February","March","April","May","June","July","
 
 export default function CalendarWidget({ permissions }: Props) {
   const canEdit = permissions.includes("widget.calendar.edit");
+  const { showAlert, showConfirm } = useDialog();
 
   const now = new Date();
   const [year,  setYear]  = useState(now.getFullYear());
@@ -100,13 +102,13 @@ export default function CalendarWidget({ permissions }: Props) {
         });
         if (!res.ok) {
           const err = await res.json();
-          alert(`Failed to update: ${err.detail || "Unknown error"}`);
+          await showAlert(err.detail || "Unknown error", { title: "Failed to update holiday" });
         }
       } else {
         const res = await apiFetch("/holidays", { method: "POST", body: JSON.stringify({ name: hName, date: hDate, is_mercantile: hMerc }) });
         if (!res.ok) {
           const err = await res.json();
-          alert(`Failed to save: ${err.detail || "Unknown error"}`);
+          await showAlert(err.detail || "Unknown error", { title: "Failed to save holiday" });
         }
       }
       setModalOpen(false); setEditHoliday(null);
@@ -116,7 +118,11 @@ export default function CalendarWidget({ permissions }: Props) {
 
   const handleDeleteHoliday = async (id: number, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm("Remove this holiday?")) return;
+    const ok = await showConfirm("This holiday will be removed from the calendar.", {
+      title: "Remove this holiday?",
+      confirmText: "Remove",
+    });
+    if (!ok) return;
     await apiFetch(`/holidays/${id}`, { method: "DELETE" });
     load();
   };

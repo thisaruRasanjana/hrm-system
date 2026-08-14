@@ -5,10 +5,12 @@ import { useState } from "react";
 import AuthLayout from "@/components/auth/AuthLayout";
 import { Eye, EyeOff } from "lucide-react";
 import { api } from "@/lib/api";
+import { useDialog } from "@/context/dialog-context";
 
 export default function ResetPassword() {
 
   const router = useRouter();
+  const { showAlert } = useDialog();
 
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -20,7 +22,10 @@ export default function ResetPassword() {
     e.preventDefault();
 
     if (password !== confirm) {
-      alert("Passwords do not match");
+      await showAlert("The two passwords you entered don't match.", {
+        title: "Passwords do not match",
+        tone: "warning",
+      });
       return;
     }
 
@@ -32,7 +37,7 @@ export default function ResetPassword() {
       await api.post("/auth/reset-password", { email, password });
       router.push("/reset-success");
     } catch (err: any) {
-      alert(err.message || "Failed to reset password");
+      await showAlert(err.message || "Failed to reset password", { title: "Couldn't reset password" });
     }
 
     setLoading(false);

@@ -6,6 +6,7 @@ import { useState, useEffect } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/context/auth-context";
+import { useDialog } from "@/context/dialog-context";
 
 type Candidate = {
   id: number;
@@ -47,6 +48,7 @@ export default function EvaluateInterviewPage() {
   const [roundNumber, setRoundNumber] = useState(1);
 
   const { user } = useAuth();
+  const { showAlert } = useDialog();
   const evaluatorName = user ? `${user.first_name} ${user.last_name}` : "Anonymous";
   const [ratings, setRatings] = useState({
     technical_skills: 0,
@@ -65,10 +67,13 @@ export default function EvaluateInterviewPage() {
       apiFetch(`/recruitment/vacancies/${vacancyId}`).then(r => r.json()),
       apiFetch(`/recruitment/vacancies/${vacancyId}/my-panel-role`).then(r => r.json()),
     ])
-    .then(([candData, vacData, roleData]) => {
+    .then(async ([candData, vacData, roleData]) => {
       // Guard: must be on the interview panel
       if (!roleData.role) {
-        alert("Evaluation is restricted to the interview panel members for this vacancy.");
+        await showAlert("Evaluation is restricted to the interview panel members for this vacancy.", {
+          title: "Access restricted",
+          tone: "warning",
+        });
         router.push(`/recruitment/${vacancyId}/candidates/${candidateId}`);
         return Promise.reject("Not on panel");
       }
@@ -91,7 +96,7 @@ export default function EvaluateInterviewPage() {
       console.error(err);
       setLoading(false);
     });
-  }, [candidateId, vacancyId]);
+  }, [candidateId, vacancyId, showAlert]);
 
   const updateRating = (key: keyof typeof ratings, val: number) => {
     setRatings(prev => ({ ...prev, [key]: val }));
@@ -113,7 +118,10 @@ export default function EvaluateInterviewPage() {
     // Validate all 5 criteria are rated (spec §9.2)
     const unrated = Object.entries(ratings).filter(([, val]) => val === 0);
     if (unrated.length > 0) {
-      alert("Please rate all 5 evaluation criteria before saving.");
+      await showAlert("Please rate all 5 evaluation criteria before saving.", {
+        title: "Incomplete evaluation",
+        tone: "warning",
+      });
       return;
     }
 
@@ -135,7 +143,7 @@ export default function EvaluateInterviewPage() {
 
       if (!res.ok) {
         const err = await res.json().catch(() => null);
-        alert(err?.detail || "Failed to save evaluation");
+        await showAlert(err?.detail || "Failed to save evaluation", { title: "Couldn't save evaluation" });
         setSaving(false);
         return;
       }
@@ -143,7 +151,7 @@ export default function EvaluateInterviewPage() {
       router.push(`/recruitment/${vacancyId}/candidates/${candidateId}`);
     } catch (err) {
       console.error(err);
-      alert("Could not connect to server");
+      await showAlert("Could not connect to server.", { title: "Network error" });
       setSaving(false);
     }
   };

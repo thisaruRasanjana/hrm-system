@@ -4,6 +4,7 @@ import React from "react";
 import { Download, Calendar, ChevronDown } from "lucide-react";
 import { EmployeeDetail, ReportPeriod } from "@/app/reports/types";
 import { apiFetch } from "@/lib/api";
+import { useDialog } from "@/context/dialog-context";
 
 interface Props {
   employee: EmployeeDetail;
@@ -16,6 +17,8 @@ export default function EmployeeReportHeader({
   customStart,
   customEnd,
 }: Props) {
+  const { showAlert } = useDialog();
+
   const handleDownload = async () => {
     let today = new Date();
     let startDate = new Date();
@@ -41,7 +44,7 @@ export default function EmployeeReportHeader({
       URL.revokeObjectURL(blobUrl);
     } catch (err) {
       console.error("Report download error:", err);
-      alert("Failed to download report.");
+      await showAlert("Failed to download report.", { title: "Download failed" });
     }
   };
   const getInitials = (name: string) => {

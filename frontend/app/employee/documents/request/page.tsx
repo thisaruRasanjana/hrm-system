@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import DocumentTabsEmployee from "../../../components/DocumentTabsEmployee";
 import { useAuth } from "@/context/auth-context";
 import { apiFetch } from "@/lib/api";
+import { useDialog } from "@/context/dialog-context";
 
 type Request = {
   id: string;
@@ -19,6 +20,7 @@ type Request = {
 
 export default function EmployeeRequestDocumentPage() {
   const { user } = useAuth();
+  const { showAlert } = useDialog();
   const [documentType, setDocumentType] = useState("");
   const [reason, setReason] = useState("");
   const [requests, setRequests] = useState<Request[]>([]);
@@ -95,7 +97,7 @@ export default function EmployeeRequestDocumentPage() {
       window.URL.revokeObjectURL(url);
     } catch (err) {
       console.error("Download failed", err);
-      alert("Failed to download document. Please try again later.");
+      await showAlert("Please try again later.", { title: "Download failed" });
     }
   };
 

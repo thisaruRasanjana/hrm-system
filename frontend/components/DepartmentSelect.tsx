@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Trash2 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/auth-context";
+import { useDialog } from "@/context/dialog-context";
 
 interface Department {
   id: number;
@@ -26,6 +27,7 @@ type Props = {
  * with no employees assigned can be deleted from "Manage".
  */
 export default function DepartmentSelect({ value, onChange, selectClass }: Props) {
+  const { showConfirm } = useDialog();
   const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -86,7 +88,11 @@ export default function DepartmentSelect({ value, onChange, selectClass }: Props
   };
 
   const handleDelete = async (dept: Department) => {
-    if (!confirm(`Delete the "${dept.name}" department?`)) return;
+    const ok = await showConfirm(`The "${dept.name}" department will be permanently deleted.`, {
+      title: "Delete this department?",
+      confirmText: "Delete",
+    });
+    if (!ok) return;
     setDeletingId(dept.id);
     setManageError(null);
     try {

@@ -4,9 +4,11 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import AuthLayout from "@/components/auth/AuthLayout";
 import { api } from "@/lib/api";
+import { useDialog } from "@/context/dialog-context";
 
 export default function ForgotPassword() {
   const router = useRouter();
+  const { showAlert } = useDialog();
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -14,7 +16,7 @@ export default function ForgotPassword() {
     e.preventDefault();
 
     if (!email) {
-      alert("Please enter your email");
+      await showAlert("Please enter your email.", { title: "Email required", tone: "warning" });
       return;
     }
 
@@ -23,10 +25,13 @@ export default function ForgotPassword() {
     try {
       await api.post("/auth/send-otp", { email });
       sessionStorage.setItem("reset_email", email);
-      alert("OTP sent successfully!");
+      await showAlert("Check your inbox for the verification code.", {
+        title: "OTP sent",
+        tone: "success",
+      });
       router.push("/verify-otp");
     } catch (err: any) {
-      alert(err.message || "Failed to send OTP");
+      await showAlert(err.message || "Failed to send OTP", { title: "Couldn't send OTP" });
     }
 
     setLoading(false);

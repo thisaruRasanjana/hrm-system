@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { IconArrowLeft } from "@/components/Icons";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/auth-context";
+import { useDialog } from "@/context/dialog-context";
 import DepartmentSelect from "@/components/DepartmentSelect";
 import DesignationSelect from "@/components/DesignationSelect";
 
@@ -43,6 +44,7 @@ const selectCls = `${inputCls} appearance-none cursor-pointer`;
 export default function EmployeeAddPage() {
   const router = useRouter();
   const { hasPermission, loading: authLoading, user } = useAuth();
+  const { showAlert } = useDialog();
 
   useEffect(() => {
     if (!authLoading && !hasPermission("employee:create")) {
@@ -147,10 +149,13 @@ export default function EmployeeAddPage() {
     init();
   }, [authLoading, user]);
 
-  const handleAutoCalculateProrated = () => {
+  const handleAutoCalculateProrated = async () => {
     const startStr = formData.work.designationStartDate || formData.work.joinedDate;
     if (!startStr) {
-      alert("Please select a Start Date or Joined Date first.");
+      await showAlert("Please select a Start Date or Joined Date first.", {
+        title: "Date required",
+        tone: "warning",
+      });
       return;
     }
     const startMonth = new Date(startStr).getMonth();

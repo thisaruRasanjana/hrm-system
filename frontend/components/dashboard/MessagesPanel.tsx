@@ -5,6 +5,7 @@ import { X, Search, MoreVertical, ArrowLeft, Send, Trash2, CheckSquare, Square, 
 import { formatDistanceToNow } from "date-fns";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/context/auth-context";
+import { useDialog } from "@/context/dialog-context";
 
 const PREVIEW_LEN = 70;
 
@@ -27,6 +28,7 @@ type View = "list" | "read" | "compose" | "sent_success";
 
 export default function MessagesPanel({ isOpen, onClose }: Props) {
   const { hasPermission, user: authUser } = useAuth();
+  const { showAlert, showConfirm } = useDialog();
   const canSend = hasPermission("messaging.send");
   // Use the actual DB flag \u2014 not a role name string match which is fragile
   const isSuperAdmin = authUser?.is_superadmin === true;
@@ -509,7 +511,7 @@ export default function MessagesPanel({ isOpen, onClose }: Props) {
                             setShowGroupInput(false);
                           } else {
                             const err = await res.json();
-                            alert(err.detail || "Failed to create group");
+                            await showAlert(err.detail || "Failed to create group", { title: "Couldn't create group" });
                           }
                         } finally { setAddingGroup(false); }
                       }}
@@ -529,7 +531,11 @@ export default function MessagesPanel({ isOpen, onClose }: Props) {
                         <button
                           type="button"
                           onClick={async () => {
-                            if (!confirm(`Delete group "${g.name}"?`)) return;
+                            const ok = await showConfirm(`The "${g.name}" group will be permanently deleted.`, {
+                              title: "Delete this group?",
+                              confirmText: "Delete",
+                            });
+                            if (!ok) return;
                             await apiFetch(`/messages/groups/${g.id}`, { method: "DELETE" });
                             setCustomGroups(prev => prev.filter(x => x.id !== g.id));
                             if (targetGroup === g.name) setTargetGroup("All Employees");

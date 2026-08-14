@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ChevronRight, CalendarDays, Plus, Pencil, Trash2, X, Check, Search, CalendarPlus, MapPin, Clock } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/context/auth-context";
+import { useDialog } from "@/context/dialog-context";
 
 interface Event {
   id: number;
@@ -21,6 +22,7 @@ type Filter = "upcoming" | "all";
 export default function EventsPage() {
   const router = useRouter();
   const { user } = useAuth();
+  const { showConfirm } = useDialog();
   const canManage = user?.permissions?.includes("widget.upcoming_events.manage") ?? false;
 
   const [events, setEvents] = useState<Event[]>([]);
@@ -57,7 +59,11 @@ export default function EventsPage() {
   const openCreate = () => { setEditItem(null); setFormTitle(""); setFormDesc(""); setFormDate(""); setFormLocation(""); setModalOpen(true); };
   const openEdit = (ev: Event) => { setEditItem(ev); setFormTitle(ev.title); setFormDesc(ev.description || ""); setFormDate(ev.event_date.slice(0, 16)); setFormLocation(ev.location || ""); setModalOpen(true); };
   const handleDelete = async (id: number) => {
-    if (!confirm("Delete this event?")) return;
+    const ok = await showConfirm("This event will be permanently deleted.", {
+      title: "Delete this event?",
+      confirmText: "Delete",
+    });
+    if (!ok) return;
     await apiFetch(`/events/${id}`, { method: "DELETE" });
     load();
   };

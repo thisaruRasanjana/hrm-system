@@ -6,6 +6,7 @@ import LeaveTabs from '@/components/LeaveTabs';
 import AddLeaveTypeModal from '@/components/AddLeaveTypeModal';
 import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/context/auth-context';
+import { useDialog } from '@/context/dialog-context';
 
 type Role = { id: number; name: string };
 type LeaveTypeInfo = { id: number; name: string; default_days: number | null };
@@ -71,6 +72,7 @@ function getAvatarColor(id: number) {
 
 export default function LeaveSettingsPage() {
   const { loading: authLoading, hasPermission } = useAuth();
+  const { showConfirm } = useDialog();
   const canManage = hasPermission('leave:type_manage');
 
   const [activeTab, setActiveTab] = useState<'role' | 'employee'>('role');
@@ -117,7 +119,11 @@ export default function LeaveSettingsPage() {
   };
 
   const handleDeleteLeaveType = async (id: number, name: string) => {
-    if (!window.confirm(`Are you sure you want to delete the "${name}" leave type?`)) return;
+    const ok = await showConfirm(`The "${name}" leave type will be permanently deleted.`, {
+      title: "Delete this leave type?",
+      confirmText: "Delete",
+    });
+    if (!ok) return;
     setLoading(true);
     try {
       const res = await apiFetch(`/leave/types/${id}`, { method: 'DELETE' });
