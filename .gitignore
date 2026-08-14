@@ -39,6 +39,20 @@ backend/test.docx
 backend/ts_errors.txt
 frontend/ts_errors.txt
 
+# Captured server stdout/stderr — these have leaked DB credentials before
+backend/se*.txt
+backend/so*.txt
+backend/start_err.txt
+backend/start_out.txt
+backend/startup_err.txt
+backend/startup_out.txt
+
+# Test/tooling caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.pyc
+
 # Backup files
 *.bak
 package-lock.json.bak
