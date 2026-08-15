@@ -117,6 +117,84 @@ def _finalize_day(db: Session, entry: TimeEntry, now: datetime) -> None:
     entry.status = "completed"
 
 
+def _end_of_day(day: date_type) -> datetime:
+    """Last instant of the given calendar day (naive UTC).
+
+    Used to cap an abandoned session at the day it belongs to, so a day the
+    employee forgot to end does not run on into the following days.
+    """
+    return datetime.combine(day, datetime.max.time())
+
+
+def _finalize_stale_day(db: Session, entry: TimeEntry) -> None:
+    """Auto-finalize a PAST day's session that was never ended.
+
+    Unlike ``_finalize_day`` (which closes at ``now``), the work here is capped
+    at the entry's OWN day's midnight. An employee who forgot to click "End Work"
+    gets that day's real sessions saved as a completed record — instead of the
+    session being discarded (the old 1-second close) or appearing to run for many
+    hours across the following days.
+    """
+    day = entry.date or (entry.start_time.date() if entry.start_time else None)
+    if day is None:
+        return
+
+    cutoff = _end_of_day(day)
+
+    # Close the still-open pair for that day at the day's end. Guard against a
+    # check_in after the cutoff (would otherwise yield negative seconds).
+    open_pair = (
+        db.query(TimeCheckPair)
+        .filter(
+            TimeCheckPair.user_id == entry.user_id,
+            TimeCheckPair.date == day,
+            TimeCheckPair.check_out.is_(None),
+        )
+        .first()
+    )
+    if open_pair:
+        end_at = cutoff if cutoff > open_pair.check_in else open_pair.check_in
+        _close_pair(open_pair, end_at)
+        db.flush()
+
+    total_secs = _accumulated_seconds(db, entry.user_id, day)
+    total_hours = round(total_secs / 3600, 4)
+    threshold = _get_threshold_for_date(db, day)
+
+    entry.end_time = cutoff
+    entry.total_seconds = total_secs
+    entry.total_hours = total_hours
+    entry.overtime = round(max(0.0, total_hours - threshold), 4)
+    entry.applied_threshold = Decimal(str(threshold))
+    entry.status = "completed"
+
+
+def _auto_finalize_stale_days(db: Session, user_id: int, now: datetime) -> bool:
+    """End any unfinished work days that started before today.
+
+    Called whenever the user reads or starts a session, so a day left open (no
+    "End Work" click before midnight) is automatically closed and saved, and the
+    next day can start cleanly. Returns True if at least one stale day was
+    finalized, so read handlers know to commit.
+    """
+    today = now.date()
+    stale = (
+        db.query(TimeEntry)
+        .filter(
+            TimeEntry.user_id == user_id,
+            TimeEntry.status.in_(["active", "paused"]),
+            TimeEntry.date < today,
+        )
+        .all()
+    )
+    if not stale:
+        return False
+    for entry in stale:
+        _finalize_stale_day(db, entry)
+    db.flush()
+    return True
+
+
 def _week_bounds(offset: int = 0):
     """Monday 00:00 → Sunday 23:59:59 for the given week offset (0=current)."""
     now = datetime.now(timezone.utc).replace(tzinfo=None)
@@ -225,15 +303,15 @@ def clock_in(
             detail="Already clocked in today. Your work day has already ended."
         )
 
-    # Also check for any open pair from a previous day (safety guard)
-    stale_pair = _open_pair(db, current_user.id)
-    if stale_pair:
-        # Auto-close the stale pair
-        _close_pair(stale_pair, stale_pair.check_in + timedelta(seconds=1))
-        db.flush()
-
     now = datetime.utcnow()
     today = now.date()
+
+    # If the user started a previous day but never clicked "End Work", auto-end
+    # that day now — its work is capped at that day's midnight and saved as a
+    # completed record — before opening today's fresh session. This is what lets
+    # a forgotten day be preserved instead of ticking across midnight (e.g. 26h)
+    # or being silently discarded.
+    _auto_finalize_stale_days(db, current_user.id, now)
 
     # Create day-level entry
     entry = TimeEntry(
@@ -396,6 +474,11 @@ def get_current_session(
     - active=True, paused=True → paused (clock_in = None, elapsed_seconds = accumulated)
     Frontend always calls this on mount — NEVER use localStorage as source of truth.
     """
+    # Self-heal: close out any day the user forgot to end before today, so the
+    # timer never reports a session that has been ticking across midnight.
+    if _auto_finalize_stale_days(db, current_user.id, datetime.utcnow()):
+        db.commit()
+
     entry = _today_entry(db, current_user.id)
     if not entry:
         completed_today = (
@@ -443,6 +526,9 @@ def get_history(
     Returns day-grouped entries for the logged-in user, ordered newest first.
     Each day is a single row with nested check-in/check-out pairs.
     """
+    if _auto_finalize_stale_days(db, current_user.id, datetime.utcnow()):
+        db.commit()
+
     monday, sunday = _week_bounds(week)
     entries = (
         db.query(TimeEntry)
@@ -479,6 +565,9 @@ def get_weekly_stats(
     Aggregated weekly stats: total_hours, regular_hours, overtime_hours.
     Now uses per-day totals and the configurable overtime threshold.
     """
+    if _auto_finalize_stale_days(db, current_user.id, datetime.utcnow()):
+        db.commit()
+
     monday, sunday = _week_bounds(week)
     all_entries = (
         db.query(TimeEntry)
