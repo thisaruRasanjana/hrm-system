@@ -4,6 +4,7 @@ from sqlalchemy import desc
 from typing import List, Optional
 from datetime import datetime, timezone, timedelta, date as date_type
 from decimal import Decimal
+import os
 
 from app.database.database import get_db
 from app.core.deps import get_current_user, require_permission
@@ -22,6 +23,22 @@ from app.time_tracking.schemas import (
 router = APIRouter()
 
 DEFAULT_THRESHOLD = 8.0  # fallback if no threshold row exists
+
+# ── Local timezone for day boundaries ──────────────────────────────────────────
+# Time-tracking "days" roll over at LOCAL midnight, not UTC midnight. Sri Lanka is
+# a fixed UTC+5:30 (no DST); override with APP_TZ_OFFSET_MINUTES for other regions.
+_APP_TZ_OFFSET_MINUTES = int(os.getenv("APP_TZ_OFFSET_MINUTES", "330"))
+APP_TZ = timezone(timedelta(minutes=_APP_TZ_OFFSET_MINUTES))
+
+
+def _now() -> datetime:
+    """Current wall-clock time in the app's local timezone, as a naive datetime.
+
+    Every "which day is it / when does today end" decision in this module uses
+    this (NOT _now()), so a work day ends at LOCAL midnight. Stored
+    timestamps are naive local too, matching how the frontend renders them.
+    """
+    return datetime.now(APP_TZ).replace(tzinfo=None)
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────────
@@ -49,7 +66,7 @@ def _get_current_threshold(db: Session) -> float:
 
 def _today_entry(db: Session, user_id: int) -> Optional[TimeEntry]:
     """Returns today's TimeEntry for this user (if any)."""
-    today = datetime.utcnow().date()
+    today = _now().date()
     return (
         db.query(TimeEntry)
         .filter(
@@ -118,10 +135,10 @@ def _finalize_day(db: Session, entry: TimeEntry, now: datetime) -> None:
 
 
 def _end_of_day(day: date_type) -> datetime:
-    """Last instant of the given calendar day (naive UTC).
+    """Last instant of the given calendar day (naive LOCAL time).
 
-    Used to cap an abandoned session at the day it belongs to, so a day the
-    employee forgot to end does not run on into the following days.
+    Used to cap a session at the local midnight of the day it belongs to, so a
+    day the employee forgot to end does not run on into the following days.
     """
     return datetime.combine(day, datetime.max.time())
 
@@ -169,15 +186,93 @@ def _finalize_stale_day(db: Session, entry: TimeEntry) -> None:
     entry.status = "completed"
 
 
-def _auto_finalize_stale_days(db: Session, user_id: int, now: datetime) -> bool:
-    """End any unfinished work days that started before today.
+def _format_hm(hours: Optional[float]) -> str:
+    """Format decimal hours as 'Xh Ym' (e.g. 6.5 -> '6h 30m')."""
+    total_min = int(round((hours or 0.0) * 60))
+    return f"{total_min // 60}h {total_min % 60}m"
 
-    Called whenever the user reads or starts a session, so a day left open (no
-    "End Work" click before midnight) is automatically closed and saved, and the
-    next day can start cleanly. Returns True if at least one stale day was
-    finalized, so read handlers know to commit.
+
+def _day_label(day) -> str:
+    """Human date label like 'Sat, Aug 15' (no zero-padded day)."""
+    return f"{day.strftime('%a, %b')} {day.day}"
+
+
+def _notify_rollover(db: Session, user_id: int, ended: list, started_date) -> None:
+    """Notify the user about the midnight rollover.
+
+    When work continued across midnight (a new day was auto-started), a SINGLE
+    notification is sent about the new day, with a short note that the previous
+    day was ended at midnight — that one message covers both halves.
+
+    When only an auto-end happened (no continuation — e.g. a multi-day gap or a
+    day left paused), a single plain note is sent so the closed day isn't a
+    silent surprise.
+
+    Best-effort only: notification problems must never break the rollover.
+    ``notify_user`` already never raises, and the import is guarded too.
+    """
+    try:
+        from app.notifications.service import notify_user
+    except Exception:
+        return
+
+    link = "/dashboard/time-tracking"
+
+    if started_date is not None:
+        # ended[-1] is the day that crossed midnight (yesterday).
+        note = ""
+        if ended:
+            note = f" (your previous day, {_day_label(ended[-1][1])}, was ended and saved at midnight)"
+        notify_user(
+            db, user_id,
+            f"A new work session for {_day_label(started_date)} started "
+            f"automatically at 12:00 AM{note}. You can pause, resume, or end it "
+            f"anytime.",
+            category="attendance", type="info", link=link,
+            entity_type="time_entry", entity_id=f"autostart-{started_date.isoformat()}",
+        )
+        return
+
+    # No continuation — just let them know the open day was closed.
+    for entry_id, day, hours in ended:
+        notify_user(
+            db, user_id,
+            f"Your work day for {_day_label(day)} was automatically ended and "
+            f"saved at midnight ({_format_hm(hours)}) because it was left open.",
+            category="attendance", type="info", link=link,
+            entity_type="time_entry", entity_id=str(entry_id),
+        )
+
+
+def _auto_finalize_stale_days(db: Session, user_id: int, now: datetime) -> bool:
+    """Close unfinished prior days at local midnight, and continue an active
+    session into today if it crossed midnight.
+
+    Called whenever the user reads or starts a session (so the rollover happens
+    lazily on the first request after midnight, but is always recorded AT
+    midnight):
+
+    - Every unfinished prior day (active/paused) is closed at ITS OWN local
+      midnight and marked completed, preserving that day's sessions.
+    - If the user was still actively working when the clock passed into today
+      (the most recent unfinished day is *yesterday* and was 'active'), a new
+      session is auto-started for today from 00:00 so tracking continues without
+      a gap — the new day's timer then reads "time since midnight".
+    - The user is notified of the auto-end (and auto-start, if any).
+
+    The continuation is deliberately limited to a single-night crossover
+    (yesterday → today). A gap of two or more days is treated as "forgot to end",
+    so the old day is just closed and the user starts today's session manually —
+    the system never fabricates full 24h days for periods of absence.
+
+    Returns True if anything changed, so read handlers know to commit.
     """
     today = now.date()
+    # SELECT ... FOR UPDATE serialises the requests the dashboard fires together
+    # on mount (/current, /history, /weekly-stats). The first to run locks and
+    # finalises these rows; the others then re-evaluate the filter, see them as
+    # 'completed', and get an empty result — so a day is never rolled over, or
+    # notified, twice.
     stale = (
         db.query(TimeEntry)
         .filter(
@@ -185,19 +280,57 @@ def _auto_finalize_stale_days(db: Session, user_id: int, now: datetime) -> bool:
             TimeEntry.status.in_(["active", "paused"]),
             TimeEntry.date < today,
         )
+        .order_by(TimeEntry.date.asc())
+        .with_for_update()
         .all()
     )
     if not stale:
         return False
+
+    latest = stale[-1]
+    # Continue only a genuine single-night crossover: the latest unfinished day
+    # is yesterday AND the user was actively working (open pair) at midnight.
+    continue_active = (
+        latest.status == "active"
+        and latest.date == today - timedelta(days=1)
+    )
+    carry_employee_id = latest.employee_id
+
+    ended = []
     for entry in stale:
         _finalize_stale_day(db, entry)
+        ended.append((entry.id, entry.date, float(entry.total_hours or 0.0)))
     db.flush()
+
+    started_date = None
+    if continue_active:
+        already_today = (
+            db.query(TimeEntry)
+            .filter(TimeEntry.user_id == user_id, TimeEntry.date == today)
+            .first()
+        )
+        if not already_today:
+            midnight = datetime.combine(today, datetime.min.time())  # today 00:00:00 local
+            new_entry = TimeEntry(
+                user_id=user_id,
+                employee_id=carry_employee_id,
+                start_time=midnight,
+                date=today,
+                status="active",
+            )
+            db.add(new_entry)
+            db.flush()
+            db.add(TimeCheckPair(user_id=user_id, date=today, check_in=midnight))
+            db.flush()
+            started_date = today
+
+    _notify_rollover(db, user_id, ended, started_date)
     return True
 
 
 def _week_bounds(offset: int = 0):
     """Monday 00:00 → Sunday 23:59:59 for the given week offset (0=current)."""
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    now = _now()
     monday = now - timedelta(days=now.weekday()) + timedelta(weeks=offset)
     monday = monday.replace(hour=0, minute=0, second=0, microsecond=0)
     sunday = monday + timedelta(days=6, hours=23, minutes=59, seconds=59)
@@ -278,6 +411,19 @@ def clock_in(
     Creates or reuses today's TimeEntry and opens a new check pair.
     Returns 400 if user already has an active/paused session today.
     """
+    now = _now()
+    today = now.date()
+
+    # First roll over any unfinished prior day: if the user was still actively
+    # working when the clock passed local midnight, that day is closed at its own
+    # midnight AND today's session is auto-started from 00:00. So this click may
+    # find that today's session is already running. Commit here so the rollover
+    # and its notifications persist even if the "already clocked in" path returns.
+    if _auto_finalize_stale_days(db, current_user.id, now):
+        db.commit()
+
+    # Re-check AFTER the rollover — the continuation above may already have
+    # started today's session.
     existing = _today_entry(db, current_user.id)
     if existing:
         raise HTTPException(
@@ -292,7 +438,7 @@ def clock_in(
         db.query(TimeEntry)
         .filter(
             TimeEntry.user_id == current_user.id,
-            TimeEntry.date == datetime.utcnow().date(),
+            TimeEntry.date == today,
             TimeEntry.status == "completed",
         )
         .first()
@@ -302,16 +448,6 @@ def clock_in(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Already clocked in today. Your work day has already ended."
         )
-
-    now = datetime.utcnow()
-    today = now.date()
-
-    # If the user started a previous day but never clicked "End Work", auto-end
-    # that day now — its work is capped at that day's midnight and saved as a
-    # completed record — before opening today's fresh session. This is what lets
-    # a forgotten day be preserved instead of ticking across midnight (e.g. 26h)
-    # or being silently discarded.
-    _auto_finalize_stale_days(db, current_user.id, now)
 
     # Create day-level entry
     entry = TimeEntry(
@@ -374,7 +510,7 @@ def pause_work(
             detail="No open check pair found to pause."
         )
 
-    now = datetime.utcnow()
+    now = _now()
     _close_pair(pair, now)
     entry.status = "paused"
     db.commit()
@@ -412,7 +548,7 @@ def resume_work(
             detail="Session is not paused. Cannot resume."
         )
 
-    now = datetime.utcnow()
+    now = _now()
     today = now.date()
 
     pair = TimeCheckPair(
@@ -453,7 +589,7 @@ def clock_out(
             detail="No active session found."
         )
 
-    now = datetime.utcnow()
+    now = _now()
     _finalize_day(db, entry, now)
     db.commit()
     db.refresh(entry)
@@ -476,7 +612,7 @@ def get_current_session(
     """
     # Self-heal: close out any day the user forgot to end before today, so the
     # timer never reports a session that has been ticking across midnight.
-    if _auto_finalize_stale_days(db, current_user.id, datetime.utcnow()):
+    if _auto_finalize_stale_days(db, current_user.id, _now()):
         db.commit()
 
     entry = _today_entry(db, current_user.id)
@@ -485,14 +621,14 @@ def get_current_session(
             db.query(TimeEntry)
             .filter(
                 TimeEntry.user_id == current_user.id,
-                TimeEntry.date == datetime.utcnow().date(),
+                TimeEntry.date == _now().date(),
                 TimeEntry.status == "completed",
             )
             .first()
         )
         return {"active": False, "paused": False, "completed": bool(completed_today), "elapsed_seconds": 0}
 
-    today = entry.date or datetime.utcnow().date()
+    today = entry.date or _now().date()
     accumulated = _accumulated_seconds(db, current_user.id, today)
 
     if entry.status == "paused":
@@ -526,7 +662,7 @@ def get_history(
     Returns day-grouped entries for the logged-in user, ordered newest first.
     Each day is a single row with nested check-in/check-out pairs.
     """
-    if _auto_finalize_stale_days(db, current_user.id, datetime.utcnow()):
+    if _auto_finalize_stale_days(db, current_user.id, _now()):
         db.commit()
 
     monday, sunday = _week_bounds(week)
@@ -565,7 +701,7 @@ def get_weekly_stats(
     Aggregated weekly stats: total_hours, regular_hours, overtime_hours.
     Now uses per-day totals and the configurable overtime threshold.
     """
-    if _auto_finalize_stale_days(db, current_user.id, datetime.utcnow()):
+    if _auto_finalize_stale_days(db, current_user.id, _now()):
         db.commit()
 
     monday, sunday = _week_bounds(week)
@@ -601,7 +737,7 @@ def get_weekly_stats(
             if e.status == "active":
                 pair = _open_pair(db, current_user.id)
                 if pair:
-                    live_secs += int((datetime.utcnow() - pair.check_in).total_seconds())
+                    live_secs += int((_now() - pair.check_in).total_seconds())
             live_hours = round(live_secs / 3600, 2)
             total = round(total + live_hours, 2)
             threshold = _get_threshold_for_date(db, e.date)
@@ -676,7 +812,7 @@ def update_overtime_threshold(
             detail="threshold_hours must be between 0 and 24."
         )
 
-    today = datetime.utcnow().date()
+    today = _now().date()
     row = OvertimeThresholdHistory(
         threshold_hours=Decimal(str(round(new_threshold, 2))),
         effective_date=today,
@@ -716,7 +852,7 @@ def get_all_attendance(
     and offset (0 = current, -1 = previous, etc.).
     Requires 'attendance:view_others' permission.
     """
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    now = _now()
     
     if period == "day":
         target_date = (now + timedelta(days=offset)).date()
